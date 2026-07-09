@@ -111,11 +111,25 @@ Architecture decisions live in [.adr/](./.adr/), indexed in [.adr/README.md](./.
 
 If this subsection already exists, do not duplicate it.
 
-### 6. Report
+### 6. Tick the related feature in the roadmap
+
+After the ADR file is written and the registries are updated, **tick the related feature** in `.project/ROADMAP.md`:
+
+1. Read the ADR's `Related:` line. It lists one or more Feature IDs (4-digit numbers, e.g. `0003`) or other ADR IDs, or `none`.
+2. For each Feature ID found in the `Related:` line:
+   - Locate the row in `.project/ROADMAP.md` whose checkbox line is `- [ ] **<ID>** — <Title>`.
+   - Change `- [ ]` to `- [x]`.
+   - Append (or update) a `Closed:` line under the row's `Description:` line, linking the plan and this ADR. Format: `Closed: Plan [<ID>](../.project/<ID>-<name>-plan.md), ADR [<ID>](../.adr/<ID>-<slug>.md).` Use the actual plan filename found in `.project/` and the actual ADR filename just written. If no plan file exists for the Feature ID, link only the ADR and note `Plan: n/a`.
+   - If the row is already ticked (the feature had a prior related ADR), keep it ticked and add this ADR to the existing `Closed:` line (comma-separated) rather than duplicating the line.
+3. If `Related:` is `none` or lists only other ADR IDs (no Feature ID), DO NOT tick any roadmap row — this ADR is not tied to a feature close.
+4. Ticking is the **last** action of the feature-close sequence and is performed by this command, never by `/create-plan`, `/implement-plan`, or `/fix-review`.
+
+### 7. Report
 
 - Print the path to the new ADR file.
 - Print the ADR ID.
 - Print the path to `.adr/README.md` (updated).
+- Print the path to `.project/ROADMAP.md` if any feature row was ticked, and list the Feature ID(s) ticked.
 - Tell the user the ADR is in `proposed` status and should be discussed before being marked `accepted`.
 
 ## ADR Status Lifecycle
@@ -136,3 +150,5 @@ Changing an ADR's status is a manual edit (not a command) and should be done as 
 - Creating an ADR without the `AGENTS.md` pointer existing at least once.
 - Using a non-4-digit ADR ID.
 - Omitting any section of the template.
+- Ticking a roadmap feature row whose `Related:` Feature ID has no closed plan in `.project/` — the plan must be closed first; if it is not, STOP and tell the user to close the plan before creating the ADR.
+- Ticking a roadmap row when `Related:` is `none` or lists no Feature ID.

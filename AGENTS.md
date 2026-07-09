@@ -68,6 +68,7 @@ All code and design work must comply with [docs/PRINCIPLES.md](./docs/PRINCIPLES
 |---|---|
 | [AGENTS.md](./AGENTS.md) | This file. Root index for all agents. |
 | [README.md](./README.md) | Project front door: mission pointer, prerequisites, quick start via `make`, architecture overview, repository layout, contributing. Spec: [docs/STACK.md §7.2](./docs/STACK.md#72-readmemd). |
+| [.project/ROADMAP.md](./.project/ROADMAP.md) | Feature roadmap by milestone. Source of truth for `/create-plan` (reads the next unchecked feature when no argument is given) and for the feature-close tick rule (performed by `/create-adr` after the related ADR is written). |
 | [models/embed/README.md](./models/embed/README.md) | Notes the expected GGUF filename, model origin, and provisioning instructions for the embedding model (`llama-embed` container). |
 | [models/generate/README.md](./models/generate/README.md) | Notes the expected GGUF filename, model origin, and provisioning instructions for the generation model (`llama-generate` container). |
 
