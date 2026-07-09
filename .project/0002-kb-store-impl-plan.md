@@ -1,6 +1,7 @@
 # Plan 0002: kb-store libSQL Implementation
 
-- **Status**: draft
+- **Status**: open
+- **Approved**: 2026-07-09 by Sisyphus (opencode)
 - **Branch**: feat/kb-store-impl
 - **Feature ID**: 0002
 - **Created**: 2026-07-09
