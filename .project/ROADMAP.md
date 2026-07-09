@@ -60,8 +60,9 @@ The always-on ingest service that populates `kb.db` from configured URL sources 
   - Description: Turn the `ingest` binary from a heartbeat skeleton into the always-on service. On startup, load the active schedule and sections from `kb.db` via `kb-store`. Run a tokio cron task that, on each tick, invokes the `IngestPipeline` for every enabled `scrape` source of every enabled section. Poll `kb.db` for configuration changes every N seconds (configurable) and apply them without restart. Consume the `ingest_run_request` flag row to trigger an immediate out-of-schedule run. Honor `SIGTERM` for clean shutdown. Integration test for the pipeline runner end-to-end with wiremock.
   - Closed: Plan [0006](../.project/0006-ingest-service-long-running-scheduler-plan.md), ADR [0007](../.adr/0007-cron-based-ingest-scheduler.md).
 
-- [ ] **0007** — ingest-cli: one-shot manual run developer tool
+- [x] **0007** — ingest-cli: one-shot manual run developer tool
   - Description: Upgrade `ingest-cli` from a help-line skeleton into a thin one-shot developer tool over `ingest-core`. Support `ingest-cli run --url <URL> --section <name>` (scrape + chunk + embed + insert into `kb.db`) and `ingest-cli run --section <name> --all-sources` (read the section's configured sources from `kb.db` and run them once). No scheduling, no daemon. This is a developer convenience, not a production container. Unit tests for argument parsing; integration test against a `wiremock` source URL.
+  - Closed: Plan [0007](../.project/0007-ingest-cli-one-shot-manual-run-developer-tool-plan.md). No ADR — thin developer convenience CLI, no architectural decision to record.
 
 ---
 
