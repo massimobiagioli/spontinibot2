@@ -36,7 +36,7 @@ The walking skeleton, the shared data layer, and the citizen-facing RAG flow. Af
 
 - [x] **0002** — kb-store libSQL Implementation
   - Description: Transform `kb-store` from a version-string skeleton into a working libSQL access layer. Add the `libsql` dependency, an idempotent embedded-SQL migration runner creating the `documents` and `persona` tables per STACK.md §3.5, and a Clean-Architecture public API: `KbStore::open`, document CRUD (`insert`, `get_by_id`, `get_by_source`, `search_similar` via `vector_distance_cos`, `delete`), and versioned persona CRUD (`insert`, `get_active`, `get_by_id`, `get_versions`, `activate`) honoring the `is_active` partial unique index. No wiring into `backend` or `ingest` yet.
-  - Closed: Plan [0002](../.project/0002-kb-store-impl-plan.md).
+  - Closed: Plan [0002](../.project/0002-kb-store-impl-plan.md), ADR [0004](../.adr/0004-libsql-storage-layer.md).
 
 - [x] **0003** — rag-engine: Retrieval-Augmented Generation for `/chat`
   - Description: Transform `POST /chat` from a walking-skeleton stub into a real RAG flow. Build the `rag_engine` module inside `backend` with framework-agnostic domain types (`Answer`, `CitedSource`, `PromptParts`, `RagError`, `PersonaSnapshot`), four `#[async_trait]` ports (`EmbeddingPort`, `RetrievalPort`, `PersonaPort`, `GenerationPort`), KbStore-backed and HTTP-backed adapters, a 3-part prompt assembler (persona / context / question structurally separated), and a `RagEngine` use case orchestrating the ports with the honest-unknown fallback that never calls the generation model when no chunks are retrieved (Constitution §5). Wire `/chat` via dependency-injected `AppState` with `Config::from_env`, and add BDD scenarios for the answerable and honest-unknown paths.
@@ -50,15 +50,15 @@ The always-on ingest service that populates `kb.db` from configured URL sources 
 
 - [x] **0004** — kb-store ingest configuration schema
   - Description: Extend `kb-store` with the configuration tables that drive the ingest service: `ingest_schedule` (cron expression, enabled flag), `ingest_section` (name, e.g. sport/news/delibere/storia, ordering), `ingest_source` (section_id, source_type `scrape`|`api`, url, enabled; `api` rows are stored but never wired), and a `ingest_run_request` flag-row table used by `/admin/api/ingest/run`. Add a `V2__ingest_config.sql` migration (idempotent, transactional) and public CRUD methods on `KbStore` (`get_schedule`, `upsert_schedule`, `list_sections`, `upsert_section`, `list_sources_by_section`, `upsert_source`, `request_run`, `consume_run_request`). Unit tests for every method; no `backend` or `ingest` wiring.
-  - Closed: Plan [0004](../.project/0004-kb-store-ingest-config-schema-plan.md).
+  - Closed: Plan [0004](../.project/0004-kb-store-ingest-config-schema-plan.md), ADR [0005](../.adr/0005-ingest-configuration-data-model.md).
 
 - [x] **0005** — ingest-core: scraper adapter, chunking, embedding pipeline
   - Description: Build `ingest-core` into a real shared library. Implement the `scraper` adapter (HTTP GET a URL, extract visible text via `scraper`/`kuchiki`, honor `robots.txt` and a content-type allowlist), a chunking module (recursive text splitter, ~512-token chunks with ~64-token overlap, section-tagged metadata), and an embedding client that POSTs chunk text to `llama-embed` `/embedding` and validates the 768-dim response against `kb_store::EMBEDDING_DIM`. Define a `Pipeline` trait and a `IngestPipeline` orchestrator (scrape → chunk → embed → `KbStore::insert_document`). The `api-client` adapter exists as a stub and is explicitly NOT wired. Unit tests with `wiremock` for HTTP; no scheduler, no container.
-  - Closed: Plan [0005](../.project/0005-ingest-core-scraper-adapter-chunking-embedding-pipeline-plan.md).
+  - Closed: Plan [0005](../.project/0005-ingest-core-scraper-adapter-chunking-embedding-pipeline-plan.md), ADR [0006](../.adr/0006-ingest-pipeline-trait.md).
 
 - [x] **0006** — ingest service: long-running scheduler
   - Description: Turn the `ingest` binary from a heartbeat skeleton into the always-on service. On startup, load the active schedule and sections from `kb.db` via `kb-store`. Run a tokio cron task that, on each tick, invokes the `IngestPipeline` for every enabled `scrape` source of every enabled section. Poll `kb.db` for configuration changes every N seconds (configurable) and apply them without restart. Consume the `ingest_run_request` flag row to trigger an immediate out-of-schedule run. Honor `SIGTERM` for clean shutdown. Integration test for the pipeline runner end-to-end with wiremock.
-  - Closed: Plan [0006](../.project/0006-ingest-service-long-running-scheduler-plan.md).
+  - Closed: Plan [0006](../.project/0006-ingest-service-long-running-scheduler-plan.md), ADR [0007](../.adr/0007-cron-based-ingest-scheduler.md).
 
 - [ ] **0007** — ingest-cli: one-shot manual run developer tool
   - Description: Upgrade `ingest-cli` from a help-line skeleton into a thin one-shot developer tool over `ingest-core`. Support `ingest-cli run --url <URL> --section <name>` (scrape + chunk + embed + insert into `kb.db`) and `ingest-cli run --section <name> --all-sources` (read the section's configured sources from `kb.db` and run them once). No scheduling, no daemon. This is a developer convenience, not a production container. Unit tests for argument parsing; integration test against a `wiremock` source URL.

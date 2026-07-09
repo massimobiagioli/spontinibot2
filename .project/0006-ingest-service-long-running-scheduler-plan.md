@@ -1,6 +1,8 @@
 # Plan 0006: ingest service — long-running scheduler
 
-- **Status**: review
+- **Status**: closed
+- **Closed**: 2026-07-09 by Sisyphus (opencode)
+- **Review verdict**: approved
 - **Approved**: 2026-07-09 by Sisyphus
 - **Branch**: feat/ingest-service-long-running-scheduler
 - **Feature ID**: 0006

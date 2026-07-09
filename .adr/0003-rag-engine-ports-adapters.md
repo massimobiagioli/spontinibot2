@@ -1,6 +1,6 @@
 # ADR 0003: RAG Engine as Backend Module with Ports/Adapters Architecture
 
-- **Status**: proposed
+- **Status**: accepted
 - **Date**: 2026-07-09
 - **Deciders**: Sisyphus (opencode)
 - **Related**: 0001, 0002, 0003 (Feature ID)
