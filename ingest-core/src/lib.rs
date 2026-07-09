@@ -1,3 +1,11 @@
+pub mod chunking;
+pub mod embed;
+pub mod error;
+pub mod pipeline;
+pub mod scraper;
+
+pub use error::IngestError;
+
 pub fn version() -> &'static str {
     "ingest-core 0.1.0"
 }
