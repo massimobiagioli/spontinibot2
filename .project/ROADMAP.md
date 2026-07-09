@@ -48,8 +48,9 @@ The walking skeleton, the shared data layer, and the citizen-facing RAG flow. Af
 
 The always-on ingest service that populates `kb.db` from configured URL sources and from per-section manual uploads, on a schedule and on demand. After Milestone 1, the knowledge base is no longer fed by tests alone.
 
-- [ ] **0004** — kb-store ingest configuration schema
+- [x] **0004** — kb-store ingest configuration schema
   - Description: Extend `kb-store` with the configuration tables that drive the ingest service: `ingest_schedule` (cron expression, enabled flag), `ingest_section` (name, e.g. sport/news/delibere/storia, ordering), `ingest_source` (section_id, source_type `scrape`|`api`, url, enabled; `api` rows are stored but never wired), and a `ingest_run_request` flag-row table used by `/admin/api/ingest/run`. Add a `V2__ingest_config.sql` migration (idempotent, transactional) and public CRUD methods on `KbStore` (`get_schedule`, `upsert_schedule`, `list_sections`, `upsert_section`, `list_sources_by_section`, `upsert_source`, `request_run`, `consume_run_request`). Unit tests for every method; no `backend` or `ingest` wiring.
+  - Closed: Plan [0004](../.project/0004-kb-store-ingest-config-schema-plan.md).
 
 - [ ] **0005** — ingest-core: scraper adapter, chunking, embedding pipeline
   - Description: Build `ingest-core` into a real shared library. Implement the `scraper` adapter (HTTP GET a URL, extract visible text via `scraper`/`kuchiki`, honor `robots.txt` and a content-type allowlist), a chunking module (recursive text splitter, ~512-token chunks with ~64-token overlap, section-tagged metadata), and an embedding client that POSTs chunk text to `llama-embed` `/embedding` and validates the 768-dim response against `kb_store::EMBEDDING_DIM`. Define a `Pipeline` trait and a `IngestPipeline` orchestrator (scrape → chunk → embed → `KbStore::insert_document`). The `api-client` adapter exists as a stub and is explicitly NOT wired. Unit tests with `wiremock` for HTTP; no scheduler, no container.
