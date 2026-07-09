@@ -1,7 +1,8 @@
 # Plan 0002: kb-store libSQL Implementation
 
-- **Status**: open
+- **Status**: review
 - **Approved**: 2026-07-09 by Sisyphus (opencode)
+- **Implemented**: 2026-07-09 by Sisyphus (opencode)
 - **Branch**: feat/kb-store-impl
 - **Feature ID**: 0002
 - **Created**: 2026-07-09
@@ -32,14 +33,14 @@ This serves the [Constitution §1](../docs/CONSTITUTION.md#1-mission) mission by
 
 Goal: Add the `libsql` dependency, implement a hand-rolled embedded-SQL migration runner, and verify it creates both tables with the correct schema idempotently.
 
-- [ ] **Task 1.1** — Add `libsql` dependency to `kb-store`
+- [x] **Task 1.1** — Add `libsql` dependency to `kb-store`
   - What: Update `kb-store/Cargo.toml` with `[dependencies] libsql = { version = "0.9", default-features = false, features = ["core"] }` and add `thiserror = "1"` for typed errors. No other dependencies (`tokio` is not needed at the library layer — the caller provides the async runtime; `libsql`'s API is already async).
   - Deliverables:
     - `kb-store/Cargo.toml` updated
   - Skills to load: spontini-clean-arch-guard
   - Verification: `cargo check -p kb-store` compiles successfully
 
-- [ ] **Task 1.2** — Write embedded SQL migration runner
+- [x] **Task 1.2** — Write embedded SQL migration runner
   - What: Create `kb-store/src/migrations/` with:
     - `V1__initial_schema.sql` — `CREATE TABLE IF NOT EXISTS documents (...)` with all columns from STACK.md §3.5 (`id INTEGER PRIMARY KEY`, `source TEXT`, `source_ref TEXT`, `content TEXT`, `metadata TEXT`, `embedding F32_BLOB(768)`) and `CREATE TABLE IF NOT EXISTS persona (...)` with all columns and the partial unique index `idx_persona_active`.
     - `mod.rs` — A `run_migrations(conn: &Connection) -> Result<()>` function that:
@@ -55,7 +56,7 @@ Goal: Add the `libsql` dependency, implement a hand-rolled embedded-SQL migratio
   - Skills to load: spontini-tdd-rust, spontini-clean-arch-guard
   - Verification: `cargo test -p kb-store should_create_tables_when_migrations_run` passes; second run is idempotent (no errors, no duplicate rows)
 
-- [ ] **Task 1.3** — Define `KbStoreError` and `Result` type
+- [x] **Task 1.3** — Define `KbStoreError` and `Result` type
   - What: Create `kb-store/src/error.rs` with a `#[derive(Error, Debug)]` enum:
     - `Database(#[from] libsql::Error)` — wraps libSQL errors
     - `InvalidDimension { expected: usize, actual: usize }` — for embedding vector size mismatch
@@ -72,7 +73,7 @@ Goal: Add the `libsql` dependency, implement a hand-rolled embedded-SQL migratio
 
 Goal: Define the `Document` domain type and implement full document CRUD with vector similarity search.
 
-- [ ] **Task 2.1** — Define `Document`, `DocumentSource`, `NewDocument`, and `ScoredDocument` types
+- [x] **Task 2.1** — Define `Document`, `DocumentSource`, `NewDocument`, and `ScoredDocument` types
   - What: Create `kb-store/src/types.rs` with:
     - `#[derive(Debug, Clone, PartialEq)]` `pub struct Document { pub id: i64, pub source: DocumentSource, pub source_ref: String, pub content: String, pub metadata: Option<String>, pub embedding: Option<Vec<f32>> }`
     - `#[derive(Debug, Clone, PartialEq)]` `pub enum DocumentSource { Scrape, Api, Manual }` with `Display` and `FromStr` impls
@@ -85,7 +86,7 @@ Goal: Define the `Document` domain type and implement full document CRUD with ve
   - Skills to load: spontini-tdd-rust
   - Verification: `cargo test -p kb-store` passes; clippy clean
 
-- [ ] **Task 2.2** — Implement `KbStore::open()` and `KbStore::insert_document()`
+ - [x] **Task 2.2** — Implement `KbStore::open()` and `KbStore::insert_document()`
   - What: Create `kb-store/src/lib.rs` with:
     - `pub struct KbStore { db: Database }` - wraps libsql `Database`, not `Connection` (caller gets connections as needed)  
     - `pub async fn open(path: &str) -> Result<Self>` — calls `Builder::new_local(path).build().await`, runs `migrations::run_migrations()`, returns `KbStore`
@@ -101,7 +102,7 @@ Goal: Define the `Document` domain type and implement full document CRUD with ve
   - Skills to load: spontini-tdd-rust, spontini-clean-arch-guard
   - Verification: `cargo test -p kb-store should_insert_document_when_valid_embedding_provided` passes; `cargo test -p kb-store should_reject_document_when_wrong_dimension` passes
 
-- [ ] **Task 2.3** — Implement `get_document()` and `get_documents_by_source()`
+- [x] **Task 2.3** — Implement `get_document()` and `get_documents_by_source()`
   - What: Add to `KbStore`:
     - `pub async fn get_document(&self, id: i64) -> Result<Option<Document>>` — `SELECT * FROM documents WHERE id = ?1`, reconstructs `Document` from row (including blob→f32_vec conversion). Returns `None` if no row.
     - `pub async fn get_documents_by_source(&self, source: DocumentSource, limit: i64, offset: i64) -> Result<Vec<Document>>` — `SELECT * FROM documents WHERE source = ?1 ORDER BY id DESC LIMIT ?2 OFFSET ?3`
@@ -112,7 +113,7 @@ Goal: Define the `Document` domain type and implement full document CRUD with ve
   - Skills to load: spontini-tdd-rust
   - Verification: `cargo test -p kb-store` passes all doc query tests; clippy clean
 
-- [ ] **Task 2.4** — Implement `search_similar()` vector search
+- [x] **Task 2.4** — Implement `search_similar()` vector search
   - What: Add to `KbStore`:
     - `pub async fn search_similar(&self, query_embedding: &[f32], top_k: i64, min_score: f64) -> Result<Vec<ScoredDocument>>` — validates embedding dimension (768), executes:
       ```sql
@@ -133,7 +134,7 @@ Goal: Define the `Document` domain type and implement full document CRUD with ve
   - Skills to load: spontini-tdd-rust
   - Verification: `cargo test -p kb-store should_return_similar_documents_when_searching` passes; verify the similarity scores are in the expected range (0-2 distance, 1 - distance = cosine similarity in [-1,1])
 
-- [ ] **Task 2.5** — Implement `delete_document()`
+- [x] **Task 2.5** — Implement `delete_document()`
   - What: Add to `KbStore`:
     - `pub async fn delete_document(&self, id: i64) -> Result<bool>` — `DELETE FROM documents WHERE id = ?1`, returns `true` if a row was deleted, `false` if no row matched
   - Deliverables:
@@ -146,7 +147,7 @@ Goal: Define the `Document` domain type and implement full document CRUD with ve
 
 Goal: Implement versioned persona operations — inserts only, never UPDATE, with the partial unique index on `is_active`.
 
-- [ ] **Task 3.1** — Define `Persona` and `NewPersona` types
+- [x] **Task 3.1** — Define `Persona` and `NewPersona` types
   - What: Add to `kb-store/src/types.rs`:
     - `#[derive(Debug, Clone, PartialEq)] pub struct Persona { pub id: i64, pub version: i32, pub name: String, pub system_prompt: String, pub tone: Option<String>, pub fallback_message: Option<String>, pub is_active: bool, pub created_at: String, pub created_by: Option<String> }`
     - `#[derive(Debug)] pub struct NewPersona { pub name: String, pub system_prompt: String, pub tone: Option<String>, pub fallback_message: Option<String>, pub created_by: Option<String> }`
@@ -157,7 +158,7 @@ Goal: Implement versioned persona operations — inserts only, never UPDATE, wit
   - Skills to load: spontini-tdd-rust
   - Verification: `cargo test -p kb-store` passes
 
-- [ ] **Task 3.2** — Implement `insert_persona()` and `get_active_persona()`
+- [x] **Task 3.2** — Implement `insert_persona()` and `get_active_persona()`
   - What: Add to `KbStore`:
     - `pub async fn insert_persona(&self, persona: NewPersona, activate: bool) -> Result<Persona>` — in a transaction:
       1. Compute `version`: `SELECT COALESCE(MAX(version), 0) + 1 FROM persona WHERE name = ?1`
@@ -174,7 +175,7 @@ Goal: Implement versioned persona operations — inserts only, never UPDATE, wit
   - Skills to load: spontini-tdd-rust
   - Verification: `cargo test -p kb-store` passes all persona tests
 
-- [ ] **Task 3.3** — Implement `get_persona()`, `get_persona_versions()`, and `activate_persona()`
+- [x] **Task 3.3** — Implement `get_persona()`, `get_persona_versions()`, and `activate_persona()`
   - What: Add to `KbStore`:
     - `pub async fn get_persona(&self, id: i64) -> Result<Option<Persona>>` — `SELECT * FROM persona WHERE id = ?1`
     - `pub async fn get_persona_versions(&self, name: &str) -> Result<Vec<Persona>>` — `SELECT * FROM persona WHERE name = ?1 ORDER BY version DESC`
@@ -189,7 +190,7 @@ Goal: Implement versioned persona operations — inserts only, never UPDATE, wit
 
 Goal: Finalize module structure, run the full verification gate, ensure everything is ready for consumers.
 
-- [ ] **Task 4.1** — Review `kb-store` public API surface (module structure + visibility)
+- [x] **Task 4.1** — Review `kb-store` public API surface (module structure + visibility)
   - What: Audit the `kb-store/src/lib.rs` and ensure:
     - Only intended types are `pub` — the `KbStore` struct, its methods, the `Result`/`KbStoreError` types, and the domain types (`Document`, `Persona`, etc.)
     - Internal helpers (`f32_slice_to_blob`, `blob_to_f32_vec`, `row_to_document`, `row_to_persona`) are `pub(crate)` or private
@@ -202,7 +203,7 @@ Goal: Finalize module structure, run the full verification gate, ensure everythi
   - Skills to load: spontini-clean-arch-guard
   - Verification: `cargo doc -p kb-store --no-deps` succeeds without warnings; only intended symbols appear in the generated docs
 
-- [ ] **Task 4.2** — Full verification gate
+- [x] **Task 4.2** — Full verification gate
   - What: Run the complete verify cycle on `kb-store`:
     ```bash
     cargo test -p kb-store -- --nocapture
