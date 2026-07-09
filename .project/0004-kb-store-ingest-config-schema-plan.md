@@ -1,8 +1,10 @@
 # Plan 0004: kb-store ingest configuration schema
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-09 by Sisyphus (opencode)
 - **Implemented**: 2026-07-09 by Sisyphus (opencode)
+- **Closed**: 2026-07-09 by Sisyphus (opencode)
+- **Review verdict**: approved
 - **Branch**: feat/kb-store-ingest-config-schema
 - **Feature ID**: 0004
 - **Created**: 2026-07-09
