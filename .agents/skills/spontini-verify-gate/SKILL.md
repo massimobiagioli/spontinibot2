@@ -63,6 +63,8 @@ docker compose config --quiet
 
 Validates the compose file syntax. Run this if you touched `docker-compose.yml`, any `Dockerfile`, or service definitions.
 
+**Makefile hygiene check (if Makefile touched):** No target may contain inline shell agglomerations (`if`/`else`, loops, multi-line `curl`, >3 lines of shell). Any such logic belongs in `bin/<name>.sh`, invoked as `./bin/<name>.sh`. See [docs/STACK.md §7.3 Rule 7](../../docs/STACK.md#73-makefile--container-first-operator-entry-point).
+
 ## Gate 8 — BDD Scenarios (If Feature Touched)
 
 ```bash

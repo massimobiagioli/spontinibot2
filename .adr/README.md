@@ -1,0 +1,13 @@
+# Architecture Decision Records
+
+This directory holds the ADRs for the Spontini Bot 2 project. Each ADR records a binding architectural decision with its context, rationale, and consequences.
+
+| ID | Title | Status | Date |
+|---|---|---|---|
+| [0001](./0001-generation-model-3b.md) | Generation model — Qwen2.5-3B-Instruct instead of 7B | Accepted | 2026-07-09 |
+
+## How to add a new ADR
+
+1. Use the [`/create-adr`](../.opencode/commands/create-adr.md) command.
+2. The command assigns the next 4-digit ID, writes `.adr/<ID>-<slug>.md`, and appends a row to this index.
+3. ADRs are immutable once Accepted — supersede with a new ADR that references the old one.

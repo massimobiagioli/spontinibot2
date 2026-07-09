@@ -1,0 +1,11 @@
+[package]
+name = "ingest"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+ingest-core = { path = "../ingest-core" }
+tokio = { version = "1", features = ["rt", "macros", "signal"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }

@@ -1,0 +1,42 @@
+# Spontini Bot 2 — Cargo workspace root
+# Spec: docs/STACK.md §6 — Cargo workspace layout
+#
+# The workspace contains 5 Rust crates:
+#   backend     — axum HTTP, rag-engine, /chat + /admin/api/* (core container)
+#   ingest-core — shared ingest library (adapters, chunking, embed calls)
+#   ingest      — always-on ingest service binary (scheduler + adapters)
+#   ingest-cli  — thin one-shot CLI binary over ingest-core (developer tool only)
+#   kb-store    — libSQL access layer, shared by backend and ingest
+#
+# Dependency rule (enforced by spontini-clean-arch-guard):
+#   kb-store  ←  ingest-core  ←  ingest-cli
+#   kb-store  ←  backend
+#   ingest-core  ←  ingest
+# Dependencies point only inward. No circular edges.
+
+[workspace]
+resolver = "2"
+members = [
+    "backend",
+    "ingest-core",
+    "ingest",
+    "ingest-cli",
+    "kb-store",
+]
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+version = "0.1.0"
+authors = ["Massimo Biagioli"]
+description = "Spontini — conversational AI assistant for Comune di Maiolati Spontini"
+
+[profile.dev]
+opt-level = 0
+debug = true
+incremental = true
+
+[profile.release]
+opt-level = 3
+debug = false
+lto = "thin"

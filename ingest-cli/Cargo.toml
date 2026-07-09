@@ -1,0 +1,8 @@
+[package]
+name = "ingest-cli"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+ingest-core = { path = "../ingest-core" }
