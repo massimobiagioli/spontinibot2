@@ -96,7 +96,7 @@ Two separate containerized instances, same engine, different models:
 | Instance | Model | Purpose | Called by |
 |---|---|---|---|
 | `llama-embed` | nomic-embed-text (or bge-small), GGUF Q4/F16 | Text → vector embedding | `ingest-core` and `rag-engine` |
-| `llama-generate` | Qwen2.5-7B-Instruct, GGUF Q4_K_M | Answer generation | `rag-engine` only |
+| `llama-generate` | Qwen2.5-3B-Instruct, GGUF Q4_K_M | Answer generation | `rag-engine` only |
 
 **Constraint:** the same embedding model must be used for writing (ingest) and reading (query). Changing it requires a full re-ingest of the KB.
 
@@ -338,7 +338,7 @@ services:
     image: ghcr.io/ggml-org/llama.cpp:server
     volumes:
       - ./models/generate:/models
-    command: ["--model", "/models/qwen2.5-7b-q4.gguf"]
+    command: ["--model", "/models/qwen2.5-3b-instruct-q4_k_m.gguf"]
 
 volumes:
   kb-data:
@@ -414,6 +414,7 @@ The Makefile is the **single entry point** for every operator and developer acti
 4. **No hidden state.** Every target is idempotent and cleans up after itself. `make` never leaves dangling containers, volumes, or build artifacts on the host.
 5. **Idiomatic names.** `build`, `up`, `down`, `test`, `lint`, `fmt`, `check`, `clean`, `logs`, `shell`. No abbreviations that a newcomer cannot decode.
 6. **One concern per target.** `test-backend` runs backend tests; `test-frontend` runs frontend tests; `test` depends on both. No mega-target.
+7. **No inline shell agglomerations.** A Makefile target must be a thin delegation: one `docker compose` invocation, or one call to a script under `bin/`. Any logic that needs conditionals (`if`/`else`), loops, multi-line `curl` downloads, or more than ~3 lines of shell belongs in a dedicated bash script at `bin/<name>.sh`, invoked from the Makefile as `./bin/<name>.sh`. The `bin/` directory is the single home for operator scripts — it keeps the Makefile readable, makes scripts testable in isolation, and avoids Makefile escaping pitfalls (`$$` vs `$`, `@` prefixes, line continuations).
 
 #### Mandatory targets
 

@@ -104,8 +104,8 @@ fmt:
 ## fmt-check: verify formatting without writing
 fmt-check:
 	$(COMPOSE) run --rm backend cargo fmt --check
-	$(COMPOSE) run --rm frontend npm run format -- --check
-	$(COMPOSE) run --rm admin-ui npm run format -- --check
+	$(COMPOSE) run --rm frontend npm run format:check
+	$(COMPOSE) run --rm admin-ui npm run format:check
 
 .PHONY: check
 ## check: cargo check (workspace) — fast compile gate
@@ -136,6 +136,12 @@ ingest-run:
 ## compose-config: validate the docker-compose.yml
 compose-config:
 	$(COMPOSE) config -q
+
+# --- Models ---------------------------------------------------------------
+.PHONY: provision-models
+## provision-models: download GGUF model files for the inference containers
+provision-models:
+	./bin/provision-models.sh
 
 # --- Pre-completion gate --------------------------------------------------
 .PHONY: verify

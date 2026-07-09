@@ -6,10 +6,6 @@
 # ── Rust / Cargo ────────────────────────────────────────────
 **/target/
 **/*.rs.bk
-Cargo.lock
-# NOTE: keep Cargo.lock committed for binaries; uncomment the line above
-# only if a library workspace is desired. Left ignored by default per
-# workspace policy — remove if binary reproducibility is required.
 
 # ── Node / Vue / Vite ──────────────────────────────────────
 **/node_modules/
