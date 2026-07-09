@@ -10,6 +10,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await?;
     tracing::info!("backend listening on 0.0.0.0:8080");
 
-    axum::serve(listener, router()).await?;
+    axum::serve(listener, router().await).await?;
     Ok(())
 }
