@@ -1,8 +1,10 @@
 # Plan 0001: Bootstrap Infrastructure — Docker Services & Walking Skeletons
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-09 by Sisyphus (opencode)
 - **Implemented**: 2026-07-09 by Sisyphus (opencode)
+- **Closed**: 2026-07-09 by Sisyphus (opencode)
+- **Review verdict**: approved
 - **Branch**: feat/bootstrap-infra
 - **Feature ID**: 0001
 - **Created**: 2026-07-09
