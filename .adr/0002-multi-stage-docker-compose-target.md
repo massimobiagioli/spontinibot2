@@ -1,6 +1,6 @@
 # ADR 0002: Multi-stage Docker Builds as Compose Default Target
 
-- **Status**: proposed
+- **Status**: accepted
 - **Date**: 2026-07-09
 - **Deciders**: Sisyphus (opencode)
 - **Related**: Plan 0001

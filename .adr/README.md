@@ -5,7 +5,7 @@ This directory holds the ADRs for the Spontini Bot 2 project. Each ADR records a
 | ID | Title | Status | Date |
 |---|---|---|---|---|
 | [0001](./0001-generation-model-3b.md) | Generation model — Qwen2.5-3B-Instruct instead of 7B | Accepted | 2026-07-09 |
-| [0002](./0002-multi-stage-docker-compose-target.md) | Multi-stage Docker Builds as Compose Default Target | proposed | 2026-07-09 |
+| [0002](./0002-multi-stage-docker-compose-target.md) | Multi-stage Docker Builds as Compose Default Target | accepted | 2026-07-09 |
 
 ## How to add a new ADR
 
