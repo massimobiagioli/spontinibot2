@@ -101,6 +101,7 @@ The following custom commands are registered for this repository. They live unde
 | review-plan | [`.opencode/commands/review-plan.md`](./.opencode/commands/review-plan.md) | Code-review an implementation. Produces `.project/<ID>-<name>-review.md` with findings and a verdict. | When a plan is in `review` state. |
 | fix-review | [`.opencode/commands/fix-review.md`](./.opencode/commands/fix-review.md) | Implement the fixes required by a review. Transitions status to `closed`. | After `/review-plan` returns `changes-requested`. |
 | create-adr | [`.opencode/commands/create-adr.md`](./.opencode/commands/create-adr.md) | Create an Architecture Decision Record at `.adr/<ID>.md`, update the ADR registry, and ensure the `AGENTS.md` pointer exists. | When recording a binding architectural decision. |
+| next-steps | [`.opencode/commands/next-steps.md`](./.opencode/commands/next-steps.md) | Run the full plan lifecycle (create → approve → implement → review → fix → ADR) for the next N unchecked roadmap features, merging each to main. Default: 1 feature. Pass an integer N or `all`. | When implementing one or more roadmap features end-to-end without manual orchestration. |
 
 ### ADR Registry
 
