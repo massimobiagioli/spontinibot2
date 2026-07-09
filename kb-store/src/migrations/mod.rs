@@ -1,0 +1,94 @@
+use crate::error::Result;
+use libsql::Connection;
+
+const V1_SCHEMA: &str = include_str!("V1__initial_schema.sql");
+
+/// Run database migrations idempotently.
+///
+/// Creates the `_migrations` tracking table if it does not exist,
+/// applies the base schema (idempotent via `IF NOT EXISTS`),
+/// and records the migration as applied.
+pub async fn run_migrations(conn: &Connection) -> Result<()> {
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS _migrations (
+            version INTEGER PRIMARY KEY,
+            name TEXT NOT NULL,
+            applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )",
+    )
+    .await?;
+
+    let mut rows = conn
+        .query(
+            "SELECT 1 FROM _migrations WHERE version = 1",
+            libsql::params![],
+        )
+        .await?;
+    if rows.next().await?.is_none() {
+        let tx = conn.transaction().await?;
+        tx.execute_batch(V1_SCHEMA).await?;
+        tx.execute(
+            "INSERT INTO _migrations (version, name) VALUES (1, 'initial_schema')",
+            libsql::params![],
+        )
+        .await?;
+        tx.commit().await?;
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use libsql::Builder;
+
+    #[tokio::test]
+    async fn should_create_tables_when_migrations_run() {
+        let db = Builder::new_local(":memory:")
+            .build()
+            .await
+            .expect("failed to create in-memory db");
+        let conn = db.connect().expect("failed to connect");
+
+        run_migrations(&conn).await.expect("migrations failed");
+
+        let mut rows = conn
+            .query(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='documents'",
+                libsql::params![],
+            )
+            .await
+            .expect("failed to query sqlite_master");
+        assert!(
+            rows.next().await.unwrap().is_some(),
+            "documents table should exist"
+        );
+
+        let mut rows = conn
+            .query(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='persona'",
+                libsql::params![],
+            )
+            .await
+            .expect("failed to query sqlite_master");
+        assert!(
+            rows.next().await.unwrap().is_some(),
+            "persona table should exist"
+        );
+    }
+
+    #[tokio::test]
+    async fn should_be_idempotent_when_migrations_run_twice() {
+        let db = Builder::new_local(":memory:")
+            .build()
+            .await
+            .expect("failed to create in-memory db");
+        let conn = db.connect().expect("failed to connect");
+
+        run_migrations(&conn).await.expect("first migration failed");
+        run_migrations(&conn)
+            .await
+            .expect("second migration should also succeed");
+    }
+}
