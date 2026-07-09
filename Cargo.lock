@@ -1192,7 +1192,13 @@ dependencies = [
 name = "ingest-cli"
 version = "0.1.0"
 dependencies = [
+ "clap",
  "ingest-core",
+ "kb-store",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "wiremock",
 ]
 
 [[package]]
