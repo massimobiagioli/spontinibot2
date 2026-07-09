@@ -1,8 +1,10 @@
 # Plan 0005: ingest-core — scraper adapter, chunking, embedding pipeline
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-09 by Sisyphus
 - **Implemented**: 2026-07-09 by Sisyphus
+- **Closed**: 2026-07-09 by Sisyphus
+- **Review verdict**: changes-requested (resolved)
 - **Branch**: feat/ingest-core-scraper-adapter-chunking-embedding-pipeline
 - **Feature ID**: 0005
 - **Created**: 2026-07-09

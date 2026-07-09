@@ -144,7 +144,41 @@ mod tests {
         assert_eq!(version(), "pipeline module 0.1.0");
     }
 
-    fn _assert_pipeline_is_object_safe() -> Box<dyn Pipeline> {
-        todo!()
+    #[test]
+    fn pipeline_is_object_safe() {
+        // Compile-time assertion: this compiles only if Pipeline is object-safe
+        let _p: Option<Box<dyn Pipeline>> = None;
+    }
+
+    #[tokio::test]
+    async fn should_return_robots_txt_error_when_url_disallowed_by_robots() {
+        let mock_server = MockServer::start().await;
+        let embed_server = MockServer::start().await;
+
+        let robots = "User-agent: *\nDisallow: /private/\n";
+        Mock::given(method("GET"))
+            .and(path("/robots.txt"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(robots)
+                    .insert_header("content-type", "text/plain"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let path = temp_db_path();
+        let kb = KbStore::open(&path).await.expect("failed to open db");
+        let pipeline = IngestPipeline::new("test-agent".into(), embed_server.uri(), 512, 64, kb)
+            .expect("failed to create pipeline");
+
+        let url = format!("{}/private/data", mock_server.uri());
+        let result = pipeline.run(&url, "test-section").await;
+
+        assert!(
+            matches!(result, Err(IngestError::RobotsTxt(_))),
+            "expected RobotsTxt error, got {result:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
     }
 }

@@ -408,6 +408,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn should_return_raw_text_when_content_type_is_text_plain() {
+        let mock_server = MockServer::start().await;
+
+        Mock::given(method("GET"))
+            .and(path("/plain.txt"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string("just some plain text content")
+                    .insert_header("content-type", "text/plain"),
+            )
+            .expect(1)
+            .mount(&mock_server)
+            .await;
+
+        Mock::given(method("GET"))
+            .and(path("/robots.txt"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&mock_server)
+            .await;
+
+        let mut adapter = ScraperAdapter::new("test-agent".into());
+        let result = adapter
+            .fetch_text(&format!("{}/plain.txt", mock_server.uri()))
+            .await;
+
+        assert!(result.is_ok(), "expected ok, got {result:?}");
+        let text = result.unwrap();
+        assert_eq!(
+            text, "just some plain text content",
+            "text/plain content should be returned verbatim"
+        );
+    }
+
+    #[tokio::test]
     async fn should_strip_script_and_style_from_html() {
         let html = r#"<!DOCTYPE html><html><head><style>.red{color:red}</style></head><body><h1>Title</h1><script>alert("x")</script><p>Content</p></body></html>"#;
 
