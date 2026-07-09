@@ -98,6 +98,14 @@ Next-steps complete. <M>/<N> features processed.
   ...
 ```
 
+After the summary, push `main` to the remote:
+
+```bash
+git push origin main
+```
+
+If `git push` fails, report the error. All local work is complete; the only issue is remote synchronization.
+
 ## Forbidden
 
 - Running the six steps out of order. The lifecycle is strictly: create → approve → implement → review → fix → ADR/tick.
