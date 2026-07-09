@@ -27,7 +27,9 @@ pub mod types;
 
 pub use error::{KbStoreError, Result};
 pub use types::{
-    Document, DocumentSource, EMBEDDING_DIM, NewDocument, NewPersona, Persona, ScoredDocument,
+    Document, DocumentSource, EMBEDDING_DIM, IngestRunRequest, IngestSchedule, IngestSection,
+    IngestSource, NewDocument, NewIngestSchedule, NewIngestSection, NewIngestSource, NewPersona,
+    Persona, RunRequestStatus, ScoredDocument, SourceType,
 };
 
 use libsql::{Builder, Database, Row};
@@ -302,6 +304,253 @@ impl KbStore {
         )
         .await?;
         tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn get_schedule(&self) -> Result<Option<IngestSchedule>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT cron_expr, enabled, updated_at FROM ingest_schedule WHERE id = 1",
+                libsql::params![],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => Ok(Some(IngestSchedule {
+                cron_expr: row.get::<String>(0)?,
+                enabled: row.get::<i32>(1)? != 0,
+                updated_at: row.get::<String>(2)?,
+            })),
+            None => Ok(None),
+        }
+    }
+
+    pub async fn upsert_schedule(&self, schedule: NewIngestSchedule) -> Result<IngestSchedule> {
+        let conn = self.db.connect()?;
+        conn.execute(
+            "INSERT OR REPLACE INTO ingest_schedule (id, cron_expr, enabled) VALUES (1, ?1, ?2)",
+            libsql::params![schedule.cron_expr, schedule.enabled as i32],
+        )
+        .await?;
+        self.get_schedule()
+            .await?
+            .ok_or_else(|| KbStoreError::Migration("schedule not found after upsert".into()))
+    }
+
+    pub async fn list_sections(&self) -> Result<Vec<IngestSection>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, name, ordering, created_at FROM ingest_section ORDER BY ordering ASC, id ASC",
+                libsql::params![],
+            )
+            .await?;
+        let mut sections = Vec::new();
+        while let Some(row) = rows.next().await? {
+            sections.push(IngestSection {
+                id: row.get::<i64>(0)?,
+                name: row.get::<String>(1)?,
+                ordering: row.get::<i32>(2)?,
+                created_at: row.get::<String>(3)?,
+            });
+        }
+        Ok(sections)
+    }
+
+    pub async fn upsert_section(&self, section: NewIngestSection) -> Result<IngestSection> {
+        let conn = self.db.connect()?;
+        conn.execute(
+            "INSERT INTO ingest_section (name, ordering) VALUES (?1, ?2)",
+            libsql::params![section.name, section.ordering],
+        )
+        .await?;
+        let id = conn.last_insert_rowid();
+        let mut rows = conn
+            .query(
+                "SELECT id, name, ordering, created_at FROM ingest_section WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => Ok(IngestSection {
+                id: row.get::<i64>(0)?,
+                name: row.get::<String>(1)?,
+                ordering: row.get::<i32>(2)?,
+                created_at: row.get::<String>(3)?,
+            }),
+            None => Err(KbStoreError::Migration(
+                "section not found after insert".into(),
+            )),
+        }
+    }
+
+    pub async fn delete_section(&self, id: i64) -> Result<bool> {
+        let conn = self.db.connect()?;
+        let rows_affected = conn
+            .execute(
+                "DELETE FROM ingest_section WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?;
+        Ok(rows_affected > 0)
+    }
+
+    pub async fn list_sources_by_section(&self, section_id: i64) -> Result<Vec<IngestSource>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, section_id, source_type, url, enabled, created_at FROM ingest_source WHERE section_id = ?1 ORDER BY id ASC",
+                libsql::params![section_id],
+            )
+            .await?;
+        let mut sources = Vec::new();
+        while let Some(row) = rows.next().await? {
+            let source_type_str: String = row.get::<String>(2)?;
+            let source_type = source_type_str
+                .parse::<SourceType>()
+                .map_err(|e| KbStoreError::Migration(format!("invalid source_type in db: {e}")))?;
+            sources.push(IngestSource {
+                id: row.get::<i64>(0)?,
+                section_id: row.get::<i64>(1)?,
+                source_type,
+                url: row.get::<String>(3)?,
+                enabled: row.get::<i32>(4)? != 0,
+                created_at: row.get::<String>(5)?,
+            });
+        }
+        Ok(sources)
+    }
+
+    pub async fn upsert_source(&self, source: NewIngestSource) -> Result<IngestSource> {
+        let conn = self.db.connect()?;
+        let source_type_str = source.source_type.to_string();
+        conn.execute(
+            "INSERT INTO ingest_source (section_id, source_type, url, enabled) VALUES (?1, ?2, ?3, ?4)",
+            libsql::params![source.section_id, source_type_str, source.url, source.enabled as i32],
+        )
+        .await?;
+        let id = conn.last_insert_rowid();
+        let mut rows = conn
+            .query(
+                "SELECT id, section_id, source_type, url, enabled, created_at FROM ingest_source WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => {
+                let source_type_str: String = row.get::<String>(2)?;
+                let source_type = source_type_str.parse::<SourceType>().map_err(|e| {
+                    KbStoreError::Migration(format!("invalid source_type in db: {e}"))
+                })?;
+                Ok(IngestSource {
+                    id: row.get::<i64>(0)?,
+                    section_id: row.get::<i64>(1)?,
+                    source_type,
+                    url: row.get::<String>(3)?,
+                    enabled: row.get::<i32>(4)? != 0,
+                    created_at: row.get::<String>(5)?,
+                })
+            }
+            None => Err(KbStoreError::Migration(
+                "source not found after insert".into(),
+            )),
+        }
+    }
+
+    pub async fn delete_source(&self, id: i64) -> Result<bool> {
+        let conn = self.db.connect()?;
+        let rows_affected = conn
+            .execute(
+                "DELETE FROM ingest_source WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?;
+        Ok(rows_affected > 0)
+    }
+
+    pub async fn request_run(&self) -> Result<IngestRunRequest> {
+        let conn = self.db.connect()?;
+        conn.execute(
+            "INSERT INTO ingest_run_request DEFAULT VALUES",
+            libsql::params![],
+        )
+        .await?;
+        let id = conn.last_insert_rowid();
+        let mut rows = conn
+            .query(
+                "SELECT id, requested_at, status FROM ingest_run_request WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => {
+                let status_str: String = row.get::<String>(2)?;
+                let status = status_str
+                    .parse::<RunRequestStatus>()
+                    .map_err(|e| KbStoreError::Migration(format!("invalid status in db: {e}")))?;
+                Ok(IngestRunRequest {
+                    id: row.get::<i64>(0)?,
+                    requested_at: row.get::<String>(1)?,
+                    status,
+                })
+            }
+            None => Err(KbStoreError::Migration(
+                "run request not found after insert".into(),
+            )),
+        }
+    }
+
+    pub async fn consume_run_request(&self) -> Result<Option<IngestRunRequest>> {
+        let conn = self.db.connect()?;
+        let tx = conn.transaction().await?;
+        let mut rows = tx
+            .query(
+                "SELECT id, requested_at, status FROM ingest_run_request WHERE status = 'pending' ORDER BY id ASC LIMIT 1",
+                libsql::params![],
+            )
+            .await?;
+        let row = match rows.next().await? {
+            Some(row) => row,
+            None => {
+                tx.rollback().await?;
+                return Ok(None);
+            }
+        };
+        let id = row.get::<i64>(0)?;
+        let requested_at = row.get::<String>(1)?;
+        tx.execute(
+            "UPDATE ingest_run_request SET status = 'running' WHERE id = ?1",
+            libsql::params![id],
+        )
+        .await?;
+        tx.commit().await?;
+        Ok(Some(IngestRunRequest {
+            id,
+            requested_at,
+            status: RunRequestStatus::Running,
+        }))
+    }
+
+    pub async fn complete_run(&self, id: i64, status: RunRequestStatus) -> Result<()> {
+        let conn = self.db.connect()?;
+        let exists = conn
+            .query(
+                "SELECT 1 FROM ingest_run_request WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?
+            .next()
+            .await?
+            .is_some();
+        if !exists {
+            return Err(KbStoreError::NotFound(format!("run request {id}")));
+        }
+        let status_str = status.to_string();
+        conn.execute(
+            "UPDATE ingest_run_request SET status = ?2 WHERE id = ?1",
+            libsql::params![id, status_str],
+        )
+        .await?;
         Ok(())
     }
 }
@@ -760,6 +1009,314 @@ mod tests {
         let path = temp_db_path();
         let store = KbStore::open(&path).await.expect("failed to open db");
         let result = store.activate_persona(999).await;
+        assert!(matches!(result, Err(KbStoreError::NotFound(_))));
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_none_when_no_schedule() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let result = store.get_schedule().await.expect("query failed");
+        assert!(result.is_none());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_upsert_schedule_and_return_it() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let schedule = store
+            .upsert_schedule(NewIngestSchedule {
+                cron_expr: "0 */4 * * *".into(),
+                enabled: true,
+            })
+            .await
+            .expect("upsert failed");
+        assert_eq!(schedule.cron_expr, "0 */4 * * *");
+        assert!(schedule.enabled);
+
+        let fetched = store.get_schedule().await.expect("query failed");
+        assert!(fetched.is_some_and(|s| s.cron_expr == "0 */4 * * *" && s.enabled));
+
+        store
+            .upsert_schedule(NewIngestSchedule {
+                cron_expr: "30 2 * * *".into(),
+                enabled: false,
+            })
+            .await
+            .expect("second upsert failed");
+        let fetched = store.get_schedule().await.expect("query failed");
+        assert!(fetched.is_some_and(|s| s.cron_expr == "30 2 * * *" && !s.enabled));
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_list_sections_in_ordering_asc() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let s2 = store
+            .upsert_section(NewIngestSection {
+                name: "news".into(),
+                ordering: 20,
+            })
+            .await
+            .expect("insert failed");
+        let s1 = store
+            .upsert_section(NewIngestSection {
+                name: "sport".into(),
+                ordering: 10,
+            })
+            .await
+            .expect("insert failed");
+
+        let sections = store.list_sections().await.expect("query failed");
+        assert_eq!(sections.len(), 2);
+        assert_eq!(sections[0].id, s1.id);
+        assert_eq!(sections[0].name, "sport");
+        assert_eq!(sections[1].id, s2.id);
+        assert_eq!(sections[1].name, "news");
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_false_when_deleting_missing_section() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let result = store.delete_section(999).await.expect("delete failed");
+        assert!(!result);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_list_sources_for_section() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let section = store
+            .upsert_section(NewIngestSection {
+                name: "sport".into(),
+                ordering: 0,
+            })
+            .await
+            .expect("insert failed");
+        let s1 = store
+            .upsert_source(NewIngestSource {
+                section_id: section.id,
+                source_type: SourceType::Scrape,
+                url: "https://example.com/a".into(),
+                enabled: true,
+            })
+            .await
+            .expect("insert failed");
+        let s2 = store
+            .upsert_source(NewIngestSource {
+                section_id: section.id,
+                source_type: SourceType::Scrape,
+                url: "https://example.com/b".into(),
+                enabled: false,
+            })
+            .await
+            .expect("insert failed");
+
+        let sources = store
+            .list_sources_by_section(section.id)
+            .await
+            .expect("query failed");
+        assert_eq!(sources.len(), 2);
+        assert_eq!(sources[0].id, s1.id);
+        assert_eq!(sources[1].id, s2.id);
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_insert_scrape_and_api_source_types() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let section = store
+            .upsert_section(NewIngestSection {
+                name: "news".into(),
+                ordering: 0,
+            })
+            .await
+            .expect("insert failed");
+        let scrape = store
+            .upsert_source(NewIngestSource {
+                section_id: section.id,
+                source_type: SourceType::Scrape,
+                url: "https://example.com".into(),
+                enabled: true,
+            })
+            .await
+            .expect("insert failed");
+        let api = store
+            .upsert_source(NewIngestSource {
+                section_id: section.id,
+                source_type: SourceType::Api,
+                url: "https://api.example.com".into(),
+                enabled: false,
+            })
+            .await
+            .expect("insert failed");
+
+        assert_eq!(scrape.source_type, SourceType::Scrape);
+        assert_eq!(api.source_type, SourceType::Api);
+
+        let sources = store
+            .list_sources_by_section(section.id)
+            .await
+            .expect("query failed");
+        assert_eq!(sources.len(), 2);
+        assert!(sources.iter().any(|s| s.source_type == SourceType::Scrape));
+        assert!(sources.iter().any(|s| s.source_type == SourceType::Api));
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_false_when_deleting_missing_source() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let result = store.delete_source(999).await.expect("delete failed");
+        assert!(!result);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_delete_section_and_cascade_delete_sources() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let conn = store.db.connect().expect("failed to connect");
+        conn.execute_batch("PRAGMA foreign_keys = ON")
+            .await
+            .expect("failed to enable FK");
+        drop(conn);
+
+        let section = store
+            .upsert_section(NewIngestSection {
+                name: "sport".into(),
+                ordering: 0,
+            })
+            .await
+            .expect("insert failed");
+        store
+            .upsert_source(NewIngestSource {
+                section_id: section.id,
+                source_type: SourceType::Scrape,
+                url: "https://example.com".into(),
+                enabled: true,
+            })
+            .await
+            .expect("insert source failed");
+
+        let sources = store
+            .list_sources_by_section(section.id)
+            .await
+            .expect("query failed");
+        assert_eq!(sources.len(), 1);
+
+        let deleted = store
+            .delete_section(section.id)
+            .await
+            .expect("delete failed");
+        assert!(deleted);
+
+        let sources = store
+            .list_sources_by_section(section.id)
+            .await
+            .expect("query failed");
+        assert!(sources.is_empty());
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_request_run_and_return_pending() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let request = store.request_run().await.expect("request_run failed");
+        assert!(request.id > 0);
+        assert_eq!(request.status, RunRequestStatus::Pending);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_consume_first_pending_run() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let r1 = store.request_run().await.expect("request_run failed");
+        let _r2 = store.request_run().await.expect("request_run failed");
+
+        let consumed = store
+            .consume_run_request()
+            .await
+            .expect("consume failed")
+            .expect("should have a pending run");
+        assert_eq!(consumed.id, r1.id);
+        assert_eq!(consumed.status, RunRequestStatus::Running);
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_none_when_no_pending_run() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let result = store.consume_run_request().await.expect("consume failed");
+        assert!(result.is_none());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_complete_run_with_done_status() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let request = store.request_run().await.expect("request_run failed");
+        let _consumed = store
+            .consume_run_request()
+            .await
+            .expect("consume failed")
+            .expect("should have a pending run");
+
+        store
+            .complete_run(request.id, RunRequestStatus::Done)
+            .await
+            .expect("complete_run failed");
+
+        let conn = store.db.connect().expect("failed to connect");
+        let mut rows = conn
+            .query(
+                "SELECT status FROM ingest_run_request WHERE id = ?1",
+                libsql::params![request.id],
+            )
+            .await
+            .expect("query failed");
+        let status_str: String = rows.next().await.unwrap().unwrap().get(0).unwrap();
+        assert_eq!(status_str, "done");
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_error_when_completing_missing_run() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let result = store.complete_run(999, RunRequestStatus::Done).await;
         assert!(matches!(result, Err(KbStoreError::NotFound(_))));
         drop(store);
         let _ = std::fs::remove_file(&path);

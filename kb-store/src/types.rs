@@ -80,6 +80,118 @@ pub struct NewPersona {
 
 pub const EMBEDDING_DIM: usize = 768;
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct IngestSchedule {
+    pub cron_expr: String,
+    pub enabled: bool,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewIngestSchedule {
+    pub cron_expr: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct IngestSection {
+    pub id: i64,
+    pub name: String,
+    pub ordering: i32,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewIngestSection {
+    pub name: String,
+    pub ordering: i32,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum SourceType {
+    Scrape,
+    Api,
+}
+
+impl fmt::Display for SourceType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SourceType::Scrape => write!(f, "scrape"),
+            SourceType::Api => write!(f, "api"),
+        }
+    }
+}
+
+impl FromStr for SourceType {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "scrape" => Ok(SourceType::Scrape),
+            "api" => Ok(SourceType::Api),
+            other => Err(format!("unknown source type: {other}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct IngestSource {
+    pub id: i64,
+    pub section_id: i64,
+    pub source_type: SourceType,
+    pub url: String,
+    pub enabled: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewIngestSource {
+    pub section_id: i64,
+    pub source_type: SourceType,
+    pub url: String,
+    pub enabled: bool,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum RunRequestStatus {
+    Pending,
+    Running,
+    Done,
+    Failed,
+}
+
+impl fmt::Display for RunRequestStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RunRequestStatus::Pending => write!(f, "pending"),
+            RunRequestStatus::Running => write!(f, "running"),
+            RunRequestStatus::Done => write!(f, "done"),
+            RunRequestStatus::Failed => write!(f, "failed"),
+        }
+    }
+}
+
+impl FromStr for RunRequestStatus {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "pending" => Ok(RunRequestStatus::Pending),
+            "running" => Ok(RunRequestStatus::Running),
+            "done" => Ok(RunRequestStatus::Done),
+            "failed" => Ok(RunRequestStatus::Failed),
+            other => Err(format!("unknown run request status: {other}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct IngestRunRequest {
+    pub id: i64,
+    pub requested_at: String,
+    pub status: RunRequestStatus,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,5 +281,42 @@ mod tests {
             created_by: None,
         };
         assert_eq!(new_p.name, "gaspare");
+    }
+
+    #[test]
+    fn should_round_trip_source_type() {
+        let cases = [(SourceType::Scrape, "scrape"), (SourceType::Api, "api")];
+        for (variant, expected) in cases {
+            assert_eq!(variant.to_string(), expected);
+            let parsed: SourceType = expected.parse().unwrap();
+            assert_eq!(parsed, variant);
+        }
+    }
+
+    #[test]
+    fn should_reject_unknown_source_type() {
+        let result: std::result::Result<SourceType, _> = "folder".parse();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_round_trip_run_request_status() {
+        let cases = [
+            (RunRequestStatus::Pending, "pending"),
+            (RunRequestStatus::Running, "running"),
+            (RunRequestStatus::Done, "done"),
+            (RunRequestStatus::Failed, "failed"),
+        ];
+        for (variant, expected) in cases {
+            assert_eq!(variant.to_string(), expected);
+            let parsed: RunRequestStatus = expected.parse().unwrap();
+            assert_eq!(parsed, variant);
+        }
+    }
+
+    #[test]
+    fn should_reject_unknown_run_request_status() {
+        let result: std::result::Result<RunRequestStatus, _> = "unknown".parse();
+        assert!(result.is_err());
     }
 }
