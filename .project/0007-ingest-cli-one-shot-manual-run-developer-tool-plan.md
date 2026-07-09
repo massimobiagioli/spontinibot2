@@ -1,8 +1,10 @@
 # Plan 0007: ingest-cli — one-shot manual run developer tool
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-09 by Sisyphus
 - **Implemented**: 2026-07-09 by Sisyphus
+- **Closed**: 2026-07-09 by Sisyphus
+- **Review verdict**: approved
 - **Branch**: feat/ingest-cli-one-shot-manual-run-developer-tool
 - **Feature ID**: 0007
 - **Created**: 2026-07-09
