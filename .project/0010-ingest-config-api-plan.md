@@ -1,8 +1,10 @@
 # Plan 0010: `/admin/api/ingest/config` — read/write ingest configuration
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-10 by Sisyphus
 - **Implemented**: 2026-07-10 by Sisyphus
+- **Closed**: 2026-07-10 by Sisyphus
+- **Review verdict**: approved
 - **Branch**: feat/ingest-config-api
 - **Feature ID**: 0010
 - **Created**: 2026-07-10
