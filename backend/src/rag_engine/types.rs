@@ -64,6 +64,37 @@ pub struct PersonaSnapshot {
     pub fallback_message: Option<String>,
 }
 
+/// An admin-readable persona snapshot (all fields).
+///
+/// The admin API returns this type so it never depends on `kb_store::Persona`.
+/// The adapter converts between this domain type and the storage type.
+#[derive(Debug, Clone, PartialEq)]
+pub struct AdminPersonaSnapshot {
+    pub id: i64,
+    pub name: String,
+    pub version: i32,
+    pub system_prompt: String,
+    pub tone: Option<String>,
+    pub fallback_message: Option<String>,
+    pub is_active: bool,
+    pub created_at: String,
+    pub created_by: Option<String>,
+}
+
+/// Request to create a new persona version.
+///
+/// The admin API receives this type. The adapter converts it into
+/// `kb_store::NewPersona` for persistence, adding `created_by`.
+pub struct NewPersonaRequest {
+    pub name: String,
+    pub system_prompt: String,
+    pub tone: Option<String>,
+    pub fallback_message: Option<String>,
+    pub activate: bool,
+    /// TODO(0027): use authenticated admin identity
+    pub created_by: Option<String>,
+}
+
 /// Errors that can occur in the rag-engine flow.
 #[derive(Debug, thiserror::Error)]
 pub enum RagError {
@@ -78,6 +109,9 @@ pub enum RagError {
 
     #[error("persona error: {0}")]
     Persona(String),
+
+    #[error("persona not found")]
+    PersonaNotFound,
 
     #[error("no active persona configured")]
     NoActivePersona,
@@ -131,6 +165,7 @@ mod tests {
             RagError::Persona("missing".into()).to_string(),
             "persona error: missing"
         );
+        assert_eq!(RagError::PersonaNotFound.to_string(), "persona not found");
         assert_eq!(
             RagError::NoActivePersona.to_string(),
             "no active persona configured"

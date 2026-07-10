@@ -1,8 +1,10 @@
 # Plan 0008: `/admin/api/persona` — bot imprinting CRUD + reload
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-09 by Sisyphus
 - **Implemented**: 2026-07-10 by Sisyphus
+- **Reviewed**: 2026-07-10 by Sisyphus
+- **Closed**: 2026-07-10 by Sisyphus
 - **Branch**: feat/admin-api-persona-bot-imprinting-crud-reload
 - **Feature ID**: 0008
 - **Created**: 2026-07-09

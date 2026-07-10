@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::Config;
 use crate::rag_engine::ports::PersonaAdminPort;
-use crate::rag_engine::types::RagError;
+use crate::rag_engine::types::{AdminPersonaSnapshot, NewPersonaRequest, RagError};
 
 #[derive(Deserialize)]
 pub struct ListVersionsQuery {
@@ -36,8 +36,8 @@ pub struct PersonaResponse {
     pub created_by: Option<String>,
 }
 
-impl From<kb_store::Persona> for PersonaResponse {
-    fn from(p: kb_store::Persona) -> Self {
+impl From<AdminPersonaSnapshot> for PersonaResponse {
+    fn from(p: AdminPersonaSnapshot) -> Self {
         Self {
             id: p.id,
             version: p.version,
@@ -79,16 +79,12 @@ fn check_admin_key(
 
 fn map_rag_error(e: RagError) -> (StatusCode, Json<ErrorResponse>) {
     match e {
-        RagError::Persona(msg) => {
-            if msg.contains("not found") {
-                (StatusCode::NOT_FOUND, Json(ErrorResponse { error: msg }))
-            } else {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorResponse { error: msg }),
-                )
-            }
-        }
+        RagError::PersonaNotFound => (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        ),
         _ => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {
@@ -126,18 +122,18 @@ pub async fn create_persona(
     Json(req): Json<CreatePersonaRequest>,
 ) -> Result<(StatusCode, Json<PersonaResponse>), (StatusCode, Json<ErrorResponse>)> {
     check_admin_key(&headers, &state.config)?;
+    let domain_req = NewPersonaRequest {
+        name: req.name,
+        system_prompt: req.system_prompt,
+        tone: req.tone,
+        fallback_message: req.fallback_message,
+        activate: req.activate,
+        // TODO(0027): use authenticated admin identity
+        created_by: Some("admin".into()),
+    };
     let persona = state
         .persona_admin
-        .insert_persona(
-            kb_store::NewPersona {
-                name: req.name,
-                system_prompt: req.system_prompt,
-                tone: req.tone,
-                fallback_message: req.fallback_message,
-                created_by: Some("admin".into()),
-            },
-            req.activate,
-        )
+        .insert_persona(domain_req)
         .await
         .map_err(map_rag_error)?;
     Ok((StatusCode::CREATED, Json(PersonaResponse::from(persona))))

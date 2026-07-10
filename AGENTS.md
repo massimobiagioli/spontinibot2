@@ -60,6 +60,10 @@ All code and design work must comply with [docs/PRINCIPLES.md](./docs/PRINCIPLES
 - Clean Design — Jobs-era Apple aesthetic: radical simplicity, one thing per screen, honest materials, every answer cites its source.
 - 100% test coverage on production code; 80% branch coverage minimum, enforced by CI.
 
+### 3.5 ADRs Are Inviolable
+
+**Every accepted Architecture Decision Record (ADR) in `.adr/` is binding and permanent.** No change — code, configuration, documentation, or design — may contradict a decision recorded in an accepted ADR. If a future need conflicts with an existing ADR, the correct path is: write a new ADR that explicitly supersedes the old one, then update the old ADR's status to `superseded`. Never silently overwrite or ignore an ADR.
+
 ---
 
 ## 4. Root-Level and Other Documentation

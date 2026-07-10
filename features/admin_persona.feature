@@ -22,3 +22,8 @@ Feature: Bot imprinting management via admin API
     Given the persona cache contains the active persona
     When the operator reloads the persona cache
     Then the persona cache is refreshed
+
+  Scenario: Operator is rejected without valid admin key
+    Given the backend service is running
+    When the operator requests persona versions without admin key
+    Then the request is rejected with 401

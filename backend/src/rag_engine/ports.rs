@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 
-use crate::rag_engine::types::{PersonaSnapshot, PromptParts, RagError, RetrievedChunk};
+use crate::rag_engine::types::{
+    AdminPersonaSnapshot, NewPersonaRequest, PersonaSnapshot, PromptParts, RagError, RetrievedChunk,
+};
 
 #[async_trait]
 pub trait EmbeddingPort: Send + Sync {
@@ -30,12 +32,11 @@ pub trait GenerationPort: Send + Sync {
 
 #[async_trait]
 pub trait PersonaAdminPort: Send + Sync {
-    async fn list_versions(&self, name: &str) -> Result<Vec<kb_store::Persona>, RagError>;
+    async fn list_versions(&self, name: &str) -> Result<Vec<AdminPersonaSnapshot>, RagError>;
     async fn insert_persona(
         &self,
-        persona: kb_store::NewPersona,
-        activate: bool,
-    ) -> Result<kb_store::Persona, RagError>;
+        req: NewPersonaRequest,
+    ) -> Result<AdminPersonaSnapshot, RagError>;
     async fn activate_persona(&self, id: i64) -> Result<(), RagError>;
     async fn reload_persona(&self) -> Result<(), RagError>;
 }
@@ -57,6 +58,10 @@ mod tests {
     }
 
     fn _assert_dyn_generation() -> Box<dyn GenerationPort> {
+        todo!()
+    }
+
+    fn _assert_dyn_persona_admin() -> Box<dyn PersonaAdminPort> {
         todo!()
     }
 

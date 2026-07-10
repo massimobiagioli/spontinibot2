@@ -13,7 +13,9 @@ use backend::rag_engine::engine::RagEngine;
 use backend::rag_engine::ports::{
     EmbeddingPort, GenerationPort, PersonaAdminPort, PersonaPort, RetrievalPort,
 };
-use backend::rag_engine::types::{PersonaSnapshot, PromptParts, RagError, RetrievedChunk};
+use backend::rag_engine::types::{
+    AdminPersonaSnapshot, NewPersonaRequest, PersonaSnapshot, PromptParts, RagError, RetrievedChunk,
+};
 
 struct StubEmbedding;
 
@@ -59,14 +61,13 @@ struct StubPersonaAdmin;
 
 #[async_trait]
 impl PersonaAdminPort for StubPersonaAdmin {
-    async fn list_versions(&self, _name: &str) -> Result<Vec<kb_store::Persona>, RagError> {
+    async fn list_versions(&self, _name: &str) -> Result<Vec<AdminPersonaSnapshot>, RagError> {
         todo!()
     }
     async fn insert_persona(
         &self,
-        _persona: kb_store::NewPersona,
-        _activate: bool,
-    ) -> Result<kb_store::Persona, RagError> {
+        _req: NewPersonaRequest,
+    ) -> Result<AdminPersonaSnapshot, RagError> {
         todo!()
     }
     async fn activate_persona(&self, _id: i64) -> Result<(), RagError> {
@@ -706,6 +707,59 @@ async fn then_cache_refreshed(world: &mut BotWorld) {
     let body: serde_json::Value =
         serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
     assert_eq!(body["status"], "reloaded");
+}
+
+#[when("the operator requests persona versions without admin key")]
+async fn when_list_versions_no_key(world: &mut BotWorld) {
+    let path = temp_db();
+    let store = kb_store::KbStore::open(&path)
+        .await
+        .expect("failed to open test db");
+    store
+        .insert_persona(
+            kb_store::NewPersona {
+                name: "gaspare".into(),
+                system_prompt: "Sei Gaspare.".into(),
+                tone: None,
+                fallback_message: None,
+                created_by: Some("admin".into()),
+            },
+            false,
+        )
+        .await
+        .expect("insert failed");
+    drop(store);
+    world.admin_db_path = Some(path);
+
+    let router = build_admin_router(world.admin_db_path.as_ref().unwrap(), ADMIN_KEY).await;
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/api/persona?name=gaspare")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[then("the request is rejected with 401")]
+async fn then_rejected_401(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(401));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    let error = body["error"].as_str().unwrap();
+    assert!(
+        error.contains("invalid or missing"),
+        "Expected auth error message, got: {error}"
+    );
 }
 
 #[then("the new persona version is active")]
