@@ -1,8 +1,10 @@
 # Plan 0009: `/admin/api/upload` — per-section manual document upload
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-10 by Sisyphus
 - **Implemented**: 2026-07-10 by Sisyphus
+- **Closed**: 2026-07-10 by Sisyphus
+- **Review verdict**: approved
 - **Branch**: feat/admin-api-upload
 - **Feature ID**: 0009
 - **Created**: 2026-07-10
