@@ -70,8 +70,9 @@ The always-on ingest service that populates `kb.db` from configured URL sources 
 
 The operator-facing HTTP surface of `backend`, behind `/admin/api/*`. After Milestone 2, an operator can configure persona, ingest, and run training sessions via the API (the admin-ui SPA comes in Milestone 3).
 
-- [ ] **0008** — `/admin/api/persona` — bot imprinting CRUD + reload
+- [x] **0008** — `/admin/api/persona` — bot imprinting CRUD + reload
   - Description: Add the admin persona surface to `backend`: `GET /admin/api/persona` (list versions of a persona by name), `POST /admin/api/persona` (insert a new versioned row, optionally activate; never UPDATE), `POST /admin/api/persona/:id/activate`, and `POST /admin/api/persona/reload` (drop the cached active persona so the next `/chat` request re-reads from `kb.db`). Add a `PersonaAdminPort` and wire `kb-store` behind it. BDD scenarios for: insert deactivates previous active when `activate=true`; reload picks up a newly-activated persona; version increments within a name. Auth is a static shared-secret header for now (a dedicated auth plan follows).
+  - Closed: Plan [0008](../.project/0008-admin-api-persona-bot-imprinting-crud-reload-plan.md). No ADR — shared-secret auth follows from Constitution §3; port separation extends ADR 0003.
 
 - [ ] **0009** — `/admin/api/upload` — per-section manual document upload
   - Description: Add a manual-upload endpoint that accepts a multipart file (pdf/docx/md/txt), a section name, and a metadata form (category, tags, priority/trust_score). Extract text (`pdf-extract`/`docx-rs`/plain read), return a preview (`GET /admin/api/upload/preview/:token` showing the extracted text and metadata before indexing), and on `POST /admin/api/upload/confirm/:token` delegate chunking + embedding to `ingest-core` and write the chunks to `kb.db` via `kb-store`. The preview/confirm split guarantees the operator never indexes unseen content. BDD scenario for the upload → preview → confirm → searchable flow.
