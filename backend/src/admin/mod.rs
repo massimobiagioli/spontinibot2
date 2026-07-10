@@ -55,12 +55,12 @@ impl From<AdminPersonaSnapshot> for PersonaResponse {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 pub struct ErrorResponse {
-    error: String,
+    pub error: String,
 }
 
-fn check_admin_key(
+pub fn check_admin_key(
     headers: &HeaderMap,
     config: &Config,
 ) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
