@@ -6,6 +6,7 @@ pub struct Config {
     pub top_k: i64,
     pub min_score: f64,
     pub admin_api_key: String,
+    pub upload_max_bytes: usize,
 }
 
 impl Config {
@@ -25,6 +26,10 @@ impl Config {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(0.35),
             admin_api_key: std::env::var("ADMIN_API_KEY").unwrap_or_else(|_| "dev-key".into()),
+            upload_max_bytes: std::env::var("UPLOAD_MAX_BYTES")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(10_485_760), // 10 MB default
         }
     }
 }
