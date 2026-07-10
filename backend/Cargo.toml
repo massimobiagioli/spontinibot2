@@ -5,8 +5,9 @@ license.workspace = true
 version.workspace = true
 
 [dependencies]
-axum = "0.7"
+axum = { version = "0.7", features = ["multipart"] }
 kb-store = { path = "../kb-store" }
+ingest-core = { path = "../ingest-core" }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 async-trait = "0.1"
 thiserror = "1"
@@ -16,6 +17,11 @@ serde_json = "1"
 tower = "0.5"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+pdf-extract = "0.7"
+docx-rs = "0.4"
+dashmap = "6"
+rand = "0.8"
+chrono = { version = "0.4", features = ["serde"] }
 
 [dev-dependencies]
 cucumber = "0.21"

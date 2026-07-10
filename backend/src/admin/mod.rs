@@ -9,6 +9,8 @@ use crate::config::Config;
 use crate::rag_engine::ports::PersonaAdminPort;
 use crate::rag_engine::types::{AdminPersonaSnapshot, NewPersonaRequest, RagError};
 
+pub mod upload;
+
 #[derive(Deserialize)]
 pub struct ListVersionsQuery {
     pub name: String,
