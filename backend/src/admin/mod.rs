@@ -9,6 +9,7 @@ use crate::config::Config;
 use crate::rag_engine::ports::PersonaAdminPort;
 use crate::rag_engine::types::{AdminPersonaSnapshot, NewPersonaRequest, RagError};
 
+pub mod ingest_config;
 pub mod upload;
 
 #[derive(Deserialize)]
