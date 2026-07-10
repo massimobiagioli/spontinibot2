@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
 pub use axum::Router;
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post, put};
 
+use crate::admin::ingest_config::adapter::KbStoreIngestConfigAdapter;
+use crate::admin::ingest_config::handlers::IngestConfigState;
 use crate::admin::upload::adapter::IngestCoreUploadAdapter;
 use crate::admin::upload::ports::UploadPort;
 use crate::admin::upload::preview_store::PreviewStore;
@@ -81,12 +83,20 @@ pub async fn router() -> Router {
         config.min_score,
     ));
 
+    let ingest_config_port: Arc<dyn crate::admin::ingest_config::IngestConfigAdminPort> =
+        Arc::new(KbStoreIngestConfigAdapter::new(store.clone()));
+    let ingest_config_state = IngestConfigState {
+        ingest_config: ingest_config_port,
+        config: config.clone(),
+    };
+
     router_with(
         AppState { rag_engine },
         persona_admin,
         config,
         upload_port,
         preview_store,
+        ingest_config_state,
     )
 }
 
@@ -96,6 +106,7 @@ pub fn router_with(
     config: Config,
     upload: Arc<dyn UploadPort>,
     preview_store: Arc<PreviewStore>,
+    ingest_config_state: IngestConfigState,
 ) -> Router {
     let admin_state = admin::AdminState {
         persona_admin,
@@ -138,5 +149,35 @@ pub fn router_with(
         .route(
             "/admin/api/upload/confirm/:token",
             post(admin::upload::handlers::confirm_upload).with_state(upload_state),
+        )
+        .route(
+            "/admin/api/ingest/config",
+            get(admin::ingest_config::handlers::get_config)
+                .with_state(ingest_config_state.clone()),
+        )
+        .route(
+            "/admin/api/ingest/config/schedule",
+            put(admin::ingest_config::handlers::upsert_schedule)
+                .with_state(ingest_config_state.clone()),
+        )
+        .route(
+            "/admin/api/ingest/config/sections",
+            post(admin::ingest_config::handlers::create_section)
+                .with_state(ingest_config_state.clone()),
+        )
+        .route(
+            "/admin/api/ingest/config/sections/:id",
+            delete(admin::ingest_config::handlers::delete_section)
+                .with_state(ingest_config_state.clone()),
+        )
+        .route(
+            "/admin/api/ingest/config/sources",
+            post(admin::ingest_config::handlers::create_source)
+                .with_state(ingest_config_state.clone()),
+        )
+        .route(
+            "/admin/api/ingest/config/sources/:id",
+            delete(admin::ingest_config::handlers::delete_source)
+                .with_state(ingest_config_state),
         )
 }
