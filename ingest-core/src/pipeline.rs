@@ -62,6 +62,38 @@ impl Pipeline for IngestPipeline {
     }
 }
 
+impl IngestPipeline {
+    /// Process a manually uploaded document: chunk the text, embed each chunk,
+    /// and insert into the knowledge base with `DocumentSource::Manual`.
+    ///
+    /// Returns the IDs of the inserted documents.
+    pub async fn process_manual_upload(
+        &self,
+        text: &str,
+        section: &str,
+        filename: &str,
+        metadata: Option<String>,
+    ) -> Result<Vec<i64>, IngestError> {
+        let chunks = self.chunker.chunk(text, section, filename)?;
+        let mut document_ids = Vec::new();
+
+        for chunk in &chunks {
+            let embedding = self.embedder.embed_chunk(&chunk.content).await?;
+            let doc = NewDocument {
+                source: DocumentSource::Manual,
+                source_ref: filename.to_string(),
+                content: chunk.content.clone(),
+                metadata: metadata.clone().or_else(|| chunk.metadata.clone()),
+                embedding,
+            };
+            let inserted = self.kb.insert_document(doc).await?;
+            document_ids.push(inserted.id);
+        }
+
+        Ok(document_ids)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -177,6 +209,52 @@ mod tests {
         assert!(
             matches!(result, Err(IngestError::RobotsTxt(_))),
             "expected RobotsTxt error, got {result:?}"
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_chunk_embed_and_store_manual_upload() {
+        let embed_server = MockServer::start().await;
+
+        let embedding_768: Vec<f32> = (0..768).map(|i| i as f32 * 0.001).collect();
+        let nested = serde_json::json!([{
+            "index": 0,
+            "embedding": [embedding_768]
+        }]);
+        Mock::given(method("POST"))
+            .and(path("/embedding"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&nested))
+            .mount(&embed_server)
+            .await;
+
+        let path = temp_db_path();
+        {
+            let kb = KbStore::open(&path).await.expect("failed to open db");
+            let pipeline =
+                IngestPipeline::new("test-agent".into(), embed_server.uri(), 512, 64, kb)
+                    .expect("failed to create pipeline");
+
+            let text = "This is a manual upload test document with enough content to fill a chunk properly.";
+            let ids = pipeline
+                .process_manual_upload(text, "news", "test.pdf", None)
+                .await
+                .expect("manual upload failed");
+
+            assert!(!ids.is_empty(), "expected at least one document ID");
+        }
+
+        let kb = KbStore::open(&path).await.expect("failed to re-open db");
+        let docs = kb
+            .get_documents_by_source(DocumentSource::Manual, 10, 0)
+            .await
+            .expect("get docs failed");
+        assert!(!docs.is_empty(), "expected at least one manual document");
+        assert_eq!(docs[0].source_ref, "test.pdf");
+        assert!(
+            docs[0].content.contains("manual upload"),
+            "expected document content to contain upload text"
         );
 
         let _ = std::fs::remove_file(&path);
