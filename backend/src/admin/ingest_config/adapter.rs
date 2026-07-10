@@ -4,7 +4,10 @@ use async_trait::async_trait;
 
 use kb_store::{KbStore, NewIngestSchedule, NewIngestSection, NewIngestSource};
 
-use super::{IngestConfigAdminPort, IngestConfigError, IngestScheduleResponse, IngestSectionResponse, IngestSourceResponse};
+use super::{
+    IngestConfigAdminPort, IngestConfigError, IngestScheduleResponse, IngestSectionResponse,
+    IngestSourceResponse,
+};
 
 pub struct KbStoreIngestConfigAdapter {
     store: Arc<KbStore>,
@@ -18,9 +21,7 @@ impl KbStoreIngestConfigAdapter {
 
 #[async_trait]
 impl IngestConfigAdminPort for KbStoreIngestConfigAdapter {
-    async fn get_schedule(
-        &self,
-    ) -> Result<Option<IngestScheduleResponse>, IngestConfigError> {
+    async fn get_schedule(&self) -> Result<Option<IngestScheduleResponse>, IngestConfigError> {
         let schedule = self.store.get_schedule().await?;
         Ok(schedule.map(IngestScheduleResponse::from))
     }
@@ -35,7 +36,10 @@ impl IngestConfigAdminPort for KbStoreIngestConfigAdapter {
 
     async fn list_sections(&self) -> Result<Vec<IngestSectionResponse>, IngestConfigError> {
         let sections = self.store.list_sections().await?;
-        Ok(sections.into_iter().map(IngestSectionResponse::from).collect())
+        Ok(sections
+            .into_iter()
+            .map(IngestSectionResponse::from)
+            .collect())
     }
 
     async fn create_section(
@@ -56,7 +60,10 @@ impl IngestConfigAdminPort for KbStoreIngestConfigAdapter {
         section_id: i64,
     ) -> Result<Vec<IngestSourceResponse>, IngestConfigError> {
         let sources = self.store.list_sources_by_section(section_id).await?;
-        Ok(sources.into_iter().map(IngestSourceResponse::from).collect())
+        Ok(sources
+            .into_iter()
+            .map(IngestSourceResponse::from)
+            .collect())
     }
 
     async fn create_source(
@@ -87,7 +94,9 @@ mod tests {
         let dir = std::env::temp_dir();
         let path = dir.join(format!("ingest_config_adapter_test_{n}.db"));
         let _ = std::fs::remove_file(&path);
-        KbStore::open(&path.to_string_lossy()).await.expect("failed to open temp db")
+        KbStore::open(&path.to_string_lossy())
+            .await
+            .expect("failed to open temp db")
     }
 
     fn sample_schedule() -> NewIngestSchedule {
@@ -165,8 +174,14 @@ mod tests {
         let store = Arc::new(temp_store().await);
         let adapter = KbStoreIngestConfigAdapter::new(store);
 
-        adapter.create_section(sample_section("news", 20)).await.unwrap();
-        adapter.create_section(sample_section("sport", 10)).await.unwrap();
+        adapter
+            .create_section(sample_section("news", 20))
+            .await
+            .unwrap();
+        adapter
+            .create_section(sample_section("sport", 10))
+            .await
+            .unwrap();
 
         let sections = adapter.list_sections().await.expect("list_sections failed");
         assert_eq!(sections.len(), 2);
@@ -179,8 +194,14 @@ mod tests {
         let store = Arc::new(temp_store().await);
         let adapter = KbStoreIngestConfigAdapter::new(store);
 
-        let section = adapter.create_section(sample_section("sport", 10)).await.unwrap();
-        let deleted = adapter.delete_section(section.id).await.expect("delete_section failed");
+        let section = adapter
+            .create_section(sample_section("sport", 10))
+            .await
+            .unwrap();
+        let deleted = adapter
+            .delete_section(section.id)
+            .await
+            .expect("delete_section failed");
         assert!(deleted);
 
         let sections = adapter.list_sections().await.expect("list_sections failed");
@@ -192,7 +213,10 @@ mod tests {
         let store = Arc::new(temp_store().await);
         let adapter = KbStoreIngestConfigAdapter::new(store);
 
-        let deleted = adapter.delete_section(999).await.expect("delete_section failed");
+        let deleted = adapter
+            .delete_section(999)
+            .await
+            .expect("delete_section failed");
         assert!(!deleted);
     }
 
@@ -201,7 +225,10 @@ mod tests {
         let store = Arc::new(temp_store().await);
         let adapter = KbStoreIngestConfigAdapter::new(store);
 
-        let section = adapter.create_section(sample_section("sport", 10)).await.unwrap();
+        let section = adapter
+            .create_section(sample_section("sport", 10))
+            .await
+            .unwrap();
         let response = adapter
             .create_source(section.id, sample_scrape_source(section.id))
             .await
@@ -217,7 +244,10 @@ mod tests {
         let store = Arc::new(temp_store().await);
         let adapter = KbStoreIngestConfigAdapter::new(store);
 
-        let section = adapter.create_section(sample_section("news", 10)).await.unwrap();
+        let section = adapter
+            .create_section(sample_section("news", 10))
+            .await
+            .unwrap();
         let response = adapter
             .create_source(section.id, sample_api_source(section.id))
             .await
@@ -232,11 +262,23 @@ mod tests {
         let store = Arc::new(temp_store().await);
         let adapter = KbStoreIngestConfigAdapter::new(store);
 
-        let section = adapter.create_section(sample_section("sport", 10)).await.unwrap();
-        adapter.create_source(section.id, sample_scrape_source(section.id)).await.unwrap();
-        adapter.create_source(section.id, sample_api_source(section.id)).await.unwrap();
+        let section = adapter
+            .create_section(sample_section("sport", 10))
+            .await
+            .unwrap();
+        adapter
+            .create_source(section.id, sample_scrape_source(section.id))
+            .await
+            .unwrap();
+        adapter
+            .create_source(section.id, sample_api_source(section.id))
+            .await
+            .unwrap();
 
-        let sources = adapter.list_sources(section.id).await.expect("list_sources failed");
+        let sources = adapter
+            .list_sources(section.id)
+            .await
+            .expect("list_sources failed");
         assert_eq!(sources.len(), 2);
         assert!(sources.iter().any(|s| s.source_type == "scrape"));
         assert!(sources.iter().any(|s| s.source_type == "api"));
@@ -247,12 +289,24 @@ mod tests {
         let store = Arc::new(temp_store().await);
         let adapter = KbStoreIngestConfigAdapter::new(store);
 
-        let section = adapter.create_section(sample_section("sport", 10)).await.unwrap();
-        let source = adapter.create_source(section.id, sample_scrape_source(section.id)).await.unwrap();
-        let deleted = adapter.delete_source(source.id).await.expect("delete_source failed");
+        let section = adapter
+            .create_section(sample_section("sport", 10))
+            .await
+            .unwrap();
+        let source = adapter
+            .create_source(section.id, sample_scrape_source(section.id))
+            .await
+            .unwrap();
+        let deleted = adapter
+            .delete_source(source.id)
+            .await
+            .expect("delete_source failed");
         assert!(deleted);
 
-        let sources = adapter.list_sources(section.id).await.expect("list_sources failed");
+        let sources = adapter
+            .list_sources(section.id)
+            .await
+            .expect("list_sources failed");
         assert!(sources.is_empty());
     }
 
@@ -261,7 +315,10 @@ mod tests {
         let store = Arc::new(temp_store().await);
         let adapter = KbStoreIngestConfigAdapter::new(store);
 
-        let deleted = adapter.delete_source(999).await.expect("delete_source failed");
+        let deleted = adapter
+            .delete_source(999)
+            .await
+            .expect("delete_source failed");
         assert!(!deleted);
     }
 }

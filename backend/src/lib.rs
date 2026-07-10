@@ -152,8 +152,7 @@ pub fn router_with(
         )
         .route(
             "/admin/api/ingest/config",
-            get(admin::ingest_config::handlers::get_config)
-                .with_state(ingest_config_state.clone()),
+            get(admin::ingest_config::handlers::get_config).with_state(ingest_config_state.clone()),
         )
         .route(
             "/admin/api/ingest/config/schedule",
@@ -177,7 +176,6 @@ pub fn router_with(
         )
         .route(
             "/admin/api/ingest/config/sources/:id",
-            delete(admin::ingest_config::handlers::delete_source)
-                .with_state(ingest_config_state),
+            delete(admin::ingest_config::handlers::delete_source).with_state(ingest_config_state),
         )
 }

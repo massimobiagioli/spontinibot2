@@ -8,6 +8,11 @@ use cucumber::{World as _, given, then, when};
 use tower::ServiceExt;
 
 use backend::AppState;
+use backend::admin::ingest_config::handlers::IngestConfigState;
+use backend::admin::ingest_config::{
+    IngestConfigAdminPort, IngestConfigError, IngestScheduleResponse, IngestSectionResponse,
+    IngestSourceResponse,
+};
 use backend::admin::upload::UploadError;
 use backend::admin::upload::ports::UploadPort;
 use backend::admin::upload::preview_store::PreviewStore;
@@ -96,6 +101,49 @@ impl UploadPort for StubUploadPort {
     }
 }
 
+struct StubIngestConfigAdmin;
+
+#[async_trait]
+impl IngestConfigAdminPort for StubIngestConfigAdmin {
+    async fn get_schedule(&self) -> Result<Option<IngestScheduleResponse>, IngestConfigError> {
+        Ok(None)
+    }
+    async fn upsert_schedule(
+        &self,
+        _schedule: kb_store::NewIngestSchedule,
+    ) -> Result<IngestScheduleResponse, IngestConfigError> {
+        unimplemented!("stub")
+    }
+    async fn list_sections(&self) -> Result<Vec<IngestSectionResponse>, IngestConfigError> {
+        Ok(vec![])
+    }
+    async fn create_section(
+        &self,
+        _section: kb_store::NewIngestSection,
+    ) -> Result<IngestSectionResponse, IngestConfigError> {
+        unimplemented!("stub")
+    }
+    async fn delete_section(&self, _id: i64) -> Result<bool, IngestConfigError> {
+        unimplemented!("stub")
+    }
+    async fn list_sources(
+        &self,
+        _section_id: i64,
+    ) -> Result<Vec<IngestSourceResponse>, IngestConfigError> {
+        Ok(vec![])
+    }
+    async fn create_source(
+        &self,
+        _section_id: i64,
+        _source: kb_store::NewIngestSource,
+    ) -> Result<IngestSourceResponse, IngestConfigError> {
+        unimplemented!("stub")
+    }
+    async fn delete_source(&self, _id: i64) -> Result<bool, IngestConfigError> {
+        unimplemented!("stub")
+    }
+}
+
 #[derive(Debug)]
 struct RecordingGeneration {
     call_count: AtomicUsize,
@@ -123,6 +171,8 @@ struct BotWorld {
     upload_token: Option<String>,
     upload_db_path: Option<String>,
     upload_router: Option<axum::Router>,
+    ingest_config_db_path: Option<String>,
+    ingest_config_router: Option<axum::Router>,
 }
 
 impl Drop for BotWorld {
@@ -131,6 +181,9 @@ impl Drop for BotWorld {
             let _ = std::fs::remove_file(path);
         }
         if let Some(ref path) = self.upload_db_path {
+            let _ = std::fs::remove_file(path);
+        }
+        if let Some(ref path) = self.ingest_config_db_path {
             let _ = std::fs::remove_file(path);
         }
     }
@@ -180,12 +233,21 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
 
+    let ingest_config_port: Arc<dyn IngestConfigAdminPort> = Arc::new(
+        backend::admin::ingest_config::adapter::KbStoreIngestConfigAdapter::new(store.clone()),
+    );
+    let ingest_config_state = IngestConfigState {
+        ingest_config: ingest_config_port,
+        config: config.clone(),
+    };
+
     backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
         upload,
         preview_store,
+        ingest_config_state,
     )
 }
 
@@ -200,6 +262,13 @@ fn temp_db() -> String {
         .into_owned();
     let _ = std::fs::remove_file(&path);
     path
+}
+
+fn stub_ingest_config_state(config: Config) -> IngestConfigState {
+    IngestConfigState {
+        ingest_config: Arc::new(StubIngestConfigAdmin),
+        config,
+    }
 }
 
 #[given("the backend service is running")]
@@ -230,12 +299,14 @@ async fn when_check_health(world: &mut BotWorld) {
     };
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
+    let ingest_config_state = stub_ingest_config_state(config.clone());
     let router = backend::router_with(
         AppState { rag_engine },
         admin,
         config,
         upload,
         preview_store,
+        ingest_config_state,
     );
     let response = router
         .oneshot(
@@ -308,6 +379,7 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
     };
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
+    let ingest_config_state = stub_ingest_config_state(config.clone());
     let router = backend::router_with(
         {
             let rag_engine = Arc::new(RagEngine::new(
@@ -328,6 +400,7 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
         config,
         upload,
         preview_store,
+        ingest_config_state,
     );
 
     let body = serde_json::json!({ "question": question });
@@ -924,12 +997,21 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
 
+    let ingest_config_port: Arc<dyn IngestConfigAdminPort> = Arc::new(
+        backend::admin::ingest_config::adapter::KbStoreIngestConfigAdapter::new(store.clone()),
+    );
+    let ingest_config_state = IngestConfigState {
+        ingest_config: ingest_config_port,
+        config: config.clone(),
+    };
+
     backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
         upload,
         preview_store,
+        ingest_config_state,
     )
 }
 
@@ -1153,6 +1235,502 @@ async fn when_upload_no_key(world: &mut BotWorld, filename: String, section: Str
         .await
         .unwrap();
     world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+// ---------------------------------------------------------------------------
+// Ingest config BDD step definitions
+// ---------------------------------------------------------------------------
+
+#[given("the ingest config API is available")]
+async fn given_ingest_config_api_available(world: &mut BotWorld) {
+    let path = temp_db();
+    let store = Arc::new(
+        kb_store::KbStore::open(&path)
+            .await
+            .expect("failed to open test kb.db for ingest config"),
+    );
+    let persona: Arc<dyn PersonaPort> = Arc::new(
+        backend::rag_engine::persona::PersonaAdapter::new(store.clone()),
+    );
+    let persona_admin: Arc<dyn PersonaAdminPort> = Arc::new(
+        backend::rag_engine::persona_admin::PersonaAdminAdapter::new(store.clone(), persona),
+    );
+
+    let config = Config {
+        embed_url: "http://embed:8080".into(),
+        generate_url: "http://generate:8080".into(),
+        kb_path: path.clone(),
+        top_k: 5,
+        min_score: 0.35,
+        admin_api_key: "test-key".into(),
+        upload_max_bytes: 10_485_760,
+    };
+
+    let rag_engine = Arc::new(RagEngine::new(
+        Arc::new(StubEmbedding),
+        Arc::new(ConfigurableRetrieval { chunks: vec![] }),
+        Arc::new(ConfigurablePersona { snapshot: None }),
+        Arc::new(RecordingGeneration {
+            call_count: AtomicUsize::new(0),
+            last_prompt: std::sync::Mutex::new(None),
+        }),
+        5,
+        0.35,
+    ));
+
+    let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
+    let preview_store = Arc::new(PreviewStore::new(15));
+
+    let ingest_config_port: Arc<dyn IngestConfigAdminPort> = Arc::new(
+        backend::admin::ingest_config::adapter::KbStoreIngestConfigAdapter::new(store.clone()),
+    );
+    let ingest_config_state = IngestConfigState {
+        ingest_config: ingest_config_port,
+        config: config.clone(),
+    };
+
+    let router = backend::router_with(
+        AppState { rag_engine },
+        persona_admin,
+        config,
+        upload,
+        preview_store,
+        ingest_config_state,
+    );
+
+    world.ingest_config_db_path = Some(path);
+    world.ingest_config_router = Some(router);
+}
+
+#[given(regex = r#"^an ingest section "([^"]+)" exists$"#)]
+async fn given_ingest_section_exists(world: &mut BotWorld, name: String) {
+    let router = world
+        .ingest_config_router
+        .as_ref()
+        .expect("ingest config router not initialized")
+        .clone();
+
+    let body = serde_json::json!({ "name": name, "ordering": 10 });
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/ingest/config/sections")
+                .header("x-admin-key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status().as_u16(), 201);
+}
+
+#[given(regex = r#"^a scrape source exists in section "([^"]+)"$"#)]
+async fn given_scrape_source_exists_in_section(world: &mut BotWorld, section_name: String) {
+    let router = world
+        .ingest_config_router
+        .as_ref()
+        .expect("ingest config router not initialized")
+        .clone();
+
+    let body = serde_json::json!({
+        "source_type": "scrape",
+        "url": "https://example.com/news",
+        "enabled": true,
+    });
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/admin/api/ingest/config/sources?section_id={}",
+                    find_section_id(world, &section_name).await
+                ))
+                .header("x-admin-key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status().as_u16(), 201);
+}
+
+async fn find_section_id(world: &mut BotWorld, section_name: &str) -> i64 {
+    let router = world
+        .ingest_config_router
+        .as_ref()
+        .expect("ingest config router not initialized")
+        .clone();
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/api/ingest/config")
+                .header("x-admin-key", "test-key")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let config: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+    for section in config["sections"].as_array().unwrap() {
+        if section["name"].as_str().unwrap() == section_name {
+            return section["id"].as_i64().unwrap();
+        }
+    }
+    panic!("section '{section_name}' not found");
+}
+
+async fn find_first_source_id(world: &mut BotWorld, section_name: &str) -> i64 {
+    let router = world
+        .ingest_config_router
+        .as_ref()
+        .expect("ingest config router not initialized")
+        .clone();
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/api/ingest/config")
+                .header("x-admin-key", "test-key")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let config: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+    for section in config["sections"].as_array().unwrap() {
+        if section["name"].as_str().unwrap() == section_name {
+            let sources = section["sources"].as_array().unwrap();
+            if let Some(first) = sources.first() {
+                return first["id"].as_i64().unwrap();
+            }
+        }
+    }
+    panic!("no source found in section '{section_name}'");
+}
+
+#[when("the operator gets the ingest configuration")]
+async fn when_get_ingest_config(world: &mut BotWorld) {
+    let router = world
+        .ingest_config_router
+        .as_ref()
+        .expect("ingest config router not initialized")
+        .clone();
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/api/ingest/config")
+                .header("x-admin-key", "test-key")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when(regex = r#"^the operator sets the ingest schedule to "([^"]+)" (enabled|disabled)$"#)]
+async fn when_set_ingest_schedule(world: &mut BotWorld, cron_expr: String, enabled_str: String) {
+    let router = world
+        .ingest_config_router
+        .as_ref()
+        .expect("ingest config router not initialized")
+        .clone();
+
+    let body = serde_json::json!({
+        "cron_expr": cron_expr,
+        "enabled": enabled_str == "enabled",
+    });
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri("/admin/api/ingest/config/schedule")
+                .header("x-admin-key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when(regex = r#"^the operator creates an ingest section "([^"]+)" with ordering (\d+)$"#)]
+async fn when_create_ingest_section(world: &mut BotWorld, name: String, ordering: i32) {
+    let router = world
+        .ingest_config_router
+        .as_ref()
+        .expect("ingest config router not initialized")
+        .clone();
+
+    let body = serde_json::json!({ "name": name, "ordering": ordering });
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/ingest/config/sections")
+                .header("x-admin-key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when(regex = r#"^the operator creates an? (scrape|api) source "([^"]+)" in section "([^"]+)"$"#)]
+async fn when_create_source(
+    world: &mut BotWorld,
+    source_type: String,
+    url: String,
+    section_name: String,
+) {
+    let router = world
+        .ingest_config_router
+        .as_ref()
+        .expect("ingest config router not initialized")
+        .clone();
+
+    let section_id = find_section_id(world, &section_name).await;
+    let body = serde_json::json!({
+        "source_type": source_type,
+        "url": url,
+        "enabled": true,
+    });
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!(
+                    "/admin/api/ingest/config/sources?section_id={section_id}"
+                ))
+                .header("x-admin-key", "test-key")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when(regex = r#"^the operator deletes the source from section "([^"]+)"$"#)]
+async fn when_delete_source(world: &mut BotWorld, section_name: String) {
+    let router = world
+        .ingest_config_router
+        .as_ref()
+        .expect("ingest config router not initialized")
+        .clone();
+
+    let source_id = find_first_source_id(world, &section_name).await;
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/admin/api/ingest/config/sources/{source_id}"))
+                .header("x-admin-key", "test-key")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when(regex = r#"^the operator deletes section "([^"]+)"$"#)]
+async fn when_delete_section(world: &mut BotWorld, section_name: String) {
+    let router = world
+        .ingest_config_router
+        .as_ref()
+        .expect("ingest config router not initialized")
+        .clone();
+
+    let section_id = find_section_id(world, &section_name).await;
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/admin/api/ingest/config/sections/{section_id}"))
+                .header("x-admin-key", "test-key")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+async fn fetch_ingest_config(world: &mut BotWorld) -> serde_json::Value {
+    let router = world
+        .ingest_config_router
+        .as_ref()
+        .expect("ingest config router not initialized")
+        .clone();
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/api/ingest/config")
+                .header("x-admin-key", "test-key")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    serde_json::from_slice(&body_bytes).unwrap()
+}
+
+#[then("the ingest configuration has no schedule")]
+async fn then_no_schedule(world: &mut BotWorld) {
+    let body = fetch_ingest_config(world).await;
+    assert!(
+        body["schedule"].is_null(),
+        "expected null schedule, got: {}",
+        body["schedule"]
+    );
+}
+
+#[then("the ingest configuration has no sections")]
+async fn then_no_sections(world: &mut BotWorld) {
+    let body = fetch_ingest_config(world).await;
+    let sections = body["sections"]
+        .as_array()
+        .expect("sections should be an array");
+    assert!(
+        sections.is_empty(),
+        "expected 0 sections, got: {}",
+        sections.len()
+    );
+}
+
+#[then(regex = r#"^the ingest configuration has a schedule with cron "([^"]+)"$"#)]
+async fn then_schedule_cron(world: &mut BotWorld, expected_cron: String) {
+    let body = fetch_ingest_config(world).await;
+    let actual = body["schedule"]
+        .as_object()
+        .expect("schedule should be an object");
+    assert_eq!(actual["cron_expr"].as_str().unwrap(), expected_cron);
+}
+
+#[then(regex = r#"^the ingest configuration has (\d+) sections? named "([^"]+)"$"#)]
+async fn then_sections_named(world: &mut BotWorld, expected_count: usize, name: String) {
+    let body = fetch_ingest_config(world).await;
+    let sections = body["sections"]
+        .as_array()
+        .expect("sections should be an array");
+    let matching: Vec<_> = sections
+        .iter()
+        .filter(|s| s["name"].as_str() == Some(name.as_str()))
+        .collect();
+    assert_eq!(
+        matching.len(),
+        expected_count,
+        "expected {expected_count} section(s) named '{name}', got {}",
+        matching.len()
+    );
+}
+
+#[then(regex = r#"^the ingest configuration has (\d+) sources? in section "([^"]+)"$"#)]
+async fn then_sources_in_section(
+    world: &mut BotWorld,
+    expected_count: usize,
+    section_name: String,
+) {
+    let body = fetch_ingest_config(world).await;
+    for section in body["sections"].as_array().unwrap() {
+        if section["name"].as_str() == Some(section_name.as_str()) {
+            let sources = section["sources"].as_array().unwrap();
+            assert_eq!(
+                sources.len(),
+                expected_count,
+                "expected {expected_count} source(s) in section '{section_name}', got {}",
+                sources.len()
+            );
+            return;
+        }
+    }
+    panic!("section '{section_name}' not found in response");
+}
+
+#[then(regex = r#"^the source in section "([^"]+)" is enabled and not coming soon$"#)]
+async fn then_source_enabled_not_coming_soon(world: &mut BotWorld, section_name: String) {
+    let body = fetch_ingest_config(world).await;
+
+    for section in body["sections"].as_array().unwrap() {
+        if section["name"].as_str() == Some(section_name.as_str()) {
+            let sources = section["sources"].as_array().unwrap();
+            let source = sources.first().expect("no sources in section");
+            assert_eq!(source["enabled"].as_bool(), Some(true));
+            assert_eq!(source["coming_soon"].as_bool(), Some(false));
+            return;
+        }
+    }
+    panic!("section '{section_name}' not found in response");
+}
+
+#[then(regex = r#"^the source in section "([^"]+)" is disabled and coming soon$"#)]
+async fn then_source_disabled_coming_soon(world: &mut BotWorld, section_name: String) {
+    let body = fetch_ingest_config(world).await;
+
+    for section in body["sections"].as_array().unwrap() {
+        if section["name"].as_str() == Some(section_name.as_str()) {
+            let sources = section["sources"].as_array().unwrap();
+            let source = sources.first().expect("no sources in section");
+            assert_eq!(source["enabled"].as_bool(), Some(false));
+            assert_eq!(source["coming_soon"].as_bool(), Some(true));
+            return;
+        }
+    }
+    panic!("section '{section_name}' not found in response");
 }
 
 #[tokio::main]

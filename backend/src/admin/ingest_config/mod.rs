@@ -1,4 +1,5 @@
 pub mod adapter;
+pub mod handlers;
 
 use std::fmt;
 

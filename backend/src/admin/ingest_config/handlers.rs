@@ -5,9 +5,12 @@ use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use serde::{Deserialize, Serialize};
 
-use crate::admin::check_admin_key;
-use crate::admin::ingest_config::{IngestConfigAdminPort, IngestConfigError, IngestConfigResponse, IngestScheduleResponse, IngestSectionResponse, IngestSourceResponse};
 use crate::admin::ErrorResponse;
+use crate::admin::check_admin_key;
+use crate::admin::ingest_config::{
+    IngestConfigAdminPort, IngestConfigError, IngestConfigResponse, IngestScheduleResponse,
+    IngestSectionResponse, IngestSourceResponse,
+};
 use crate::config::Config;
 
 #[derive(Clone)]
@@ -47,10 +50,9 @@ pub struct DeletedResponse {
 
 fn map_config_error(e: IngestConfigError) -> (StatusCode, Json<ErrorResponse>) {
     match e {
-        IngestConfigError::NotFound(msg) => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorResponse { error: msg }),
-        ),
+        IngestConfigError::NotFound(msg) => {
+            (StatusCode::NOT_FOUND, Json(ErrorResponse { error: msg }))
+        }
         IngestConfigError::DbError(msg) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse { error: msg }),
@@ -64,8 +66,16 @@ pub async fn get_config(
 ) -> Result<Json<IngestConfigResponse>, (StatusCode, Json<ErrorResponse>)> {
     check_admin_key(&headers, &state.config)?;
 
-    let schedule = state.ingest_config.get_schedule().await.map_err(map_config_error)?;
-    let sections = state.ingest_config.list_sections().await.map_err(map_config_error)?;
+    let schedule = state
+        .ingest_config
+        .get_schedule()
+        .await
+        .map_err(map_config_error)?;
+    let sections = state
+        .ingest_config
+        .list_sections()
+        .await
+        .map_err(map_config_error)?;
 
     let mut sections_with_sources = Vec::new();
     for section in sections {
@@ -74,10 +84,8 @@ pub async fn get_config(
             .list_sources(section.id)
             .await
             .map_err(map_config_error)?;
-        sections_with_sources.push(crate::admin::ingest_config::IngestSectionWithSources {
-            section,
-            sources,
-        });
+        sections_with_sources
+            .push(crate::admin::ingest_config::IngestSectionWithSources { section, sources });
     }
 
     Ok(Json(IngestConfigResponse {
@@ -217,7 +225,10 @@ mod tests {
                 updated_at: "2026-07-10T00:00:00Z".into(),
             }))
         }
-        async fn upsert_schedule(&self, _s: kb_store::NewIngestSchedule) -> Result<IngestScheduleResponse, IngestConfigError> {
+        async fn upsert_schedule(
+            &self,
+            _s: kb_store::NewIngestSchedule,
+        ) -> Result<IngestScheduleResponse, IngestConfigError> {
             Ok(IngestScheduleResponse {
                 cron_expr: "0 */4 * * *".into(),
                 enabled: true,
@@ -227,7 +238,10 @@ mod tests {
         async fn list_sections(&self) -> Result<Vec<IngestSectionResponse>, IngestConfigError> {
             Ok(vec![])
         }
-        async fn create_section(&self, _s: kb_store::NewIngestSection) -> Result<IngestSectionResponse, IngestConfigError> {
+        async fn create_section(
+            &self,
+            _s: kb_store::NewIngestSection,
+        ) -> Result<IngestSectionResponse, IngestConfigError> {
             Ok(IngestSectionResponse {
                 id: 1,
                 name: "sport".into(),
@@ -238,10 +252,17 @@ mod tests {
         async fn delete_section(&self, _id: i64) -> Result<bool, IngestConfigError> {
             Ok(true)
         }
-        async fn list_sources(&self, _section_id: i64) -> Result<Vec<IngestSourceResponse>, IngestConfigError> {
+        async fn list_sources(
+            &self,
+            _section_id: i64,
+        ) -> Result<Vec<IngestSourceResponse>, IngestConfigError> {
             Ok(vec![])
         }
-        async fn create_source(&self, _section_id: i64, _s: kb_store::NewIngestSource) -> Result<IngestSourceResponse, IngestConfigError> {
+        async fn create_source(
+            &self,
+            _section_id: i64,
+            _s: kb_store::NewIngestSource,
+        ) -> Result<IngestSourceResponse, IngestConfigError> {
             Ok(IngestSourceResponse {
                 id: 1,
                 section_id: 10,

@@ -27,7 +27,7 @@ Add the admin ingest configuration surface to `backend`: endpoints to read and w
 
 Goal: Define an admin port for ingest config CRUD and implement it against `kb-store`.
 
-- [ ] **Task 1.1** — Define `IngestConfigAdminPort` trait
+- [x] **Task 1.1** — Define `IngestConfigAdminPort` trait
   - What: In a new file `backend/src/admin/ingest_config/mod.rs`, define a `#[async_trait] pub trait IngestConfigAdminPort: Send + Sync` with methods: `async fn get_config(&self) -> Result<IngestConfigResponse, IngestConfigError>`, `async fn upsert_schedule(&self, schedule: NewIngestSchedule) -> Result<IngestScheduleResponse, IngestConfigError>`, `async fn create_section(&self, section: NewIngestSection) -> Result<IngestSectionResponse, IngestConfigError>`, `async fn update_section(&self, id: i64, section: NewIngestSection) -> Result<IngestSectionResponse, IngestConfigError>`, `async fn delete_section(&self, id: i64) -> Result<bool, IngestConfigError>`, `async fn create_source(&self, section_id: i64, source: NewIngestSource) -> Result<IngestSourceResponse, IngestConfigError>`, `async fn update_source(&self, id: i64, source: NewIngestSource) -> Result<IngestSourceResponse, IngestConfigError>`, `async fn delete_source(&self, id: i64) -> Result<bool, IngestConfigError>`. The `IngestConfigResponse` struct contains `schedule: Option<IngestScheduleResponse>` and `sections: Vec<IngestSectionWithSources>` (where `IngestSectionWithSources` has the section fields + `sources: Vec<IngestSourceResponse>`). The `IngestSourceResponse` adds `coming_soon: bool` for API source types. The `IngestConfigError` enum covers: NotFound(String), DbError(String).
   - Deliverables:
     - `backend/src/admin/ingest_config/mod.rs` with trait, response types, and error type
@@ -35,7 +35,7 @@ Goal: Define an admin port for ingest config CRUD and implement it against `kb-s
   - Skills to load: spontini-tdd-rust, spontini-clean-arch-guard
   - Verification: `cargo build -p backend` compiles; trait is object-safe.
 
-- [ ] **Task 1.2** — Implement `KbStoreIngestConfigAdapter`
+- [x] **Task 1.2** — Implement `KbStoreIngestConfigAdapter`
   - What: Create `backend/src/admin/ingest_config/adapter.rs` with a `KbStoreIngestConfigAdapter` struct holding `Arc<KbStore>`. Implement `IngestConfigAdminPort` for it, delegating to `kb-store` methods. The `get_config` method calls `get_schedule`, `list_sections`, and for each section calls `list_sources_by_section` to build the tree. The `api` source type transformation is applied here: for sources with `source_type == Api`, set `enabled = false` and `coming_soon = true` in the response. For `create_section`, call `upsert_section`. For `update_section`, the section has no mutable fields beyond `name` and `ordering` which are immutable after creation — the method returns `NotFound` for now (sections cannot be renamed/reordered after creation; this is a deliberate simplicity choice per Constitution §3). The `delete_section` method deletes by ID and returns whether it existed. For `create_source`/`update_source`/`delete_source`, delegate to `upsert_source`/`delete_source`.
   - Deliverables:
     - `backend/src/admin/ingest_config/adapter.rs` with `KbStoreIngestConfigAdapter`
@@ -48,7 +48,7 @@ Goal: Define an admin port for ingest config CRUD and implement it against `kb-s
 
 Goal: Expose the admin ingest config endpoints via axum under `/admin/api/ingest/config/`.
 
-- [ ] **Task 2.1** — Add admin ingest config route handlers
+- [x] **Task 2.1** — Add admin ingest config route handlers
   - What: Create `backend/src/admin/ingest_config/handlers.rs` with axum route handlers: `GET /admin/api/ingest/config` → returns the full config tree (schedule + sections with sources); `PUT /admin/api/ingest/config/schedule` → upserts schedule (body: `{ cron_expr, enabled }`); `POST /admin/api/ingest/config/sections` → creates a section (body: `{ name, ordering }`); `PUT /admin/api/ingest/config/sections/:id` → updates a section (body: `{ name, ordering }`); `DELETE /admin/api/ingest/config/sections/:id` → deletes a section; `POST /admin/api/ingest/config/sources` → creates a source in a section (query param `section_id`, body: `{ source_type, url, enabled }`); `PUT /admin/api/ingest/config/sources/:id` → updates a source (body: `{ source_type, url, enabled }`); `DELETE /admin/api/ingest/config/sources/:id` → deletes a source. All handlers check `X-Admin-Key` header via the existing `check_admin_key` helper from `admin/mod.rs`. The handlers use a new `IngestConfigState` struct holding `Arc<dyn IngestConfigAdminPort>` and `Config`.
   - Deliverables:
     - `backend/src/admin/ingest_config/handlers.rs` with all route handlers
@@ -57,7 +57,7 @@ Goal: Expose the admin ingest config endpoints via axum under `/admin/api/ingest
   - Skills to load: spontini-tdd-rust, spontini-bdd-gherkin
   - Verification: `cargo build -p backend` compiles; handlers parse requests correctly.
 
-- [ ] **Task 2.2** — Wire admin ingest config routes into the router and `AppState`
+- [x] **Task 2.2** — Wire admin ingest config routes into the router and `AppState`
   - What: In `backend/src/lib.rs`, add `ingest_config_admin: Arc<dyn IngestConfigAdminPort>` to `AppState`. In `router()`, construct `KbStoreIngestConfigAdapter` and wire it. Add axum `route()` calls for all 8 admin ingest config endpoints. The `router_with` function gains a new `IngestConfigState` parameter. Update the existing `router_with` signature to accept the new state.
   - Deliverables:
     - Updated `AppState` with `ingest_config_admin` field
