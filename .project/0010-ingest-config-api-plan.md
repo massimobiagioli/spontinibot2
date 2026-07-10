@@ -1,7 +1,8 @@
 # Plan 0010: `/admin/api/ingest/config` — read/write ingest configuration
 
-- **Status**: open
+- **Status**: review
 - **Approved**: 2026-07-10 by Sisyphus
+- **Implemented**: 2026-07-10 by Sisyphus
 - **Branch**: feat/ingest-config-api
 - **Feature ID**: 0010
 - **Created**: 2026-07-10
@@ -70,7 +71,7 @@ Goal: Expose the admin ingest config endpoints via axum under `/admin/api/ingest
 
 Goal: Add Gherkin scenarios for the ingest config CRUD lifecycle.
 
-- [ ] **Task 3.1** — Write BDD steps and scenarios for ingest config admin
+- [x] **Task 3.1** — Write BDD steps and scenarios for ingest config admin
   - What: Add BDD scenarios to `backend/tests/bdd.rs`: (1) full CRUD lifecycle: create a section "sport", add a scraper source, read the config tree, verify the section and source appear, update the schedule, verify the schedule is updated; (2) delete a section and verify it and its sources are gone; (3) create an API source and verify it is returned with `enabled=false` and `coming_soon=true`. Each scenario uses the `ChatWorld` pattern, extended with ingest config endpoints via `reqwest` calls.
   - Deliverables:
     - BDD scenarios for CRUD lifecycle, delete cascade, api-source-invariant
