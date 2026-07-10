@@ -1,9 +1,11 @@
+#[derive(Clone)]
 pub struct Config {
     pub embed_url: String,
     pub generate_url: String,
     pub kb_path: String,
     pub top_k: i64,
     pub min_score: f64,
+    pub admin_api_key: String,
 }
 
 impl Config {
@@ -22,6 +24,7 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(0.35),
+            admin_api_key: std::env::var("ADMIN_API_KEY").unwrap_or_else(|_| "dev-key".into()),
         }
     }
 }

@@ -8,8 +8,11 @@ use cucumber::{World as _, given, then, when};
 use tower::ServiceExt;
 
 use backend::AppState;
+use backend::config::Config;
 use backend::rag_engine::engine::RagEngine;
-use backend::rag_engine::ports::{EmbeddingPort, GenerationPort, PersonaPort, RetrievalPort};
+use backend::rag_engine::ports::{
+    EmbeddingPort, GenerationPort, PersonaAdminPort, PersonaPort, RetrievalPort,
+};
 use backend::rag_engine::types::{PersonaSnapshot, PromptParts, RagError, RetrievedChunk};
 
 struct StubEmbedding;
@@ -46,6 +49,32 @@ impl PersonaPort for ConfigurablePersona {
     async fn active_persona(&self) -> Result<Option<PersonaSnapshot>, RagError> {
         Ok(self.snapshot.clone())
     }
+
+    async fn reload_persona(&self) -> Result<(), RagError> {
+        Ok(())
+    }
+}
+
+struct StubPersonaAdmin;
+
+#[async_trait]
+impl PersonaAdminPort for StubPersonaAdmin {
+    async fn list_versions(&self, _name: &str) -> Result<Vec<kb_store::Persona>, RagError> {
+        todo!()
+    }
+    async fn insert_persona(
+        &self,
+        _persona: kb_store::NewPersona,
+        _activate: bool,
+    ) -> Result<kb_store::Persona, RagError> {
+        todo!()
+    }
+    async fn activate_persona(&self, _id: i64) -> Result<(), RagError> {
+        todo!()
+    }
+    async fn reload_persona(&self) -> Result<(), RagError> {
+        todo!()
+    }
 }
 
 #[derive(Debug)]
@@ -71,6 +100,71 @@ struct BotWorld {
     generation: Option<Arc<RecordingGeneration>>,
     response_status: Option<u16>,
     response_body: Option<String>,
+    admin_db_path: Option<String>,
+}
+
+impl Drop for BotWorld {
+    fn drop(&mut self) {
+        if let Some(ref path) = self.admin_db_path {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+}
+
+/// Build an axum Router for the admin BDD scenarios.
+/// Opens the KbStore at `db_path` and wires everything with stubs for
+/// Embedding/Retrieval/Generation ports and a real PersonaAdminAdapter.
+async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
+    let store = Arc::new(
+        kb_store::KbStore::open(db_path)
+            .await
+            .expect("failed to open test kb.db"),
+    );
+    let persona: Arc<dyn PersonaPort> = Arc::new(
+        backend::rag_engine::persona::PersonaAdapter::new(store.clone()),
+    );
+    let persona_admin: Arc<dyn PersonaAdminPort> = Arc::new(
+        backend::rag_engine::persona_admin::PersonaAdminAdapter::new(
+            store.clone(),
+            persona.clone(),
+        ),
+    );
+
+    let config = Config {
+        embed_url: "http://embed:8080".into(),
+        generate_url: "http://generate:8080".into(),
+        kb_path: db_path.into(),
+        top_k: 5,
+        min_score: 0.35,
+        admin_api_key: admin_key.into(),
+    };
+
+    let rag_engine = Arc::new(RagEngine::new(
+        Arc::new(StubEmbedding),
+        Arc::new(ConfigurableRetrieval { chunks: vec![] }),
+        persona,
+        Arc::new(RecordingGeneration {
+            call_count: AtomicUsize::new(0),
+            last_prompt: std::sync::Mutex::new(None),
+        }),
+        5,
+        0.35,
+    ));
+
+    backend::router_with(AppState { rag_engine }, persona_admin, config)
+}
+
+fn temp_db() -> String {
+    let id: u64 = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos() as u64;
+    let path = std::env::temp_dir()
+        .join(format!("admin_bdd_{id}.db"))
+        .to_string_lossy()
+        .into_owned();
+    let _ = std::fs::remove_file(&path);
+    path
 }
 
 #[given("the backend service is running")]
@@ -89,7 +183,16 @@ async fn when_check_health(world: &mut BotWorld) {
         5,
         0.35,
     ));
-    let router = backend::router_with(AppState { rag_engine });
+    let admin: Arc<dyn PersonaAdminPort> = Arc::new(StubPersonaAdmin);
+    let config = Config {
+        embed_url: "http://embed:8080".into(),
+        generate_url: "http://generate:8080".into(),
+        kb_path: "/tmp/test.db".into(),
+        top_k: 5,
+        min_score: 0.35,
+        admin_api_key: "test-key".into(),
+    };
+    let router = backend::router_with(AppState { rag_engine }, admin, config);
     let response = router
         .oneshot(
             Request::builder()
@@ -149,21 +252,34 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
     });
     world.generation = Some(counter.clone());
 
-    let router = backend::router_with({
-        let rag_engine = Arc::new(RagEngine::new(
-            Arc::new(StubEmbedding),
-            Arc::new(ConfigurableRetrieval {
-                chunks: world.chunks.clone(),
-            }),
-            Arc::new(ConfigurablePersona {
-                snapshot: world.persona.clone(),
-            }),
-            counter,
-            5,
-            0.35,
-        ));
-        AppState { rag_engine }
-    });
+    let admin: Arc<dyn PersonaAdminPort> = Arc::new(StubPersonaAdmin);
+    let config = Config {
+        embed_url: "http://embed:8080".into(),
+        generate_url: "http://generate:8080".into(),
+        kb_path: "/tmp/test.db".into(),
+        top_k: 5,
+        min_score: 0.35,
+        admin_api_key: "test-key".into(),
+    };
+    let router = backend::router_with(
+        {
+            let rag_engine = Arc::new(RagEngine::new(
+                Arc::new(StubEmbedding),
+                Arc::new(ConfigurableRetrieval {
+                    chunks: world.chunks.clone(),
+                }),
+                Arc::new(ConfigurablePersona {
+                    snapshot: world.persona.clone(),
+                }),
+                counter,
+                5,
+                0.35,
+            ));
+            AppState { rag_engine }
+        },
+        admin,
+        config,
+    );
 
     let body = serde_json::json!({ "question": question });
     let response = router
@@ -267,6 +383,367 @@ async fn then_no_hallucination(world: &mut BotWorld) {
         0,
         "Generation should not be called in the honest-unknown path"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Admin persona BDD steps
+// ---------------------------------------------------------------------------
+
+const ADMIN_KEY: &str = "bdd-test-key";
+
+#[given(regex = r#"^the knowledge base contains persona "([^"]+)" with (\d+) versions$"#)]
+async fn given_persona_with_versions(world: &mut BotWorld, name: String, count: u32) {
+    let path = temp_db();
+    let store = kb_store::KbStore::open(&path)
+        .await
+        .expect("failed to open test db");
+
+    for _ in 0..count {
+        store
+            .insert_persona(
+                kb_store::NewPersona {
+                    name: name.clone(),
+                    system_prompt: format!("Sei {name}."),
+                    tone: None,
+                    fallback_message: None,
+                    created_by: Some("admin".into()),
+                },
+                false,
+            )
+            .await
+            .expect("insert failed");
+    }
+
+    drop(store);
+    world.admin_db_path = Some(path);
+}
+
+#[given(regex = r#"^the knowledge base contains persona "([^"]+)" with version (\d+) active$"#)]
+async fn given_persona_v1_active(world: &mut BotWorld, name: String, version: u32) {
+    let path = temp_db();
+    let store = kb_store::KbStore::open(&path)
+        .await
+        .expect("failed to open test db");
+
+    // Insert the first version active
+    store
+        .insert_persona(
+            kb_store::NewPersona {
+                name: name.clone(),
+                system_prompt: format!("Sei {name} v{version}."),
+                tone: None,
+                fallback_message: None,
+                created_by: Some("admin".into()),
+            },
+            true,
+        )
+        .await
+        .expect("insert failed");
+
+    drop(store);
+    world.admin_db_path = Some(path);
+}
+
+#[given(regex = r#"^persona "([^"]+)" has version (\d+) active and version (\d+) inactive$"#)]
+async fn given_persona_v1_active_v2_inactive(
+    world: &mut BotWorld,
+    name: String,
+    _active: u32,
+    _inactive: u32,
+) {
+    let path = temp_db();
+    let store = kb_store::KbStore::open(&path)
+        .await
+        .expect("failed to open test db");
+
+    // Insert v1 active
+    store
+        .insert_persona(
+            kb_store::NewPersona {
+                name: name.clone(),
+                system_prompt: format!("Sei {name} v1."),
+                tone: None,
+                fallback_message: None,
+                created_by: Some("admin".into()),
+            },
+            true,
+        )
+        .await
+        .expect("insert failed");
+
+    // Insert v2 inactive
+    store
+        .insert_persona(
+            kb_store::NewPersona {
+                name: name.clone(),
+                system_prompt: format!("Sei {name} v2."),
+                tone: None,
+                fallback_message: None,
+                created_by: Some("admin".into()),
+            },
+            false,
+        )
+        .await
+        .expect("insert failed");
+
+    drop(store);
+    world.admin_db_path = Some(path);
+}
+
+#[given("the persona cache contains the active persona")]
+async fn given_cache_has_active_persona(world: &mut BotWorld) {
+    let path = temp_db();
+    let store = kb_store::KbStore::open(&path)
+        .await
+        .expect("failed to open test db");
+
+    store
+        .insert_persona(
+            kb_store::NewPersona {
+                name: "gaspare".into(),
+                system_prompt: "Sei Gaspare v1.".into(),
+                tone: None,
+                fallback_message: None,
+                created_by: Some("admin".into()),
+            },
+            true,
+        )
+        .await
+        .expect("insert failed");
+
+    drop(store);
+    world.admin_db_path = Some(path);
+}
+
+#[when(regex = r#"^the operator creates a new version of persona "([^"]+)" with activation$"#)]
+async fn when_insert_with_activate(world: &mut BotWorld, name: String) {
+    let path = world.admin_db_path.as_ref().expect("no db path set");
+    let router = build_admin_router(path, ADMIN_KEY).await;
+
+    let body = serde_json::json!({
+        "name": name,
+        "system_prompt": format!("Sei {name}. (nuova versione)"),
+        "activate": true,
+    });
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/persona")
+                .header("content-type", "application/json")
+                .header("x-admin-key", ADMIN_KEY)
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when(regex = r#"^the operator requests all versions of persona "([^"]+)"$"#)]
+async fn when_list_versions(world: &mut BotWorld, name: String) {
+    let path = world.admin_db_path.as_ref().expect("no db path set");
+    let router = build_admin_router(path, ADMIN_KEY).await;
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/admin/api/persona?name={name}"))
+                .header("x-admin-key", ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when(regex = r#"^the operator activates version (\d+) of persona "([^"]+)"$"#)]
+async fn when_activate_version(world: &mut BotWorld, _version: u32, name: String) {
+    let path = world.admin_db_path.as_ref().expect("no db path set");
+    let router = build_admin_router(path, ADMIN_KEY).await;
+
+    // We need the persona's id — fetch the list first
+    let list_resp = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/admin/api/persona?name={name}"))
+                .header("x-admin-key", ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let list_body_bytes = axum::body::to_bytes(list_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let list_body: serde_json::Value = serde_json::from_slice(&list_body_bytes).unwrap();
+    let versions = list_body.as_array().unwrap();
+    assert!(!versions.is_empty(), "no versions found for {name}");
+    // Pick the *first* version (the one we're activating is version 2)
+    let target = &versions[0];
+    let id = target["id"].as_i64().unwrap();
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/admin/api/persona/{id}/activate"))
+                .header("x-admin-key", ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when("the operator reloads the persona cache")]
+async fn when_reload_persona(world: &mut BotWorld) {
+    let path = world.admin_db_path.as_ref().expect("no db path set");
+    let router = build_admin_router(path, ADMIN_KEY).await;
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/persona/reload")
+                .header("x-admin-key", ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[then(regex = r"^(\d+) versions are returned$")]
+async fn then_n_versions(world: &mut BotWorld, expected: usize) {
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    let versions = body.as_array().unwrap();
+    assert_eq!(versions.len(), expected);
+}
+
+#[then("the latest version is listed first")]
+async fn then_latest_first(world: &mut BotWorld) {
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    let versions = body.as_array().unwrap();
+    assert!(versions.len() >= 2, "expected at least 2 versions");
+    let v0 = versions[0]["version"].as_i64().unwrap();
+    let v1 = versions[1]["version"].as_i64().unwrap();
+    assert!(v0 > v1, "expected latest version first, got {v0} then {v1}");
+}
+
+#[then(regex = r"^version (\d+) becomes active$")]
+async fn then_version_active(world: &mut BotWorld, _version: i64) {
+    // Activate endpoint returns {"status":"activated"} with 200
+    assert_eq!(world.response_status, Some(200));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["status"], "activated");
+}
+
+#[then(regex = r"^version (\d+) becomes inactive$")]
+async fn then_version_inactive(world: &mut BotWorld, _version: i64) {
+    // Fetch all versions and check ordering
+    let path = world.admin_db_path.as_ref().expect("no db path set");
+    let router = build_admin_router(path, ADMIN_KEY).await;
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/api/persona?name=gaspare")
+                .header("x-admin-key", ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let versions: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+    let versions = versions.as_array().unwrap();
+
+    // versions[0] is version 2 (now active), versions[1] is version 1 (now inactive)
+    assert!(versions.len() >= 2, "expected at least 2 versions");
+    assert!(versions[0]["is_active"].as_bool().unwrap());
+    assert!(!versions[1]["is_active"].as_bool().unwrap());
+}
+
+#[then("the persona cache is refreshed")]
+async fn then_cache_refreshed(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(200));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["status"], "reloaded");
+}
+
+#[then("the new persona version is active")]
+async fn then_new_version_is_active(world: &mut BotWorld) {
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(world.response_status, Some(201));
+    assert_eq!(body["is_active"], true);
+}
+
+#[then("the previous persona version is inactive")]
+async fn then_previous_inactive(world: &mut BotWorld) {
+    // Fetch all versions to verify
+    let path = world.admin_db_path.as_ref().expect("no db path set");
+    let router = build_admin_router(path, ADMIN_KEY).await;
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/api/persona?name=gaspare")
+                .header("x-admin-key", ADMIN_KEY)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let versions: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+    let versions = versions.as_array().unwrap();
+
+    // versions[0] is the newest (active), versions[1] is the older (inactive)
+    assert!(versions.len() >= 2, "expected at least 2 versions");
+    assert!(versions[0]["is_active"].as_bool().unwrap());
+    assert!(!versions[1]["is_active"].as_bool().unwrap());
 }
 
 #[tokio::main]

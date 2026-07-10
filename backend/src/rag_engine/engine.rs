@@ -127,6 +127,10 @@ mod tests {
         ) -> Result<Option<crate::rag_engine::types::PersonaSnapshot>, RagError> {
             Ok(self.snapshot.clone())
         }
+
+        async fn reload_persona(&self) -> Result<(), RagError> {
+            Ok(())
+        }
     }
 
     struct TestGeneration {

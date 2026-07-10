@@ -20,11 +20,24 @@ pub trait RetrievalPort: Send + Sync {
 #[async_trait]
 pub trait PersonaPort: Send + Sync {
     async fn active_persona(&self) -> Result<Option<PersonaSnapshot>, RagError>;
+    async fn reload_persona(&self) -> Result<(), RagError>;
 }
 
 #[async_trait]
 pub trait GenerationPort: Send + Sync {
     async fn generate(&self, prompt: PromptParts) -> Result<String, RagError>;
+}
+
+#[async_trait]
+pub trait PersonaAdminPort: Send + Sync {
+    async fn list_versions(&self, name: &str) -> Result<Vec<kb_store::Persona>, RagError>;
+    async fn insert_persona(
+        &self,
+        persona: kb_store::NewPersona,
+        activate: bool,
+    ) -> Result<kb_store::Persona, RagError>;
+    async fn activate_persona(&self, id: i64) -> Result<(), RagError>;
+    async fn reload_persona(&self) -> Result<(), RagError>;
 }
 
 #[cfg(test)]
