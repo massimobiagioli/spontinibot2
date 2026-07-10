@@ -3,6 +3,9 @@ use std::sync::Arc;
 pub use axum::Router;
 use axum::routing::{get, post};
 
+use crate::admin::upload::adapter::IngestCoreUploadAdapter;
+use crate::admin::upload::ports::UploadPort;
+use crate::admin::upload::preview_store::PreviewStore;
 use crate::config::Config;
 use crate::rag_engine::embedding::EmbeddingAdapter;
 use crate::rag_engine::engine::RagEngine;
@@ -41,6 +44,34 @@ pub async fn router() -> Router {
     let generation: Arc<dyn crate::rag_engine::ports::GenerationPort> =
         Arc::new(GenerationAdapter::new(config.generate_url.clone()));
 
+    // Create ingest pipeline for manual upload processing
+    let kb_for_ingest = kb_store::KbStore::open(&config.kb_path)
+        .await
+        .expect("failed to open kb.db for ingest pipeline");
+    let ingest_pipeline = Arc::new(
+        ingest_core::pipeline::IngestPipeline::new(
+            "spontini-backend".into(),
+            config.embed_url.clone(),
+            512,
+            64,
+            kb_for_ingest,
+        )
+        .expect("failed to create ingest pipeline"),
+    );
+    let upload_port: Arc<dyn UploadPort> = Arc::new(IngestCoreUploadAdapter::new(ingest_pipeline));
+    let preview_store = Arc::new(PreviewStore::new(15));
+
+    // Background eviction task for expired preview tokens
+    {
+        let preview_store = preview_store.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(60)).await;
+                preview_store.evict_expired();
+            }
+        });
+    }
+
     let rag_engine = Arc::new(RagEngine::new(
         embedding,
         retrieval,
@@ -50,16 +81,31 @@ pub async fn router() -> Router {
         config.min_score,
     ));
 
-    router_with(AppState { rag_engine }, persona_admin, config)
+    router_with(
+        AppState { rag_engine },
+        persona_admin,
+        config,
+        upload_port,
+        preview_store,
+    )
 }
 
 pub fn router_with(
     state: AppState,
     persona_admin: Arc<dyn PersonaAdminPort>,
     config: Config,
+    upload: Arc<dyn UploadPort>,
+    preview_store: Arc<PreviewStore>,
 ) -> Router {
     let admin_state = admin::AdminState {
         persona_admin,
+        // Clone config for upload state below
+        config: config.clone(),
+    };
+
+    let upload_state = admin::upload::handlers::UploadState {
+        upload,
+        preview_store,
         config,
     };
 
@@ -80,5 +126,17 @@ pub fn router_with(
         .route(
             "/admin/api/persona/:id/activate",
             post(admin::activate_persona).with_state(admin_state),
+        )
+        .route(
+            "/admin/api/upload",
+            post(admin::upload::handlers::upload_document).with_state(upload_state.clone()),
+        )
+        .route(
+            "/admin/api/upload/preview/:token",
+            get(admin::upload::handlers::get_preview).with_state(upload_state.clone()),
+        )
+        .route(
+            "/admin/api/upload/confirm/:token",
+            post(admin::upload::handlers::confirm_upload).with_state(upload_state),
         )
 }

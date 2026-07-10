@@ -8,6 +8,9 @@ use cucumber::{World as _, given, then, when};
 use tower::ServiceExt;
 
 use backend::AppState;
+use backend::admin::upload::UploadError;
+use backend::admin::upload::ports::UploadPort;
+use backend::admin::upload::preview_store::PreviewStore;
 use backend::config::Config;
 use backend::rag_engine::engine::RagEngine;
 use backend::rag_engine::ports::{
@@ -78,6 +81,21 @@ impl PersonaAdminPort for StubPersonaAdmin {
     }
 }
 
+struct StubUploadPort;
+
+#[async_trait]
+impl UploadPort for StubUploadPort {
+    async fn ingest_uploaded(
+        &self,
+        _text: &str,
+        _section: &str,
+        _filename: &str,
+        _metadata: &backend::admin::upload::preview_store::UploadMetadata,
+    ) -> Result<Vec<i64>, UploadError> {
+        Ok(vec![])
+    }
+}
+
 #[derive(Debug)]
 struct RecordingGeneration {
     call_count: AtomicUsize,
@@ -102,11 +120,17 @@ struct BotWorld {
     response_status: Option<u16>,
     response_body: Option<String>,
     admin_db_path: Option<String>,
+    upload_token: Option<String>,
+    upload_db_path: Option<String>,
+    upload_router: Option<axum::Router>,
 }
 
 impl Drop for BotWorld {
     fn drop(&mut self) {
         if let Some(ref path) = self.admin_db_path {
+            let _ = std::fs::remove_file(path);
+        }
+        if let Some(ref path) = self.upload_db_path {
             let _ = std::fs::remove_file(path);
         }
     }
@@ -138,6 +162,7 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
         top_k: 5,
         min_score: 0.35,
         admin_api_key: admin_key.into(),
+        upload_max_bytes: 10_485_760,
     };
 
     let rag_engine = Arc::new(RagEngine::new(
@@ -152,7 +177,16 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
         0.35,
     ));
 
-    backend::router_with(AppState { rag_engine }, persona_admin, config)
+    let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
+    let preview_store = Arc::new(PreviewStore::new(15));
+
+    backend::router_with(
+        AppState { rag_engine },
+        persona_admin,
+        config,
+        upload,
+        preview_store,
+    )
 }
 
 fn temp_db() -> String {
@@ -192,8 +226,17 @@ async fn when_check_health(world: &mut BotWorld) {
         top_k: 5,
         min_score: 0.35,
         admin_api_key: "test-key".into(),
+        upload_max_bytes: 10_485_760,
     };
-    let router = backend::router_with(AppState { rag_engine }, admin, config);
+    let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
+    let preview_store = Arc::new(PreviewStore::new(15));
+    let router = backend::router_with(
+        AppState { rag_engine },
+        admin,
+        config,
+        upload,
+        preview_store,
+    );
     let response = router
         .oneshot(
             Request::builder()
@@ -261,7 +304,10 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
         top_k: 5,
         min_score: 0.35,
         admin_api_key: "test-key".into(),
+        upload_max_bytes: 10_485_760,
     };
+    let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
+    let preview_store = Arc::new(PreviewStore::new(15));
     let router = backend::router_with(
         {
             let rag_engine = Arc::new(RagEngine::new(
@@ -280,6 +326,8 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
         },
         admin,
         config,
+        upload,
+        preview_store,
     );
 
     let body = serde_json::json!({ "question": question });
@@ -798,6 +846,313 @@ async fn then_previous_inactive(world: &mut BotWorld) {
     assert!(versions.len() >= 2, "expected at least 2 versions");
     assert!(versions[0]["is_active"].as_bool().unwrap());
     assert!(!versions[1]["is_active"].as_bool().unwrap());
+}
+
+// ---------------------------------------------------------------------------
+// Upload BDD helpers
+// ---------------------------------------------------------------------------
+
+fn multipart_body(filename: &str, section: &str, content: &[u8]) -> (String, Vec<u8>) {
+    let boundary = "----TestBoundary123";
+    let mut body = Vec::new();
+
+    // file field
+    body.extend_from_slice(b"--");
+    body.extend_from_slice(boundary.as_bytes());
+    body.extend_from_slice(b"\r\n");
+    body.extend_from_slice(
+        format!("Content-Disposition: form-data; name=\"file\"; filename=\"{filename}\"\r\n")
+            .as_bytes(),
+    );
+    body.extend_from_slice(b"content-type: text/plain\r\n");
+    body.extend_from_slice(b"\r\n");
+    body.extend_from_slice(content);
+    body.extend_from_slice(b"\r\n");
+
+    // section field
+    body.extend_from_slice(b"--");
+    body.extend_from_slice(boundary.as_bytes());
+    body.extend_from_slice(b"\r\n");
+    body.extend_from_slice(b"Content-Disposition: form-data; name=\"section\"\r\n");
+    body.extend_from_slice(b"\r\n");
+    body.extend_from_slice(section.as_bytes());
+    body.extend_from_slice(b"\r\n");
+
+    // close
+    body.extend_from_slice(b"--");
+    body.extend_from_slice(boundary.as_bytes());
+    body.extend_from_slice(b"--\r\n");
+
+    (boundary.to_string(), body)
+}
+
+async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
+    let store = Arc::new(
+        kb_store::KbStore::open(db_path)
+            .await
+            .expect("failed to open test kb.db for upload"),
+    );
+    let persona: Arc<dyn PersonaPort> = Arc::new(
+        backend::rag_engine::persona::PersonaAdapter::new(store.clone()),
+    );
+    let persona_admin: Arc<dyn PersonaAdminPort> = Arc::new(
+        backend::rag_engine::persona_admin::PersonaAdminAdapter::new(store.clone(), persona),
+    );
+
+    let config = Config {
+        embed_url: "http://embed:8080".into(),
+        generate_url: "http://generate:8080".into(),
+        kb_path: db_path.into(),
+        top_k: 5,
+        min_score: 0.35,
+        admin_api_key: admin_key.into(),
+        upload_max_bytes: 10_485_760,
+    };
+
+    let rag_engine = Arc::new(RagEngine::new(
+        Arc::new(StubEmbedding),
+        Arc::new(ConfigurableRetrieval { chunks: vec![] }),
+        Arc::new(ConfigurablePersona { snapshot: None }),
+        Arc::new(RecordingGeneration {
+            call_count: AtomicUsize::new(0),
+            last_prompt: std::sync::Mutex::new(None),
+        }),
+        5,
+        0.35,
+    ));
+
+    let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
+    let preview_store = Arc::new(PreviewStore::new(15));
+
+    backend::router_with(
+        AppState { rag_engine },
+        persona_admin,
+        config,
+        upload,
+        preview_store,
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Upload BDD step definitions
+// ---------------------------------------------------------------------------
+
+#[given("a persona is configured in the knowledge base")]
+async fn given_persona_configured(world: &mut BotWorld) {
+    let path = temp_db();
+    let store = kb_store::KbStore::open(&path)
+        .await
+        .expect("failed to open test db");
+
+    store
+        .insert_persona(
+            kb_store::NewPersona {
+                name: "gaspare".into(),
+                system_prompt: "Sei Gaspare Spontini.".into(),
+                tone: None,
+                fallback_message: Some("Non ho trovato informazioni.".into()),
+                created_by: Some("admin".into()),
+            },
+            true,
+        )
+        .await
+        .expect("insert persona failed");
+
+    drop(store);
+    world.upload_db_path = Some(path);
+}
+
+#[given("the backend service has the upload API enabled")]
+async fn given_upload_api_enabled(world: &mut BotWorld) {
+    let db_path = world
+        .upload_db_path
+        .as_ref()
+        .cloned()
+        .unwrap_or_else(temp_db);
+    if world.upload_db_path.is_none() {
+        world.upload_db_path = Some(db_path.clone());
+    }
+    let router = build_upload_router(&db_path, "test-key").await;
+    world.upload_router = Some(router);
+}
+
+#[when(regex = r#"^the operator uploads a file "([^"]+)" with section "([^"]+)"$"#)]
+async fn when_upload_file(world: &mut BotWorld, filename: String, section: String) {
+    let router = world
+        .upload_router
+        .as_ref()
+        .expect("upload router not initialized — did you forget 'Given the backend service has the upload API enabled'?")
+        .clone();
+    let content = match filename.rsplit('.').next().unwrap_or("") {
+        "md" | "markdown" => b"# Test Article\n\nThis is the content of the test article for upload.\n\nIt contains multiple paragraphs to simulate a real document.\n".to_vec(),
+        _ => b"fake image bytes".to_vec(),
+    };
+    let (boundary, body) = multipart_body(&filename, &section, &content);
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/upload")
+                .header(
+                    "content-type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .header("x-admin-key", "test-key")
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[then("the upload returns a preview token")]
+async fn then_upload_returns_token(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(201));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    let token = body["token"].as_str().expect("expected token field");
+    assert!(!token.is_empty(), "token should not be empty");
+    world.upload_token = Some(token.to_string());
+}
+
+#[when("the operator requests the preview with that token")]
+async fn when_get_preview(world: &mut BotWorld) {
+    let token = world.upload_token.as_ref().expect("no token available");
+    let router = world
+        .upload_router
+        .as_ref()
+        .expect("upload router not initialized")
+        .clone();
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/admin/api/upload/preview/{token}"))
+                .header("x-admin-key", "test-key")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[then("the preview shows the extracted text and metadata")]
+async fn then_preview_shows_text(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(200));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert!(
+        body["extracted_text"]
+            .as_str()
+            .unwrap()
+            .contains("Test Article"),
+        "preview should contain extracted text"
+    );
+    assert_eq!(body["section"], "news");
+    assert_eq!(body["format"], "markdown");
+    assert!(body["chunk_count_estimate"].as_u64().unwrap() >= 1);
+}
+
+#[when("the operator confirms the upload with that token")]
+async fn when_confirm_upload(world: &mut BotWorld) {
+    let token = world.upload_token.as_ref().expect("no token available");
+    let router = world
+        .upload_router
+        .as_ref()
+        .expect("upload router not initialized")
+        .clone();
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/admin/api/upload/confirm/{token}"))
+                .header("x-admin-key", "test-key")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[then("the confirm response includes document IDs and a chunk count")]
+async fn then_confirm_returns_ids(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(200));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert!(
+        body["document_ids"].is_array(),
+        "expected document_ids array"
+    );
+    assert!(
+        body["chunk_count"].as_u64().is_some(),
+        "expected chunk_count"
+    );
+}
+
+#[then("the upload is rejected with an unsupported format error")]
+async fn then_unsupported_format(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(400));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert!(
+        body["error"].as_str().unwrap().contains("unsupported"),
+        "error should mention unsupported format"
+    );
+}
+
+#[when(
+    regex = r#"^the operator uploads a file "([^"]+)" with section "([^"]+)" without admin key$"#
+)]
+async fn when_upload_no_key(world: &mut BotWorld, filename: String, section: String) {
+    let router = world
+        .upload_router
+        .as_ref()
+        .expect("upload router not initialized")
+        .clone();
+    let content = b"plain text";
+    let (boundary, body) = multipart_body(&filename, &section, content);
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/upload")
+                .header(
+                    "content-type",
+                    format!("multipart/form-data; boundary={boundary}"),
+                )
+                .body(Body::from(body))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
 }
 
 #[tokio::main]
