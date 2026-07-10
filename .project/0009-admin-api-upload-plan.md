@@ -1,7 +1,8 @@
 # Plan 0009: `/admin/api/upload` — per-section manual document upload
 
-- **Status**: open
+- **Status**: review
 - **Approved**: 2026-07-10 by Sisyphus
+- **Implemented**: 2026-07-10 by Sisyphus
 - **Branch**: feat/admin-api-upload
 - **Feature ID**: 0009
 - **Created**: 2026-07-10
@@ -27,7 +28,7 @@ Add a manual-upload surface to `backend` that lets an operator upload a document
 
 Goal: Build a format-agnostic text extraction layer that converts uploaded files into plain text with metadata.
 
-- [ ] **Task 1.1** — Define `TextExtractor` trait and error types
+- [x] **Task 1.1** — Define `TextExtractor` trait and error types
   - What: In `backend/src/admin/upload/`, define a `#[async_trait] pub trait TextExtractor: Send + Sync` with method `async fn extract(&self, file_bytes: &[u8], filename: &str) -> Result<ExtractedText, UploadError>`. The `ExtractedText` struct holds `content: String`, `format: DocumentFormat` (enum: Pdf, Docx, Markdown, PlainText), and `byte_size: usize`. The `UploadError` enum covers: UnsupportedFormat, ExtractionFailed(String), FileTooLarge. The trait is format-agnostic; implementations handle specific formats.
   - Deliverables:
     - `backend/src/admin/upload/mod.rs` module with `TextExtractor` trait, `ExtractedText`, `DocumentFormat`, `UploadError`
@@ -35,7 +36,7 @@ Goal: Build a format-agnostic text extraction layer that converts uploaded files
   - Skills to load: spontini-tdd-rust, spontini-clean-arch-guard
   - Verification: `cargo build -p backend` compiles; trait is object-safe.
 
-- [ ] **Task 1.2** — Implement PDF, DOCX, Markdown, and plain text extractors
+- [x] **Task 1.2** — Implement PDF, DOCX, Markdown, and plain text extractors
   - What: Create four implementations of `TextExtractor`: (1) `PdfExtractor` using the `pdf-extract` crate to extract visible text from PDF bytes; (2) `DocxExtractor` using `docx-rs` to extract paragraph text from DOCX bytes; (3) `MarkdownExtractor` that reads UTF-8 bytes and strips optional frontmatter; (4) `PlainTextExtractor` that reads UTF-8 bytes verbatim. Each extractor validates the file signature (magic bytes for PDF/DOCX, UTF-8 validity for text) and returns `UploadError::ExtractionFailed` on mismatch. A `CompositeExtractor` dispatches by filename extension (`.pdf`, `.docx`, `.md`, `.txt`) and returns `UnsupportedFormat` for unknown extensions.
   - Deliverables:
     - `backend/src/admin/upload/pdf.rs` with `PdfExtractor`
@@ -51,7 +52,7 @@ Goal: Build a format-agnostic text extraction layer that converts uploaded files
 
 Goal: Implement the two-step upload flow: upload returns a preview token, preview shows extracted text, confirm triggers indexing.
 
-- [ ] **Task 2.1** — Add in-memory preview token store
+- [x] **Task 2.1** — Add in-memory preview token store
   - What: Create `backend/src/admin/upload/preview_store.rs` with a `PreviewStore` struct that holds a `DashMap<String, PreviewEntry>`. Each `PreviewEntry` contains: `extracted_text: ExtractedText`, `section: String`, `metadata: UploadMetadata` (category, tags, trust_score), `created_at: DateTime<Utc>`, and a TTL of 15 minutes. The store has methods: `insert(entry) -> token`, `get(token) -> Option<&PreviewEntry>`, `remove(token)`, and a background task that evicts expired entries every 60 seconds. The token is a 32-character hex string from `rand::thread_rng()`.
   - Deliverables:
     - `backend/src/admin/upload/preview_store.rs` with `PreviewStore`, `PreviewEntry`, `UploadMetadata`
@@ -59,7 +60,7 @@ Goal: Implement the two-step upload flow: upload returns a preview token, previe
   - Skills to load: spontini-tdd-rust
   - Verification: `cargo test -p backend` passes; expired entries are evicted.
 
-- [ ] **Task 2.2** — Implement upload, preview, and confirm handlers
+- [x] **Task 2.2** — Implement upload, preview, and confirm handlers
   - What: Add three axum route handlers: (1) `POST /admin/api/upload` accepts `multipart/form-data` with fields `file` (the document), `section` (string), `category` (optional string), `tags` (optional comma-separated string), `trust_score` (optional f32, default 1.0). It extracts text via `CompositeExtractor`, stores the result in `PreviewStore`, and returns `{ token, preview_url }`. (2) `GET /admin/api/upload/preview/:token` returns the extracted text, metadata, and a chunk count estimate (text length / 512). (3) `POST /admin/api/upload/confirm/:token` removes the entry from `PreviewStore`, delegates to `IngestPipeline` for chunking + embedding, writes chunks to `kb.db` via `kb-store`, and returns `{ document_ids: Vec<i64>, chunk_count: usize }`. All handlers check `X-Admin-Key` header.
   - Deliverables:
     - Route handlers for upload, preview, confirm
@@ -73,7 +74,7 @@ Goal: Implement the two-step upload flow: upload returns a preview token, previe
 
 Goal: Wire the confirm handler to `IngestPipeline` for chunking, embedding, and insertion.
 
-- [ ] **Task 3.1** — Add `UploadPort` trait for ingest pipeline delegation
+- [x] **Task 3.1** — Add `UploadPort` trait for ingest pipeline delegation
   - What: In `backend/src/admin/upload/ports.rs`, define a `#[async_trait] pub trait UploadPort: Send + Sync` with method `async fn ingest_uploaded(&self, text: &str, section: &str, metadata: &UploadMetadata) -> Result<Vec<i64>, UploadError>`. This port abstracts the ingest pipeline so the backend does not depend directly on `ingest-core` types. The implementation (in Task 3.2) will call `IngestPipeline::process_manual_upload`.
   - Deliverables:
     - `backend/src/admin/upload/ports.rs` with `UploadPort` trait
@@ -81,7 +82,7 @@ Goal: Wire the confirm handler to `IngestPipeline` for chunking, embedding, and 
   - Skills to load: spontini-tdd-rust, spontini-clean-arch-guard, spontini-ingest-flow
   - Verification: `cargo build -p backend` compiles; trait is object-safe.
 
-- [ ] **Task 3.2** — Implement `IngestCoreUploadAdapter`
+- [x] **Task 3.2** — Implement `IngestCoreUploadAdapter`
   - What: Create `backend/src/admin/upload/ingest_adapter.rs` with an `IngestCoreUploadAdapter` struct holding `Arc<IngestPipeline>` (from `ingest-core`). Implement `UploadPort` for it: the adapter calls `pipeline.process_manual_upload(text, section, metadata)` which chunks the text, embeds each chunk via `llama-embed`, and inserts the chunks into `kb.db` via `kb-store`. The adapter converts `IngestError` to `UploadError::IngestFailed`. If `ingest-core` does not yet expose a `process_manual_upload` method, add it to the `IngestPipeline` struct (this is a minimal addition: it reuses the existing chunker and embedding client, skipping the scraper step).
   - Deliverables:
     - `backend/src/admin/upload/ingest_adapter.rs` with `IngestCoreUploadAdapter`
@@ -95,7 +96,7 @@ Goal: Wire the confirm handler to `IngestPipeline` for chunking, embedding, and 
 
 Goal: Wire the upload surface into the backend router and `AppState`.
 
-- [ ] **Task 4.1** — Add upload fields to `AppState` and `Config`
+- [x] **Task 4.1** — Add upload fields to `AppState` and `Config`
   - What: In `backend/src/lib.rs`, add `upload: Arc<dyn UploadPort>` and `preview_store: Arc<PreviewStore>` to `AppState`. In `router()`, construct `CompositeExtractor`, `PreviewStore` (with background eviction task), `IngestCoreUploadAdapter`, and wire them into the upload handlers. The `Config` struct gains an `upload_max_bytes: usize` field (loaded from `UPLOAD_MAX_BYTES` env var, default 10MB) used by the upload handler to reject oversized files.
   - Deliverables:
     - Updated `AppState` with `upload` and `preview_store` fields
@@ -108,7 +109,7 @@ Goal: Wire the upload surface into the backend router and `AppState`.
 
 Goal: Add Gherkin scenarios for the upload → preview → confirm → searchable flow.
 
-- [ ] **Task 5.1** — Write BDD steps and scenarios for manual upload
+- [x] **Task 5.1** — Write BDD steps and scenarios for manual upload
   - What: Add BDD scenarios to `backend/tests/bdd.rs`: (1) upload a Markdown file with section "news" and metadata, retrieve the preview, confirm the upload, then query `/chat` with a question matching the uploaded content and verify the answer cites the uploaded document; (2) upload an unsupported format (e.g., `.jpg`) and verify the upload returns `UnsupportedFormat`; (3) upload a file, retrieve the preview, but do not confirm — verify the document is not searchable after 15 minutes (TTL expiration). Each scenario uses the `ChatWorld` pattern, extended with upload endpoints via `reqwest` multipart calls.
   - Deliverables:
     - BDD scenarios for upload-preview-confirm-searchable, unsupported-format, TTL-expiration
