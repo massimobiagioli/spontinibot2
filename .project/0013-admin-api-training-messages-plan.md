@@ -1,8 +1,10 @@
 # Plan 0013: `/admin/api/training/sessions/:id/messages` — ask/answer with recording
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-24 by Sisyphus
 - **Implemented**: 2026-07-24 by Sisyphus
+- **Closed**: 2026-07-24 by Sisyphus
+- **Review verdict**: changes-requested (resolved)
 - **Branch**: feat/admin-api-training-messages
 - **Feature ID**: 0013
 - **Created**: 2026-07-24

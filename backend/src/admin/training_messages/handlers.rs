@@ -38,6 +38,10 @@ fn map_message_error(e: TrainingMessageError) -> (StatusCode, Json<ErrorResponse
         TrainingMessageError::Rag(msg) => {
             (StatusCode::BAD_GATEWAY, Json(ErrorResponse { error: msg }))
         }
+        TrainingMessageError::Serialization(msg) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse { error: msg }),
+        ),
     }
 }
 
@@ -104,6 +108,19 @@ mod tests {
         ) -> Result<TrainingMessageResponse, TrainingMessageError> {
             if session_id == 999 {
                 return Err(TrainingMessageError::SessionNotFound(session_id));
+            }
+            if session_id == 500 {
+                return Err(TrainingMessageError::DbError("connection refused".into()));
+            }
+            if session_id == 502 {
+                return Err(TrainingMessageError::Rag(
+                    "generation service error: timeout".into(),
+                ));
+            }
+            if session_id == 501 {
+                return Err(TrainingMessageError::Serialization(
+                    "unexpected end of input".into(),
+                ));
             }
             Ok(TrainingMessageResponse {
                 id: 1,
@@ -181,6 +198,42 @@ mod tests {
         assert!(result.is_err());
         let (status, _) = result.unwrap_err();
         assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn should_return_500_when_ask_hits_a_db_error() {
+        let state = test_state();
+        let req = AskRequest {
+            question: "domanda".into(),
+        };
+        let result = create_message(State(state), auth_headers(), Path(500), Json(req)).await;
+        assert!(result.is_err());
+        let (status, _) = result.unwrap_err();
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[tokio::test]
+    async fn should_return_502_when_ask_hits_a_rag_error() {
+        let state = test_state();
+        let req = AskRequest {
+            question: "domanda".into(),
+        };
+        let result = create_message(State(state), auth_headers(), Path(502), Json(req)).await;
+        assert!(result.is_err());
+        let (status, _) = result.unwrap_err();
+        assert_eq!(status, StatusCode::BAD_GATEWAY);
+    }
+
+    #[tokio::test]
+    async fn should_return_500_when_ask_hits_a_serialization_error() {
+        let state = test_state();
+        let req = AskRequest {
+            question: "domanda".into(),
+        };
+        let result = create_message(State(state), auth_headers(), Path(501), Json(req)).await;
+        assert!(result.is_err());
+        let (status, _) = result.unwrap_err();
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[tokio::test]

@@ -28,6 +28,7 @@ pub enum TrainingMessageError {
     SessionNotFound(i64),
     DbError(String),
     Rag(String),
+    Serialization(String),
 }
 
 impl fmt::Display for TrainingMessageError {
@@ -38,6 +39,9 @@ impl fmt::Display for TrainingMessageError {
             }
             TrainingMessageError::DbError(msg) => write!(f, "database error: {msg}"),
             TrainingMessageError::Rag(msg) => write!(f, "rag engine error: {msg}"),
+            TrainingMessageError::Serialization(msg) => {
+                write!(f, "sources serialization error: {msg}")
+            }
         }
     }
 }
@@ -86,6 +90,15 @@ mod tests {
         assert_eq!(
             err.to_string(),
             "rag engine error: no active persona configured"
+        );
+    }
+
+    #[test]
+    fn should_format_serialization_error_display() {
+        let err = TrainingMessageError::Serialization("unexpected end of input".into());
+        assert_eq!(
+            err.to_string(),
+            "sources serialization error: unexpected end of input"
         );
     }
 

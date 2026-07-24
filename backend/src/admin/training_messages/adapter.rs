@@ -48,7 +48,7 @@ impl TrainingMessageAdminPort for RagTrainingMessageAdapter {
             })
             .collect();
         let sources_json = serde_json::to_string(&sources)
-            .map_err(|e| TrainingMessageError::Rag(format!("failed to serialize sources: {e}")))?;
+            .expect("Vec<TrainingMessageSource> of plain fields is always serializable");
 
         let message = self
             .store
@@ -77,7 +77,7 @@ fn message_to_response(
     message: kb_store::TrainingMessage,
 ) -> Result<TrainingMessageResponse, TrainingMessageError> {
     let sources = serde_json::from_str(&message.sources)
-        .map_err(|e| TrainingMessageError::Rag(format!("failed to deserialize sources: {e}")))?;
+        .map_err(|e| TrainingMessageError::Serialization(e.to_string()))?;
     Ok(TrainingMessageResponse {
         id: message.id,
         session_id: message.session_id,
@@ -121,6 +121,15 @@ mod tests {
     impl EmbeddingPort for TestEmbedding {
         async fn embed(&self, _text: &str) -> Result<Vec<f32>, RagError> {
             Ok(vec![0.1; 768])
+        }
+    }
+
+    struct FailingEmbedding;
+
+    #[async_trait]
+    impl EmbeddingPort for FailingEmbedding {
+        async fn embed(&self, _text: &str) -> Result<Vec<f32>, RagError> {
+            Err(RagError::Embedding("embedding service unavailable".into()))
         }
     }
 
@@ -191,6 +200,53 @@ mod tests {
             5,
             0.35,
         ))
+    }
+
+    #[test]
+    fn should_map_malformed_sources_json_to_serialization_error() {
+        let message = kb_store::TrainingMessage {
+            id: 1,
+            session_id: 1,
+            question: "domanda".into(),
+            answer: "risposta".into(),
+            sources: "not valid json".into(),
+            fell_back: false,
+            created_at: "2026-07-24T00:00:00Z".into(),
+        };
+
+        let result = super::message_to_response(message);
+        assert!(matches!(
+            result,
+            Err(TrainingMessageError::Serialization(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn should_map_rag_engine_error_to_training_message_rag_error() {
+        let store = Arc::new(temp_store().await);
+        let session = store
+            .create_training_session(kb_store::NewTrainingSession {
+                title: "Sessione".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create_training_session failed");
+        let rag_engine = Arc::new(RagEngine::new(
+            Arc::new(FailingEmbedding),
+            Arc::new(TestRetrieval {
+                chunks: sample_chunks(),
+            }),
+            Arc::new(TestPersona {
+                snapshot: Some(sample_persona()),
+            }),
+            Arc::new(TestGeneration),
+            5,
+            0.35,
+        ));
+        let adapter = RagTrainingMessageAdapter::new(store, rag_engine);
+
+        let result = adapter.ask(session.id, "domanda".into()).await;
+        assert!(matches!(result, Err(TrainingMessageError::Rag(_))));
     }
 
     #[tokio::test]
