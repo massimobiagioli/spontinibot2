@@ -1,0 +1,17 @@
+// App shell layout — BEM naming for project-specific (non-DSI) classes.
+// Spacing/color tokens are sourced from DSI custom properties, never
+// hard-coded, per STACK.md §4.3.
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+
+  &__nav {
+    flex: 0 0 auto;
+  }
+
+  &__main {
+    flex: 1 1 auto;
+    padding: var(--bs-spacer, 1rem);
+  }
+}
