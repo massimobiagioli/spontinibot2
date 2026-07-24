@@ -94,8 +94,9 @@ lint:
 	$(COMPOSE) run --rm admin-ui npm run lint
 
 .PHONY: a11y
-## a11y: pa11y accessibility gate for admin-ui (built app, zero-error gate)
+## a11y: pa11y accessibility gate for frontend + admin-ui (built app, zero-error gate)
 a11y:
+	$(COMPOSE) run --rm frontend npm run a11y
 	$(COMPOSE) run --rm admin-ui npm run a11y
 
 .PHONY: fmt

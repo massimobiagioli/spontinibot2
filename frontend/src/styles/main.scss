@@ -1,0 +1,8 @@
+// Design System Italia — Bootstrap Italia forwards its own design tokens
+// (design-tokens-italia) internally, so consuming this single entry point
+// pulls in the full DSI base + component stylesheet plus its CSS variables.
+@use 'bootstrap-italia/src/scss/bootstrap-italia';
+
+// Project-wide, non-DSI custom styles (BEM naming, tokens sourced via
+// `var(--it-...)` / `var(--bs-...)`, never hard-coded hex/px — STACK.md §4.3).
+@use 'app';

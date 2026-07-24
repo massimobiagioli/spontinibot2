@@ -1,0 +1,13 @@
+diff --git a/node_modules/@splidejs/splide/package.json b/node_modules/@splidejs/splide/package.json
+index 677e6d0..e7b3a88 100644
+--- a/node_modules/@splidejs/splide/package.json
++++ b/node_modules/@splidejs/splide/package.json
+@@ -107,6 +107,8 @@
+     "./css/*": "./dist/css/themes/splide-*.min.css",
+     "./dist/": "./dist/",
+     "./src/css/template/": "./src/css/template/",
++    "./src/css/core/index": "./src/css/core/index.scss",
++    "./src/css/core/": "./src/css/core/",
+     "./package.json": "./package.json"
+   }
+ }
