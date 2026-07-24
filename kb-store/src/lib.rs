@@ -29,7 +29,7 @@ pub use error::{KbStoreError, Result};
 pub use types::{
     Document, DocumentSource, EMBEDDING_DIM, IngestRunRequest, IngestSchedule, IngestSection,
     IngestSource, NewDocument, NewIngestSchedule, NewIngestSection, NewIngestSource, NewPersona,
-    Persona, RunRequestStatus, ScoredDocument, SourceType,
+    NewTrainingSession, Persona, RunRequestStatus, ScoredDocument, SourceType, TrainingSession,
 };
 
 use libsql::{Builder, Database, Row};
@@ -553,6 +553,89 @@ impl KbStore {
             requested_at,
             status: RunRequestStatus::Running,
         }))
+    }
+
+    pub async fn create_training_session(
+        &self,
+        session: NewTrainingSession,
+    ) -> Result<TrainingSession> {
+        let conn = self.db.connect()?;
+        conn.execute(
+            "INSERT INTO training_session (title, created_by) VALUES (?1, ?2)",
+            libsql::params![session.title, session.created_by],
+        )
+        .await?;
+        let id = conn.last_insert_rowid();
+        let mut rows = conn
+            .query(
+                "SELECT id, title, created_at, created_by, closed_at FROM training_session WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => Ok(TrainingSession {
+                id: row.get::<i64>(0)?,
+                title: row.get::<String>(1)?,
+                created_at: row.get::<String>(2)?,
+                created_by: row.get::<Option<String>>(3)?,
+                closed_at: row.get::<Option<String>>(4)?,
+            }),
+            None => Err(KbStoreError::Migration(
+                "training session not found after insert".into(),
+            )),
+        }
+    }
+
+    pub async fn list_training_sessions(&self) -> Result<Vec<TrainingSession>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, title, created_at, created_by, closed_at FROM training_session ORDER BY created_at DESC, id DESC",
+                libsql::params![],
+            )
+            .await?;
+        let mut sessions = Vec::new();
+        while let Some(row) = rows.next().await? {
+            sessions.push(TrainingSession {
+                id: row.get::<i64>(0)?,
+                title: row.get::<String>(1)?,
+                created_at: row.get::<String>(2)?,
+                created_by: row.get::<Option<String>>(3)?,
+                closed_at: row.get::<Option<String>>(4)?,
+            });
+        }
+        Ok(sessions)
+    }
+
+    pub async fn get_training_session(&self, id: i64) -> Result<Option<TrainingSession>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, title, created_at, created_by, closed_at FROM training_session WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => Ok(Some(TrainingSession {
+                id: row.get::<i64>(0)?,
+                title: row.get::<String>(1)?,
+                created_at: row.get::<String>(2)?,
+                created_by: row.get::<Option<String>>(3)?,
+                closed_at: row.get::<Option<String>>(4)?,
+            })),
+            None => Ok(None),
+        }
+    }
+
+    pub async fn close_training_session(&self, id: i64) -> Result<bool> {
+        let conn = self.db.connect()?;
+        let rows_affected = conn
+            .execute(
+                "UPDATE training_session SET closed_at = datetime('now') WHERE id = ?1 AND closed_at IS NULL",
+                libsql::params![id],
+            )
+            .await?;
+        Ok(rows_affected > 0)
     }
 
     pub async fn complete_run(&self, id: i64, status: RunRequestStatus) -> Result<()> {
@@ -1421,6 +1504,164 @@ mod tests {
             .await
             .expect("get_run_request failed");
         assert!(result.is_none());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_create_training_session_as_open() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let session = store
+            .create_training_session(NewTrainingSession {
+                title: "Sessione di prova".into(),
+                created_by: Some("operator1".into()),
+            })
+            .await
+            .expect("create_training_session failed");
+
+        assert!(session.id > 0);
+        assert_eq!(session.title, "Sessione di prova");
+        assert_eq!(session.created_by.as_deref(), Some("operator1"));
+        assert!(session.closed_at.is_none());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_list_training_sessions_newest_first() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let first = store
+            .create_training_session(NewTrainingSession {
+                title: "First".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create failed");
+        let second = store
+            .create_training_session(NewTrainingSession {
+                title: "Second".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create failed");
+
+        let sessions = store
+            .list_training_sessions()
+            .await
+            .expect("list_training_sessions failed");
+        assert_eq!(sessions.len(), 2);
+        assert_eq!(sessions[0].id, second.id);
+        assert_eq!(sessions[1].id, first.id);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_get_training_session_by_id() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let created = store
+            .create_training_session(NewTrainingSession {
+                title: "Sessione".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create failed");
+
+        let fetched = store
+            .get_training_session(created.id)
+            .await
+            .expect("get_training_session failed")
+            .expect("should find the session");
+        assert_eq!(fetched.id, created.id);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_none_when_getting_unknown_training_session() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let result = store
+            .get_training_session(999)
+            .await
+            .expect("get_training_session failed");
+        assert!(result.is_none());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_close_open_training_session_and_return_true() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let created = store
+            .create_training_session(NewTrainingSession {
+                title: "Sessione".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create failed");
+
+        let closed = store
+            .close_training_session(created.id)
+            .await
+            .expect("close_training_session failed");
+        assert!(closed);
+
+        let fetched = store
+            .get_training_session(created.id)
+            .await
+            .expect("get failed")
+            .expect("should find the session");
+        assert!(fetched.closed_at.is_some());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_false_when_closing_already_closed_training_session() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let created = store
+            .create_training_session(NewTrainingSession {
+                title: "Sessione".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create failed");
+        store
+            .close_training_session(created.id)
+            .await
+            .expect("first close failed");
+
+        let second_close = store
+            .close_training_session(created.id)
+            .await
+            .expect("close_training_session failed");
+        assert!(!second_close);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_false_when_closing_unknown_training_session() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let result = store
+            .close_training_session(999)
+            .await
+            .expect("close_training_session failed");
+        assert!(!result);
         drop(store);
         let _ = std::fs::remove_file(&path);
     }

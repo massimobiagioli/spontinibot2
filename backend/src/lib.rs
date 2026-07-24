@@ -7,6 +7,8 @@ use crate::admin::ingest_config::adapter::KbStoreIngestConfigAdapter;
 use crate::admin::ingest_config::handlers::IngestConfigState;
 use crate::admin::ingest_run::adapter::KbStoreIngestRunAdapter;
 use crate::admin::ingest_run::handlers::IngestRunState;
+use crate::admin::training_sessions::adapter::KbStoreTrainingSessionAdapter;
+use crate::admin::training_sessions::handlers::TrainingSessionState;
 use crate::admin::upload::adapter::IngestCoreUploadAdapter;
 use crate::admin::upload::ports::UploadPort;
 use crate::admin::upload::preview_store::PreviewStore;
@@ -64,6 +66,11 @@ pub async fn router() -> Router {
     );
     let upload_port: Arc<dyn UploadPort> = Arc::new(IngestCoreUploadAdapter::new(ingest_pipeline));
     let preview_store = Arc::new(PreviewStore::new(15));
+    let upload_state = admin::upload::handlers::UploadState {
+        upload: upload_port,
+        preview_store: preview_store.clone(),
+        config: config.clone(),
+    };
 
     // Background eviction task for expired preview tokens
     {
@@ -99,14 +106,21 @@ pub async fn router() -> Router {
         config: config.clone(),
     };
 
+    let training_session_port: Arc<dyn crate::admin::training_sessions::TrainingSessionAdminPort> =
+        Arc::new(KbStoreTrainingSessionAdapter::new(store.clone()));
+    let training_session_state = TrainingSessionState {
+        training_sessions: training_session_port,
+        config: config.clone(),
+    };
+
     router_with(
         AppState { rag_engine },
         persona_admin,
         config,
-        upload_port,
-        preview_store,
+        upload_state,
         ingest_config_state,
         ingest_run_state,
+        training_session_state,
     )
 }
 
@@ -114,20 +128,13 @@ pub fn router_with(
     state: AppState,
     persona_admin: Arc<dyn PersonaAdminPort>,
     config: Config,
-    upload: Arc<dyn UploadPort>,
-    preview_store: Arc<PreviewStore>,
+    upload_state: admin::upload::handlers::UploadState,
     ingest_config_state: IngestConfigState,
     ingest_run_state: IngestRunState,
+    training_session_state: TrainingSessionState,
 ) -> Router {
     let admin_state = admin::AdminState {
         persona_admin,
-        // Clone config for upload state below
-        config: config.clone(),
-    };
-
-    let upload_state = admin::upload::handlers::UploadState {
-        upload,
-        preview_store,
         config,
     };
 
@@ -196,5 +203,21 @@ pub fn router_with(
         .route(
             "/admin/api/ingest/run/:id",
             get(admin::ingest_run::handlers::get_run).with_state(ingest_run_state),
+        )
+        .route(
+            "/admin/api/training/sessions",
+            post(admin::training_sessions::handlers::create_session)
+                .get(admin::training_sessions::handlers::list_sessions)
+                .with_state(training_session_state.clone()),
+        )
+        .route(
+            "/admin/api/training/sessions/:id",
+            get(admin::training_sessions::handlers::get_session)
+                .with_state(training_session_state.clone()),
+        )
+        .route(
+            "/admin/api/training/sessions/:id/close",
+            post(admin::training_sessions::handlers::close_session)
+                .with_state(training_session_state),
         )
 }

@@ -86,8 +86,9 @@ The operator-facing HTTP surface of `backend`, behind `/admin/api/*`. After Mile
   - Description: Add an endpoint that writes a run-request flag row to `kb.db` (via `KbStore::request_run`) so the `ingest` service picks it up on its next poll and runs the enabled sources out of schedule. Returns 202 with a request-id the operator can poll via `GET /admin/api/ingest/run/:id` for status (pending / running / done / failed). BDD scenario for the trigger → poll → done flow using a mock source URL.
   - Closed: Plan [0011](../.project/0011-admin-api-ingest-run-plan.md). No ADR — thin CRUD wrapper over the existing `kb-store` run-request table, no architectural decision.
 
-- [ ] **0012** — `/admin/api/training/sessions` — training session CRUD
+- [x] **0012** — `/admin/api/training/sessions` — training session CRUD
   - Description: Add a `training_session` table to `kb-store` (V3 migration: `id`, `title`, `created_at`, `created_by`, `closed_at`) and admin endpoints to create, list, get, and close a session. A session groups an operator's training messages and feedback. BDD scenario for create → list → close.
+  - Closed: Plan [0012](../.project/0012-admin-api-training-sessions-plan.md). No ADR — thin CRUD wrapper following the same port/adapter pattern as features 0010/0011, no architectural decision.
 
 - [ ] **0013** — `/admin/api/training/sessions/:id/messages` — ask/answer with recording
   - Description: Add a `training_message` table (V4 migration: `id`, `session_id`, `question`, `answer`, `sources` JSON, `fell_back`, `created_at`) and a `POST /admin/api/training/sessions/:id/messages` endpoint that delegates to the same `RagEngine` as `/chat`, persists the exchange, and returns the answer with cited sources. `GET /admin/api/training/sessions/:id/messages` lists the session's exchanges. BDD scenario: a training message records the same answer shape as `/chat`, including the honest-unknown fallback.
