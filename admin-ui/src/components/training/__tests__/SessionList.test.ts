@@ -82,6 +82,21 @@ describe('SessionList', () => {
     expect(wrapper.emitted('changed')).toBeTruthy();
   });
 
+  it('shows the honest error message from AdminApiError on create failure', async () => {
+    vi.spyOn(adminApi, 'createSession').mockRejectedValue(
+      new adminApi.AdminApiError(400, 'invalid title'),
+    );
+
+    const wrapper = await mountWithRouter([]);
+
+    await wrapper.find('input[type="text"]').setValue('');
+    await wrapper.find('form').trigger('submit');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('invalid title');
+    expect(wrapper.emitted('changed')).toBeFalsy();
+  });
+
   it('opens the confirm dialog before calling closeSession, and refreshes on confirm', async () => {
     const closeSessionSpy = vi
       .spyOn(adminApi, 'closeSession')

@@ -1,8 +1,10 @@
 # Plan 0018: admin-ui Training section with point-in-answer feedback
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-24 by agent
 - **Implemented**: 2026-07-24 by agent
+- **Closed**: 2026-07-24 by agent
+- **Review verdict**: changes-requested (resolved)
 - **Branch**: feat/admin-ui-training-section-with-point-in-answer-feedback
 - **Feature ID**: 0018
 - **Created**: 2026-07-24

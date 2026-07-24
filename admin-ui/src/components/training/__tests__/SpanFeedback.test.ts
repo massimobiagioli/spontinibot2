@@ -28,6 +28,21 @@ describe('SpanFeedback', () => {
     expect(segments[0]?.attributes('aria-pressed')).toBe('true');
   });
 
+  it('renders normally with an empty feedback list when the initial fetch fails', async () => {
+    vi.spyOn(adminApi, 'listTrainingFeedback').mockRejectedValue(
+      new adminApi.AdminApiError(500, 'internal error'),
+    );
+
+    const wrapper = mount(SpanFeedback, {
+      props: { messageId: 1, answer },
+    });
+    await flushPromises();
+
+    expect(wrapper.find('.span-feedback__segment').exists()).toBe(true);
+    expect(wrapper.find('ul').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('internal error');
+  });
+
   it('toggles a segment off when clicked again, hiding the form', async () => {
     vi.spyOn(adminApi, 'listTrainingFeedback').mockResolvedValue([]);
 
