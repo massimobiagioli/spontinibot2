@@ -207,6 +207,26 @@ pub struct NewTrainingSession {
     pub created_by: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrainingMessage {
+    pub id: i64,
+    pub session_id: i64,
+    pub question: String,
+    pub answer: String,
+    pub sources: String,
+    pub fell_back: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewTrainingMessage {
+    pub session_id: i64,
+    pub question: String,
+    pub answer: String,
+    pub sources: String,
+    pub fell_back: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

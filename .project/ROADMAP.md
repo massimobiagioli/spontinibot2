@@ -90,8 +90,9 @@ The operator-facing HTTP surface of `backend`, behind `/admin/api/*`. After Mile
   - Description: Add a `training_session` table to `kb-store` (V3 migration: `id`, `title`, `created_at`, `created_by`, `closed_at`) and admin endpoints to create, list, get, and close a session. A session groups an operator's training messages and feedback. BDD scenario for create → list → close.
   - Closed: Plan [0012](../.project/0012-admin-api-training-sessions-plan.md). No ADR — thin CRUD wrapper following the same port/adapter pattern as features 0010/0011, no architectural decision.
 
-- [ ] **0013** — `/admin/api/training/sessions/:id/messages` — ask/answer with recording
+- [x] **0013** — `/admin/api/training/sessions/:id/messages` — ask/answer with recording
   - Description: Add a `training_message` table (V4 migration: `id`, `session_id`, `question`, `answer`, `sources` JSON, `fell_back`, `created_at`) and a `POST /admin/api/training/sessions/:id/messages` endpoint that delegates to the same `RagEngine` as `/chat`, persists the exchange, and returns the answer with cited sources. `GET /admin/api/training/sessions/:id/messages` lists the session's exchanges. BDD scenario: a training message records the same answer shape as `/chat`, including the honest-unknown fallback.
+  - Closed: Plan [0013](../.project/0013-admin-api-training-messages-plan.md). No ADR — reuses `RagEngine::answer` verbatim and follows the same port/adapter pattern as features 0010-0012, no architectural decision.
 
 - [ ] **0014** — `/admin/api/training/feedback` — point-in-answer feedback
   - Description: Add a `training_feedback` table (V5 migration: `id`, `message_id`, `chunk_id` nullable, `answer_span` text, `sentiment` `positive`|`negative`, `comment` text, `created_at`) and a `POST /admin/api/training/feedback` endpoint that records point-in-answer feedback anchored to a span of the answer and optionally to a retrieved chunk. `GET /admin/api/training/messages/:id/feedback` lists the feedback for a message. This data drives future retrieval-quality analysis (a later, out-of-roadmap analytics plan). BDD scenario for positive + negative + comment feedback on the same message.

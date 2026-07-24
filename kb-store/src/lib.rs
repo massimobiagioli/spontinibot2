@@ -29,7 +29,8 @@ pub use error::{KbStoreError, Result};
 pub use types::{
     Document, DocumentSource, EMBEDDING_DIM, IngestRunRequest, IngestSchedule, IngestSection,
     IngestSource, NewDocument, NewIngestSchedule, NewIngestSection, NewIngestSource, NewPersona,
-    NewTrainingSession, Persona, RunRequestStatus, ScoredDocument, SourceType, TrainingSession,
+    NewTrainingMessage, NewTrainingSession, Persona, RunRequestStatus, ScoredDocument, SourceType,
+    TrainingMessage, TrainingSession,
 };
 
 use libsql::{Builder, Database, Row};
@@ -636,6 +637,68 @@ impl KbStore {
             )
             .await?;
         Ok(rows_affected > 0)
+    }
+
+    pub async fn create_training_message(
+        &self,
+        message: NewTrainingMessage,
+    ) -> Result<TrainingMessage> {
+        let conn = self.db.connect()?;
+        conn.execute(
+            "INSERT INTO training_message (session_id, question, answer, sources, fell_back) VALUES (?1, ?2, ?3, ?4, ?5)",
+            libsql::params![
+                message.session_id,
+                message.question,
+                message.answer,
+                message.sources,
+                message.fell_back as i32,
+            ],
+        )
+        .await?;
+        let id = conn.last_insert_rowid();
+        let mut rows = conn
+            .query(
+                "SELECT id, session_id, question, answer, sources, fell_back, created_at FROM training_message WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => Ok(TrainingMessage {
+                id: row.get::<i64>(0)?,
+                session_id: row.get::<i64>(1)?,
+                question: row.get::<String>(2)?,
+                answer: row.get::<String>(3)?,
+                sources: row.get::<String>(4)?,
+                fell_back: row.get::<i64>(5)? != 0,
+                created_at: row.get::<String>(6)?,
+            }),
+            None => Err(KbStoreError::Migration(
+                "training message not found after insert".into(),
+            )),
+        }
+    }
+
+    pub async fn list_training_messages(&self, session_id: i64) -> Result<Vec<TrainingMessage>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, session_id, question, answer, sources, fell_back, created_at FROM training_message WHERE session_id = ?1 ORDER BY created_at ASC, id ASC",
+                libsql::params![session_id],
+            )
+            .await?;
+        let mut messages = Vec::new();
+        while let Some(row) = rows.next().await? {
+            messages.push(TrainingMessage {
+                id: row.get::<i64>(0)?,
+                session_id: row.get::<i64>(1)?,
+                question: row.get::<String>(2)?,
+                answer: row.get::<String>(3)?,
+                sources: row.get::<String>(4)?,
+                fell_back: row.get::<i64>(5)? != 0,
+                created_at: row.get::<String>(6)?,
+            });
+        }
+        Ok(messages)
     }
 
     pub async fn complete_run(&self, id: i64, status: RunRequestStatus) -> Result<()> {
@@ -1662,6 +1725,180 @@ mod tests {
             .await
             .expect("close_training_session failed");
         assert!(!result);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_create_training_message_with_all_fields() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let session = store
+            .create_training_session(NewTrainingSession {
+                title: "Sessione".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create_training_session failed");
+
+        let message = store
+            .create_training_message(NewTrainingMessage {
+                session_id: session.id,
+                question: "A che ora apre l'anagrafe?".into(),
+                answer: "Lo sportello apre alle 9:00.".into(),
+                sources: r#"[{"document_id":1,"source_ref":"orari.md"}]"#.into(),
+                fell_back: false,
+            })
+            .await
+            .expect("create_training_message failed");
+
+        assert!(message.id > 0);
+        assert_eq!(message.session_id, session.id);
+        assert_eq!(message.question, "A che ora apre l'anagrafe?");
+        assert_eq!(message.answer, "Lo sportello apre alle 9:00.");
+        assert_eq!(
+            message.sources,
+            r#"[{"document_id":1,"source_ref":"orari.md"}]"#
+        );
+        assert!(!message.fell_back);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_fail_to_create_training_message_for_nonexistent_session() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let result = store
+            .create_training_message(NewTrainingMessage {
+                session_id: 999,
+                question: "test".into(),
+                answer: "test".into(),
+                sources: "[]".into(),
+                fell_back: true,
+            })
+            .await;
+
+        assert!(
+            result.is_err(),
+            "the training_message.session_id foreign key should reject an unknown session"
+        );
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_list_training_messages_oldest_first_for_session() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let session = store
+            .create_training_session(NewTrainingSession {
+                title: "Sessione".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create_training_session failed");
+
+        let first = store
+            .create_training_message(NewTrainingMessage {
+                session_id: session.id,
+                question: "prima domanda".into(),
+                answer: "prima risposta".into(),
+                sources: "[]".into(),
+                fell_back: false,
+            })
+            .await
+            .expect("create failed");
+        let second = store
+            .create_training_message(NewTrainingMessage {
+                session_id: session.id,
+                question: "seconda domanda".into(),
+                answer: "seconda risposta".into(),
+                sources: "[]".into(),
+                fell_back: false,
+            })
+            .await
+            .expect("create failed");
+
+        let messages = store
+            .list_training_messages(session.id)
+            .await
+            .expect("list_training_messages failed");
+        assert_eq!(messages.len(), 2);
+        assert_eq!(messages[0].id, first.id);
+        assert_eq!(messages[1].id, second.id);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_empty_vec_when_listing_messages_for_session_with_none() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let session = store
+            .create_training_session(NewTrainingSession {
+                title: "Sessione".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create_training_session failed");
+
+        let messages = store
+            .list_training_messages(session.id)
+            .await
+            .expect("list_training_messages failed");
+        assert!(messages.is_empty());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_only_list_training_messages_for_requested_session() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let session_a = store
+            .create_training_session(NewTrainingSession {
+                title: "Sessione A".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create_training_session failed");
+        let session_b = store
+            .create_training_session(NewTrainingSession {
+                title: "Sessione B".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create_training_session failed");
+
+        store
+            .create_training_message(NewTrainingMessage {
+                session_id: session_a.id,
+                question: "domanda A".into(),
+                answer: "risposta A".into(),
+                sources: "[]".into(),
+                fell_back: false,
+            })
+            .await
+            .expect("create failed");
+        store
+            .create_training_message(NewTrainingMessage {
+                session_id: session_b.id,
+                question: "domanda B".into(),
+                answer: "risposta B".into(),
+                sources: "[]".into(),
+                fell_back: false,
+            })
+            .await
+            .expect("create failed");
+
+        let messages_a = store
+            .list_training_messages(session_a.id)
+            .await
+            .expect("list_training_messages failed");
+        assert_eq!(messages_a.len(), 1);
+        assert_eq!(messages_a[0].question, "domanda A");
         drop(store);
         let _ = std::fs::remove_file(&path);
     }
