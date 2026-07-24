@@ -84,6 +84,30 @@ export interface UploadMetadataInput {
   trustScore?: number;
 }
 
+export interface PersonaResponse {
+  id: number;
+  version: number;
+  name: string;
+  system_prompt: string;
+  tone: string | null;
+  fallback_message: string | null;
+  is_active: boolean;
+  created_at: string;
+  created_by: string | null;
+}
+
+export interface CreatePersonaRequest {
+  name: string;
+  system_prompt: string;
+  tone?: string;
+  fallback_message?: string;
+  activate: boolean;
+}
+
+export interface StatusResponse {
+  status: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -215,6 +239,30 @@ export function getUploadPreview(token: string): Promise<PreviewResponse> {
 
 export function confirmUpload(token: string): Promise<ConfirmResponse> {
   return request<ConfirmResponse>(`/admin/api/upload/confirm/${token}`, {
+    method: 'POST',
+  });
+}
+
+export function getPersonaVersions(name: string): Promise<PersonaResponse[]> {
+  return request<PersonaResponse[]>(
+    `/admin/api/persona?name=${encodeURIComponent(name)}`,
+  );
+}
+
+export function createPersona(
+  payload: CreatePersonaRequest,
+): Promise<PersonaResponse> {
+  return jsonRequest<PersonaResponse>('/admin/api/persona', 'POST', payload);
+}
+
+export function activatePersona(id: number): Promise<StatusResponse> {
+  return request<StatusResponse>(`/admin/api/persona/${id}/activate`, {
+    method: 'POST',
+  });
+}
+
+export function reloadPersona(): Promise<StatusResponse> {
+  return request<StatusResponse>('/admin/api/persona/reload', {
     method: 'POST',
   });
 }

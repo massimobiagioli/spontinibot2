@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { DsNav } from './components/ds';
 
-// Imprinting and Training (features 0017/0018) don't exist yet, so they
-// remain disabled placeholders per plan 0015's non-goals.
+// Training (feature 0018) doesn't exist yet, so it remains a disabled
+// placeholder per plan 0015's non-goals.
 const businessLinks = [
   { to: '/ingest', label: 'Ingest' },
-  { label: 'Imprinting' },
+  { to: '/imprinting', label: 'Imprinting' },
   { label: 'Training' },
 ];
 </script>
