@@ -1,8 +1,10 @@
 # Plan 0016: admin-ui Ingest configuration section
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-24 by agent
 - **Implemented**: 2026-07-24 by agent
+- **Closed**: 2026-07-24 by agent
+- **Review verdict**: changes-requested (resolved)
 - **Branch**: feat/admin-ui-ingest-configuration-section
 - **Feature ID**: 0016
 - **Created**: 2026-07-24

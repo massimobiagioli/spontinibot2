@@ -46,6 +46,22 @@ describe('SectionList', () => {
     expect(wrapper.emitted('changed')).toHaveLength(1);
   });
 
+  it('shows an honest error message when adding a section fails', async () => {
+    vi.spyOn(adminApi, 'createSection').mockRejectedValue(
+      new adminApi.AdminApiError(500, 'database error: connection refused'),
+    );
+
+    const wrapper = mount(SectionList, { props: { sections: [] } });
+
+    await wrapper.find('input[type="text"]').setValue('delibere');
+    await wrapper.find('form').trigger('submit');
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('database error: connection refused');
+    expect(wrapper.emitted('changed')).toBeUndefined();
+  });
+
   it('deleting a section requires confirmation before calling deleteSection', async () => {
     const deleteSpy = vi
       .spyOn(adminApi, 'deleteSection')
@@ -90,6 +106,29 @@ describe('SectionList', () => {
     await wrapper.vm.$nextTick();
 
     expect(deleteSpy).not.toHaveBeenCalled();
+    expect(dialog.element.open).toBe(false);
+  });
+
+  it('shows an honest error message when deleting a section fails', async () => {
+    vi.spyOn(adminApi, 'deleteSection').mockRejectedValue(
+      new adminApi.AdminApiError(500, 'database error: connection refused'),
+    );
+
+    const wrapper = mount(SectionList, {
+      props: { sections: [section()] },
+    });
+
+    await wrapper.find('li > button').trigger('click');
+    await wrapper.vm.$nextTick();
+    const dialog = wrapper.find<HTMLDialogElement>(
+      '[data-testid="section-delete-dialog"]',
+    );
+    await dialog.find('button.btn-danger').trigger('click');
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('database error: connection refused');
+    expect(wrapper.emitted('changed')).toBeUndefined();
     expect(dialog.element.open).toBe(false);
   });
 });

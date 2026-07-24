@@ -79,6 +79,43 @@ describe('UploadDropzone', () => {
     expect(wrapper.text()).toContain('unsupported file format');
   });
 
+  it('shows an honest error message when confirming the upload fails', async () => {
+    vi.spyOn(adminApi, 'uploadDocument').mockResolvedValue({
+      token: 'abc',
+      preview_url: '/admin/api/upload/preview/abc',
+    });
+    vi.spyOn(adminApi, 'getUploadPreview').mockResolvedValue({
+      extracted_text: 'contenuto',
+      format: 'txt',
+      byte_size: 9,
+      section: 'news',
+      filename: 'doc.txt',
+      metadata: { category: null, tags: null, trust_score: null },
+      chunk_count_estimate: 1,
+    });
+    vi.spyOn(adminApi, 'confirmUpload').mockRejectedValue(
+      new adminApi.AdminApiError(404, 'preview token not found'),
+    );
+
+    const wrapper = mount(UploadDropzone, { props: { sectionName: 'news' } });
+    const file = new File(['contenuto'], 'doc.txt', { type: 'text/plain' });
+    selectFile(wrapper, file);
+
+    await wrapper.find('form').trigger('submit');
+    await Promise.resolve();
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    await wrapper.findAll('button')[0]?.trigger('click');
+    await Promise.resolve();
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.text()).toContain('preview token not found');
+    // falls back to the preview phase (not stuck on "confirming"), so the
+    // confirm/cancel actions are still available to retry or bail out
+    expect(wrapper.findAll('button')).toHaveLength(2);
+  });
+
   it('annulla resets the form without confirming the upload', async () => {
     vi.spyOn(adminApi, 'uploadDocument').mockResolvedValue({
       token: 'abc',
