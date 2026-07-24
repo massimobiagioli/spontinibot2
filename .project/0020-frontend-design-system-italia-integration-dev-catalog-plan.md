@@ -1,8 +1,10 @@
 # Plan 0020: frontend Design System Italia integration + /dev catalog
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-24 by agent
 - **Implemented**: 2026-07-24 by agent
+- **Closed**: 2026-07-24 by agent
+- **Review verdict**: approved
 - **Branch**: feat/frontend-design-system-italia-integration-dev-catalog
 - **Feature ID**: 0020
 - **Created**: 2026-07-24
