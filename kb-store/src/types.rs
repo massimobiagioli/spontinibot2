@@ -192,6 +192,21 @@ pub struct IngestRunRequest {
     pub status: RunRequestStatus,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrainingSession {
+    pub id: i64,
+    pub title: String,
+    pub created_at: String,
+    pub created_by: Option<String>,
+    pub closed_at: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewTrainingSession {
+    pub title: String,
+    pub created_by: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

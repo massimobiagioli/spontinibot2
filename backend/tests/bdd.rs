@@ -15,7 +15,12 @@ use backend::admin::ingest_config::{
 };
 use backend::admin::ingest_run::handlers::IngestRunState;
 use backend::admin::ingest_run::{IngestRunAdminPort, IngestRunError, IngestRunResponse};
+use backend::admin::training_sessions::handlers::TrainingSessionState;
+use backend::admin::training_sessions::{
+    TrainingSessionAdminPort, TrainingSessionError, TrainingSessionResponse,
+};
 use backend::admin::upload::UploadError;
+use backend::admin::upload::handlers::UploadState;
 use backend::admin::upload::ports::UploadPort;
 use backend::admin::upload::preview_store::PreviewStore;
 use backend::config::Config;
@@ -158,6 +163,30 @@ impl IngestRunAdminPort for StubIngestRunAdmin {
     }
 }
 
+struct StubTrainingSessionAdmin;
+
+#[async_trait]
+impl TrainingSessionAdminPort for StubTrainingSessionAdmin {
+    async fn create_session(
+        &self,
+        _req: kb_store::NewTrainingSession,
+    ) -> Result<TrainingSessionResponse, TrainingSessionError> {
+        unimplemented!("stub")
+    }
+    async fn list_sessions(&self) -> Result<Vec<TrainingSessionResponse>, TrainingSessionError> {
+        Ok(vec![])
+    }
+    async fn get_session(
+        &self,
+        _id: i64,
+    ) -> Result<Option<TrainingSessionResponse>, TrainingSessionError> {
+        unimplemented!("stub")
+    }
+    async fn close_session(&self, _id: i64) -> Result<bool, TrainingSessionError> {
+        unimplemented!("stub")
+    }
+}
+
 #[derive(Debug)]
 struct RecordingGeneration {
     call_count: AtomicUsize,
@@ -190,6 +219,9 @@ struct BotWorld {
     ingest_run_db_path: Option<String>,
     ingest_run_router: Option<axum::Router>,
     ingest_run_id: Option<i64>,
+    training_sessions_db_path: Option<String>,
+    training_sessions_router: Option<axum::Router>,
+    training_session_id: Option<i64>,
 }
 
 impl Drop for BotWorld {
@@ -204,6 +236,9 @@ impl Drop for BotWorld {
             let _ = std::fs::remove_file(path);
         }
         if let Some(ref path) = self.ingest_run_db_path {
+            let _ = std::fs::remove_file(path);
+        }
+        if let Some(ref path) = self.training_sessions_db_path {
             let _ = std::fs::remove_file(path);
         }
     }
@@ -252,6 +287,11 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
 
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
+    let upload_state = UploadState {
+        upload,
+        preview_store,
+        config: config.clone(),
+    };
 
     let ingest_config_port: Arc<dyn IngestConfigAdminPort> = Arc::new(
         backend::admin::ingest_config::adapter::KbStoreIngestConfigAdapter::new(store.clone()),
@@ -268,14 +308,24 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
         config: config.clone(),
     };
 
+    let training_session_port: Arc<dyn TrainingSessionAdminPort> = Arc::new(
+        backend::admin::training_sessions::adapter::KbStoreTrainingSessionAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_session_state = TrainingSessionState {
+        training_sessions: training_session_port,
+        config: config.clone(),
+    };
+
     backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
-        upload,
-        preview_store,
+        upload_state,
         ingest_config_state,
         ingest_run_state,
+        training_session_state,
     )
 }
 
@@ -302,6 +352,13 @@ fn stub_ingest_config_state(config: Config) -> IngestConfigState {
 fn stub_ingest_run_state(config: Config) -> IngestRunState {
     IngestRunState {
         ingest_run: Arc::new(StubIngestRunAdmin),
+        config,
+    }
+}
+
+fn stub_training_session_state(config: Config) -> TrainingSessionState {
+    TrainingSessionState {
+        training_sessions: Arc::new(StubTrainingSessionAdmin),
         config,
     }
 }
@@ -334,16 +391,22 @@ async fn when_check_health(world: &mut BotWorld) {
     };
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
+    let upload_state = UploadState {
+        upload,
+        preview_store,
+        config: config.clone(),
+    };
     let ingest_config_state = stub_ingest_config_state(config.clone());
     let ingest_run_state = stub_ingest_run_state(config.clone());
+    let training_session_state = stub_training_session_state(config.clone());
     let router = backend::router_with(
         AppState { rag_engine },
         admin,
         config,
-        upload,
-        preview_store,
+        upload_state,
         ingest_config_state,
         ingest_run_state,
+        training_session_state,
     );
     let response = router
         .oneshot(
@@ -416,8 +479,14 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
     };
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
+    let upload_state = UploadState {
+        upload,
+        preview_store,
+        config: config.clone(),
+    };
     let ingest_config_state = stub_ingest_config_state(config.clone());
     let ingest_run_state = stub_ingest_run_state(config.clone());
+    let training_session_state = stub_training_session_state(config.clone());
     let router = backend::router_with(
         {
             let rag_engine = Arc::new(RagEngine::new(
@@ -436,10 +505,10 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
         },
         admin,
         config,
-        upload,
-        preview_store,
+        upload_state,
         ingest_config_state,
         ingest_run_state,
+        training_session_state,
     );
 
     let body = serde_json::json!({ "question": question });
@@ -1035,6 +1104,11 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
 
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
+    let upload_state = UploadState {
+        upload,
+        preview_store,
+        config: config.clone(),
+    };
 
     let ingest_config_port: Arc<dyn IngestConfigAdminPort> = Arc::new(
         backend::admin::ingest_config::adapter::KbStoreIngestConfigAdapter::new(store.clone()),
@@ -1051,14 +1125,24 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
         config: config.clone(),
     };
 
+    let training_session_port: Arc<dyn TrainingSessionAdminPort> = Arc::new(
+        backend::admin::training_sessions::adapter::KbStoreTrainingSessionAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_session_state = TrainingSessionState {
+        training_sessions: training_session_port,
+        config: config.clone(),
+    };
+
     backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
-        upload,
-        preview_store,
+        upload_state,
         ingest_config_state,
         ingest_run_state,
+        training_session_state,
     )
 }
 
@@ -1327,6 +1411,11 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
 
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
+    let upload_state = UploadState {
+        upload,
+        preview_store,
+        config: config.clone(),
+    };
 
     let ingest_config_port: Arc<dyn IngestConfigAdminPort> = Arc::new(
         backend::admin::ingest_config::adapter::KbStoreIngestConfigAdapter::new(store.clone()),
@@ -1343,14 +1432,24 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
         config: config.clone(),
     };
 
+    let training_session_port: Arc<dyn TrainingSessionAdminPort> = Arc::new(
+        backend::admin::training_sessions::adapter::KbStoreTrainingSessionAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_session_state = TrainingSessionState {
+        training_sessions: training_session_port,
+        config: config.clone(),
+    };
+
     let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
-        upload,
-        preview_store,
+        upload_state,
         ingest_config_state,
         ingest_run_state,
+        training_session_state,
     );
 
     world.ingest_config_db_path = Some(path);
@@ -1831,6 +1930,11 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
 
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
+    let upload_state = UploadState {
+        upload,
+        preview_store,
+        config: config.clone(),
+    };
     let ingest_config_state = stub_ingest_config_state(config.clone());
 
     let ingest_run_port: Arc<dyn IngestRunAdminPort> =
@@ -1840,14 +1944,24 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
         config: config.clone(),
     };
 
+    let training_session_port: Arc<dyn TrainingSessionAdminPort> = Arc::new(
+        backend::admin::training_sessions::adapter::KbStoreTrainingSessionAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_session_state = TrainingSessionState {
+        training_sessions: training_session_port,
+        config: config.clone(),
+    };
+
     let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
-        upload,
-        preview_store,
+        upload_state,
         ingest_config_state,
         ingest_run_state,
+        training_session_state,
     );
 
     world.ingest_run_db_path = Some(path);
@@ -1952,6 +2066,295 @@ async fn then_run_status_is(world: &mut BotWorld, expected_status: String) {
 
 #[then("the ingest run is not found")]
 async fn then_run_not_found(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(404));
+}
+
+// ---------------------------------------------------------------------------
+// Training session BDD step definitions
+// ---------------------------------------------------------------------------
+
+#[given("the training sessions API is available")]
+async fn given_training_sessions_api_available(world: &mut BotWorld) {
+    let path = temp_db();
+    let store = Arc::new(
+        kb_store::KbStore::open(&path)
+            .await
+            .expect("failed to open test kb.db for training sessions"),
+    );
+    let persona: Arc<dyn PersonaPort> = Arc::new(
+        backend::rag_engine::persona::PersonaAdapter::new(store.clone()),
+    );
+    let persona_admin: Arc<dyn PersonaAdminPort> = Arc::new(
+        backend::rag_engine::persona_admin::PersonaAdminAdapter::new(store.clone(), persona),
+    );
+
+    let config = Config {
+        embed_url: "http://embed:8080".into(),
+        generate_url: "http://generate:8080".into(),
+        kb_path: path.clone(),
+        top_k: 5,
+        min_score: 0.35,
+        admin_api_key: "test-key".into(),
+        upload_max_bytes: 10_485_760,
+    };
+
+    let rag_engine = Arc::new(RagEngine::new(
+        Arc::new(StubEmbedding),
+        Arc::new(ConfigurableRetrieval { chunks: vec![] }),
+        Arc::new(ConfigurablePersona { snapshot: None }),
+        Arc::new(RecordingGeneration {
+            call_count: AtomicUsize::new(0),
+            last_prompt: std::sync::Mutex::new(None),
+        }),
+        5,
+        0.35,
+    ));
+
+    let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
+    let preview_store = Arc::new(PreviewStore::new(15));
+    let upload_state = UploadState {
+        upload,
+        preview_store,
+        config: config.clone(),
+    };
+    let ingest_config_state = stub_ingest_config_state(config.clone());
+    let ingest_run_state = stub_ingest_run_state(config.clone());
+
+    let training_session_port: Arc<dyn TrainingSessionAdminPort> = Arc::new(
+        backend::admin::training_sessions::adapter::KbStoreTrainingSessionAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_session_state = TrainingSessionState {
+        training_sessions: training_session_port,
+        config: config.clone(),
+    };
+
+    let router = backend::router_with(
+        AppState { rag_engine },
+        persona_admin,
+        config,
+        upload_state,
+        ingest_config_state,
+        ingest_run_state,
+        training_session_state,
+    );
+
+    world.training_sessions_db_path = Some(path);
+    world.training_sessions_router = Some(router);
+}
+
+async fn training_session_request(
+    world: &mut BotWorld,
+    method: &str,
+    uri: String,
+    with_auth: bool,
+    body: Option<serde_json::Value>,
+) {
+    let router = world
+        .training_sessions_router
+        .as_ref()
+        .expect("training sessions router not initialized")
+        .clone();
+
+    let mut builder = Request::builder().method(method).uri(uri);
+    if with_auth {
+        builder = builder.header("x-admin-key", "test-key");
+    }
+    let request = if let Some(body) = body {
+        builder
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap()
+    } else {
+        builder.body(Body::empty()).unwrap()
+    };
+
+    let response = router.oneshot(request).await.unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when(regex = r#"^the operator creates a training session titled "([^"]+)"$"#)]
+async fn when_create_training_session(world: &mut BotWorld, title: String) {
+    let body = serde_json::json!({ "title": title, "created_by": null });
+    training_session_request(
+        world,
+        "POST",
+        "/admin/api/training/sessions".into(),
+        true,
+        Some(body),
+    )
+    .await;
+
+    let response: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    world.training_session_id = response["id"].as_i64();
+}
+
+#[given(regex = r#"^the operator has created a training session titled "([^"]+)"$"#)]
+async fn given_created_training_session(world: &mut BotWorld, title: String) {
+    when_create_training_session(world, title).await;
+}
+
+#[when("the operator creates a training session without admin key")]
+async fn when_create_training_session_no_auth(world: &mut BotWorld) {
+    let body = serde_json::json!({ "title": "Sessione", "created_by": null });
+    training_session_request(
+        world,
+        "POST",
+        "/admin/api/training/sessions".into(),
+        false,
+        Some(body),
+    )
+    .await;
+}
+
+#[when("the operator lists training sessions without admin key")]
+async fn when_list_training_sessions_no_auth(world: &mut BotWorld) {
+    training_session_request(
+        world,
+        "GET",
+        "/admin/api/training/sessions".into(),
+        false,
+        None,
+    )
+    .await;
+}
+
+#[when("the operator retrieves that training session")]
+async fn when_retrieve_that_training_session(world: &mut BotWorld) {
+    let id = world
+        .training_session_id
+        .expect("no training session created yet");
+    training_session_request(
+        world,
+        "GET",
+        format!("/admin/api/training/sessions/{id}"),
+        true,
+        None,
+    )
+    .await;
+}
+
+#[when(regex = r"^the operator retrieves training session (\d+)$")]
+async fn when_retrieve_training_session_by_id(world: &mut BotWorld, id: i64) {
+    training_session_request(
+        world,
+        "GET",
+        format!("/admin/api/training/sessions/{id}"),
+        true,
+        None,
+    )
+    .await;
+}
+
+#[when(regex = r"^the operator retrieves training session (\d+) without admin key$")]
+async fn when_retrieve_training_session_by_id_no_auth(world: &mut BotWorld, id: i64) {
+    training_session_request(
+        world,
+        "GET",
+        format!("/admin/api/training/sessions/{id}"),
+        false,
+        None,
+    )
+    .await;
+}
+
+#[when("the operator closes that training session")]
+async fn when_close_that_training_session(world: &mut BotWorld) {
+    let id = world
+        .training_session_id
+        .expect("no training session created yet");
+    training_session_request(
+        world,
+        "POST",
+        format!("/admin/api/training/sessions/{id}/close"),
+        true,
+        None,
+    )
+    .await;
+}
+
+#[given("the operator has closed that training session")]
+async fn given_closed_that_training_session(world: &mut BotWorld) {
+    when_close_that_training_session(world).await;
+}
+
+#[when("the operator closes that training session again")]
+async fn when_close_that_training_session_again(world: &mut BotWorld) {
+    when_close_that_training_session(world).await;
+}
+
+#[when(regex = r"^the operator closes training session (\d+) without admin key$")]
+async fn when_close_training_session_by_id_no_auth(world: &mut BotWorld, id: i64) {
+    training_session_request(
+        world,
+        "POST",
+        format!("/admin/api/training/sessions/{id}/close"),
+        false,
+        None,
+    )
+    .await;
+}
+
+#[then(regex = r#"^the training session list contains a session titled "([^"]+)"$"#)]
+async fn then_session_list_contains(world: &mut BotWorld, title: String) {
+    training_session_request(
+        world,
+        "GET",
+        "/admin/api/training/sessions".into(),
+        true,
+        None,
+    )
+    .await;
+    let sessions: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    let found = sessions
+        .as_array()
+        .expect("sessions should be an array")
+        .iter()
+        .any(|s| s["title"].as_str() == Some(title.as_str()));
+    assert!(found, "expected a session titled '{title}' in the list");
+}
+
+#[then(regex = r#"^the retrieved training session is titled "([^"]+)"$"#)]
+async fn then_retrieved_session_titled(world: &mut BotWorld, title: String) {
+    assert_eq!(world.response_status, Some(200));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["title"].as_str(), Some(title.as_str()));
+}
+
+#[then("the retrieved training session is open")]
+async fn then_retrieved_session_open(world: &mut BotWorld) {
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert!(body["closed_at"].is_null());
+}
+
+#[then("the training session is closed")]
+async fn then_session_closed(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(200));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["closed"].as_bool(), Some(true));
+}
+
+#[then("closing the training session has no effect")]
+async fn then_closing_has_no_effect(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(200));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["closed"].as_bool(), Some(false));
+}
+
+#[then("the training session is not found")]
+async fn then_session_not_found(world: &mut BotWorld) {
     assert_eq!(world.response_status, Some(404));
 }
 
