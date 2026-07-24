@@ -9,6 +9,8 @@ import DevCatalog from '../views/DevCatalog.vue';
 import HomeView from '../views/HomeView.vue';
 import ImprintingView from '../views/ImprintingView.vue';
 import IngestView from '../views/IngestView.vue';
+import TrainingSessionView from '../views/TrainingSessionView.vue';
+import TrainingSessionsView from '../views/TrainingSessionsView.vue';
 
 function makeRouter() {
   return createRouter({
@@ -18,6 +20,8 @@ function makeRouter() {
       { path: '/dev', component: DevCatalog },
       { path: '/ingest', component: IngestView },
       { path: '/imprinting', component: ImprintingView },
+      { path: '/training', component: TrainingSessionsView },
+      { path: '/training/:id', component: TrainingSessionView },
     ],
   });
 }
@@ -136,6 +140,98 @@ describe('accessibility', () => {
 
     const router = makeRouter();
     await router.push('/imprinting');
+    await router.isReady();
+
+    const wrapper = mount(App, {
+      global: { plugins: [router] },
+      attachTo: document.body,
+    });
+    await flushPromises();
+
+    const results = await runAxe(wrapper.element);
+
+    expect(results.violations).toEqual([]);
+
+    wrapper.unmount();
+  });
+
+  it('the /training section has zero axe violations', async () => {
+    vi.spyOn(adminApi, 'listSessions').mockResolvedValue([
+      {
+        id: 1,
+        title: "Sessione sull'anagrafe",
+        created_at: '2026-07-24T00:00:00Z',
+        created_by: 'operator1',
+        closed_at: null,
+      },
+      {
+        id: 2,
+        title: 'Sessione chiusa',
+        created_at: '2026-07-20T00:00:00Z',
+        created_by: 'operator1',
+        closed_at: '2026-07-21T00:00:00Z',
+      },
+    ]);
+
+    const router = makeRouter();
+    await router.push('/training');
+    await router.isReady();
+
+    const wrapper = mount(App, {
+      global: { plugins: [router] },
+      attachTo: document.body,
+    });
+    await flushPromises();
+
+    const results = await runAxe(wrapper.element);
+
+    expect(results.violations).toEqual([]);
+
+    wrapper.unmount();
+  });
+
+  it('the /training/:id session detail has zero axe violations', async () => {
+    vi.spyOn(adminApi, 'getSession').mockResolvedValue({
+      id: 1,
+      title: "Sessione sull'anagrafe",
+      created_at: '2026-07-24T00:00:00Z',
+      created_by: 'operator1',
+      closed_at: null,
+    });
+    vi.spyOn(adminApi, 'listTrainingMessages').mockResolvedValue([
+      {
+        id: 1,
+        session_id: 1,
+        question: "A che ora apre l'anagrafe?",
+        answer: 'Lo sportello apre alle 9:00. Il sabato è chiuso.',
+        sources: [{ document_id: 7, source_ref: 'orari.md' }],
+        fell_back: false,
+        created_at: '2026-07-24T00:00:00Z',
+      },
+      {
+        id: 2,
+        session_id: 1,
+        question: 'Qual è la popolazione della luna?',
+        answer: 'Non ho trovato informazioni nei documenti comunali.',
+        sources: [],
+        fell_back: true,
+        created_at: '2026-07-24T00:00:00Z',
+      },
+    ]);
+    vi.spyOn(adminApi, 'listTrainingFeedback').mockResolvedValue([
+      {
+        id: 1,
+        message_id: 1,
+        chunk_id: null,
+        answer_span: 'Lo sportello apre alle 9:00.',
+        sentiment: 'positive',
+        comment: null,
+        created_at: '2026-07-24T00:00:00Z',
+      },
+    ]);
+
+    const router = makeRouter();
+    await router.push('/training/1');
     await router.isReady();
 
     const wrapper = mount(App, {

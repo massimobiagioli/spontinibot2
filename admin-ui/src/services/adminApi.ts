@@ -108,6 +108,56 @@ export interface StatusResponse {
   status: string;
 }
 
+export interface TrainingSessionResponse {
+  id: number;
+  title: string;
+  created_at: string;
+  created_by: string | null;
+  closed_at: string | null;
+}
+
+export interface CreateSessionRequest {
+  title: string;
+  created_by?: string;
+}
+
+export interface ClosedResponse {
+  closed: boolean;
+}
+
+export interface TrainingMessageSource {
+  document_id: number;
+  source_ref: string;
+}
+
+export interface TrainingMessageResponse {
+  id: number;
+  session_id: number;
+  question: string;
+  answer: string;
+  sources: TrainingMessageSource[];
+  fell_back: boolean;
+  created_at: string;
+}
+
+export interface TrainingFeedbackResponse {
+  id: number;
+  message_id: number;
+  chunk_id: number | null;
+  answer_span: string;
+  sentiment: string;
+  comment: string | null;
+  created_at: string;
+}
+
+export interface CreateFeedbackRequest {
+  message_id: number;
+  chunk_id?: number;
+  answer_span: string;
+  sentiment: 'positive' | 'negative';
+  comment?: string;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -265,4 +315,69 @@ export function reloadPersona(): Promise<StatusResponse> {
   return request<StatusResponse>('/admin/api/persona/reload', {
     method: 'POST',
   });
+}
+
+export function createSession(
+  title: string,
+  createdBy?: string,
+): Promise<TrainingSessionResponse> {
+  const payload: CreateSessionRequest = createdBy
+    ? { title, created_by: createdBy }
+    : { title };
+  return jsonRequest<TrainingSessionResponse>(
+    '/admin/api/training/sessions',
+    'POST',
+    payload,
+  );
+}
+
+export function listSessions(): Promise<TrainingSessionResponse[]> {
+  return request<TrainingSessionResponse[]>('/admin/api/training/sessions');
+}
+
+export function getSession(id: number): Promise<TrainingSessionResponse> {
+  return request<TrainingSessionResponse>(`/admin/api/training/sessions/${id}`);
+}
+
+export function closeSession(id: number): Promise<ClosedResponse> {
+  return request<ClosedResponse>(`/admin/api/training/sessions/${id}/close`, {
+    method: 'POST',
+  });
+}
+
+export function askTrainingMessage(
+  sessionId: number,
+  question: string,
+): Promise<TrainingMessageResponse> {
+  return jsonRequest<TrainingMessageResponse>(
+    `/admin/api/training/sessions/${sessionId}/messages`,
+    'POST',
+    { question },
+  );
+}
+
+export function listTrainingMessages(
+  sessionId: number,
+): Promise<TrainingMessageResponse[]> {
+  return request<TrainingMessageResponse[]>(
+    `/admin/api/training/sessions/${sessionId}/messages`,
+  );
+}
+
+export function createTrainingFeedback(
+  payload: CreateFeedbackRequest,
+): Promise<TrainingFeedbackResponse> {
+  return jsonRequest<TrainingFeedbackResponse>(
+    '/admin/api/training/feedback',
+    'POST',
+    payload,
+  );
+}
+
+export function listTrainingFeedback(
+  messageId: number,
+): Promise<TrainingFeedbackResponse[]> {
+  return request<TrainingFeedbackResponse[]>(
+    `/admin/api/training/messages/${messageId}/feedback`,
+  );
 }

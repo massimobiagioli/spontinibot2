@@ -1,12 +1,10 @@
 <script setup lang="ts">
 import { DsNav } from './components/ds';
 
-// Training (feature 0018) doesn't exist yet, so it remains a disabled
-// placeholder per plan 0015's non-goals.
 const businessLinks = [
   { to: '/ingest', label: 'Ingest' },
   { to: '/imprinting', label: 'Imprinting' },
-  { label: 'Training' },
+  { to: '/training', label: 'Training' },
 ];
 </script>
 
