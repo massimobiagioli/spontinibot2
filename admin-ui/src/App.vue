@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { DsNav } from './components/ds';
 
-// Milestone 3 business sections (features 0016-0018) don't exist yet, so
-// these render as disabled placeholders per plan 0015's non-goals.
+// Imprinting and Training (features 0017/0018) don't exist yet, so they
+// remain disabled placeholders per plan 0015's non-goals.
 const businessLinks = [
-  { label: 'Ingest' },
+  { to: '/ingest', label: 'Ingest' },
   { label: 'Imprinting' },
   { label: 'Training' },
 ];
