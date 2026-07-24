@@ -1,8 +1,10 @@
 # Plan 0011: `/admin/api/ingest/run` — trigger an immediate ingest run
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-24 by Sisyphus
 - **Implemented**: 2026-07-24 by Sisyphus
+- **Closed**: 2026-07-24 by Sisyphus
+- **Review verdict**: approved
 - **Branch**: feat/admin-api-ingest-run
 - **Feature ID**: 0011
 - **Created**: 2026-07-24
