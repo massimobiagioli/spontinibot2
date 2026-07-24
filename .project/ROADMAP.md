@@ -82,8 +82,9 @@ The operator-facing HTTP surface of `backend`, behind `/admin/api/*`. After Mile
   - Description: Add endpoints to read and write the ingest configuration authored in feature 0004: `GET /admin/api/ingest/config` (schedule + sections + sources tree), `PUT /admin/api/ingest/config/schedule`, `POST /admin/api/ingest/config/sections`, `PUT /admin/api/ingest/config/sections/:id`, `DELETE /admin/api/ingest/config/sections/:id`, `POST /admin/api/ingest/config/sources`, `PUT /admin/api/ingest/config/sources/:id`, `DELETE /admin/api/ingest/config/sources/:id`. The `api` source type is writable but always returned with `enabled=false` and a `coming_soon: true` flag. All writes go through `kb-store`; the `ingest` service picks them up on its next config poll. BDD scenarios for create/update/delete and for the disabled-api-source invariant.
   - Closed: Plan [0010](../.project/0010-ingest-config-api-plan.md). No ADR — CRUD wrapper, no architectural decision.
 
-- [ ] **0011** — `/admin/api/ingest/run` — trigger an immediate ingest run
+- [x] **0011** — `/admin/api/ingest/run` — trigger an immediate ingest run
   - Description: Add an endpoint that writes a run-request flag row to `kb.db` (via `KbStore::request_run`) so the `ingest` service picks it up on its next poll and runs the enabled sources out of schedule. Returns 202 with a request-id the operator can poll via `GET /admin/api/ingest/run/:id` for status (pending / running / done / failed). BDD scenario for the trigger → poll → done flow using a mock source URL.
+  - Closed: Plan [0011](../.project/0011-admin-api-ingest-run-plan.md). No ADR — thin CRUD wrapper over the existing `kb-store` run-request table, no architectural decision.
 
 - [ ] **0012** — `/admin/api/training/sessions` — training session CRUD
   - Description: Add a `training_session` table to `kb-store` (V3 migration: `id`, `title`, `created_at`, `created_by`, `closed_at`) and admin endpoints to create, list, get, and close a session. A session groups an operator's training messages and feedback. BDD scenario for create → list → close.
