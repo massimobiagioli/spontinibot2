@@ -104,8 +104,9 @@ The operator-facing HTTP surface of `backend`, behind `/admin/api/*`. After Mile
 
 The Vue 3 + TypeScript SPA served by the `admin-ui` container, built on Design System Italia, with the three first-class sections (Ingest configuration, Bot imprinting, Training). After Milestone 3, an operator can drive the whole system from a browser.
 
-- [ ] **0015** — admin-ui Design System Italia integration + /dev catalog
+- [x] **0015** — admin-ui Design System Italia integration + /dev catalog
   - Description: Integrate `bootstrap-italia` + `design-tokens-italia` into `admin-ui` (Vite + Dart Sass, `@use`/`@forward` only). Build thin Vue wrapper components (`<DsButton>`, `<DsInput>`, `<DsCallout>`, `<DsNav>`, …) under `src/components/ds/` re-exported from a barrel. Add a `/dev` route listing every wrapper component in isolation (Storybook-lite). Configure `axe-core` + `pa11y` in the test suite with zero-violation CI gate. No business sections yet.
+  - Closed: Plan [0015](../.project/0015-admin-ui-design-system-italia-integration-dev-catalog-plan.md), ADR [0009](../.adr/0009-bootstrap-italia-3x-beta-with-patched-splide-exports.md).
 
 - [ ] **0016** — admin-ui Ingest configuration section
   - Description: Build the Ingest configuration section as a first-class route. Left-rail navigation (Ingest · Imprinting · Training). The section shows the schedule (cron, enabled toggle), the section list (sport/news/delibere/storia), and per-section sources (URL scraper enabled; API greyed-out with "Coming soon" tooltip) and a per-section manual upload dropzone that calls the feature 0009 upload flow (preview → confirm). All calls go to `/admin/api/ingest/config` and `/admin/api/upload`. BDD scenario for: add a section, add a scraper source, trigger a run, see the run status.

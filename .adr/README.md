@@ -12,6 +12,7 @@ This directory holds the ADRs for the Spontini Bot 2 project. Each ADR records a
 | [0006](./0006-ingest-pipeline-trait.md) | Ingest Pipeline Trait and Composition Pattern | accepted | 2026-07-09 |
 | [0007](./0007-cron-based-ingest-scheduler.md) | Cron-Based Ingest Scheduler with Config Polling | accepted | 2026-07-09 |
 | [0008](./0008-preview-confirm-upload-workflow.md) | Preview/Confirm Upload Workflow with In-Memory TTL Token Store | proposed | 2026-07-24 |
+| [0009](./0009-bootstrap-italia-3x-beta-with-patched-splide-exports.md) | Bootstrap Italia 3.x Beta with Patched Splide Exports | accepted | 2026-07-24 |
 
 ## How to add a new ADR
 
