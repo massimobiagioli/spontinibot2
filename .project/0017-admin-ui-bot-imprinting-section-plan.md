@@ -1,8 +1,10 @@
 # Plan 0017: admin-ui Bot imprinting section
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-24 by agent
 - **Implemented**: 2026-07-24 by agent
+- **Closed**: 2026-07-24 by agent
+- **Review verdict**: approved
 - **Branch**: feat/admin-ui-bot-imprinting-section
 - **Feature ID**: 0017
 - **Created**: 2026-07-24
