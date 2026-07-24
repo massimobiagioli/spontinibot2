@@ -1,8 +1,10 @@
 # Plan 0012: `/admin/api/training/sessions` — training session CRUD
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-24 by Sisyphus
 - **Implemented**: 2026-07-24 by Sisyphus
+- **Closed**: 2026-07-24 by Sisyphus
+- **Review verdict**: approved
 - **Branch**: feat/admin-api-training-sessions
 - **Feature ID**: 0012
 - **Created**: 2026-07-24
