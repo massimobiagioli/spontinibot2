@@ -7,6 +7,7 @@ import App from '../App.vue';
 import * as adminApi from '../services/adminApi';
 import DevCatalog from '../views/DevCatalog.vue';
 import HomeView from '../views/HomeView.vue';
+import ImprintingView from '../views/ImprintingView.vue';
 import IngestView from '../views/IngestView.vue';
 
 function makeRouter() {
@@ -16,6 +17,7 @@ function makeRouter() {
       { path: '/', component: HomeView },
       { path: '/dev', component: DevCatalog },
       { path: '/ingest', component: IngestView },
+      { path: '/imprinting', component: ImprintingView },
     ],
   });
 }
@@ -102,6 +104,38 @@ describe('accessibility', () => {
 
     const router = makeRouter();
     await router.push('/ingest');
+    await router.isReady();
+
+    const wrapper = mount(App, {
+      global: { plugins: [router] },
+      attachTo: document.body,
+    });
+    await flushPromises();
+
+    const results = await runAxe(wrapper.element);
+
+    expect(results.violations).toEqual([]);
+
+    wrapper.unmount();
+  });
+
+  it('the /imprinting section has zero axe violations', async () => {
+    vi.spyOn(adminApi, 'getPersonaVersions').mockResolvedValue([
+      {
+        id: 1,
+        version: 1,
+        name: 'gaspare',
+        system_prompt: 'Sei Gaspare, compositore di Maiolati.',
+        tone: 'solenne',
+        fallback_message: 'Non ho trovato informazioni.',
+        is_active: true,
+        created_at: '2026-07-24T00:00:00Z',
+        created_by: 'admin',
+      },
+    ]);
+
+    const router = makeRouter();
+    await router.push('/imprinting');
     await router.isReady();
 
     const wrapper = mount(App, {

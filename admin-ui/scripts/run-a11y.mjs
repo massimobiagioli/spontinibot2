@@ -2,7 +2,7 @@ import pa11y from 'pa11y';
 import { preview } from 'vite';
 
 const PORT = 4173;
-const ROUTES = ['/', '/dev', '/ingest'];
+const ROUTES = ['/', '/dev', '/ingest', '/imprinting'];
 
 const server = await preview({ preview: { port: PORT, host: '127.0.0.1' } });
 const baseUrl = `http://127.0.0.1:${PORT}`;

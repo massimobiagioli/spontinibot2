@@ -2,14 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   AdminApiError,
+  activatePersona,
   confirmUpload,
+  createPersona,
   createSection,
   createSource,
   deleteSection,
   deleteSource,
   getIngestConfig,
   getIngestRun,
+  getPersonaVersions,
   getUploadPreview,
+  reloadPersona,
   triggerIngestRun,
   uploadDocument,
   upsertSchedule,
@@ -212,6 +216,85 @@ describe('adminApi', () => {
     expect(result).toEqual(confirmed);
     const [url, init] = lastCall(fetchMock);
     expect(url).toBe('/admin/api/upload/confirm/abc');
+    expect(init.method).toBe('POST');
+  });
+
+  it('getPersonaVersions fetches versions scoped by name', async () => {
+    const versions = [
+      {
+        id: 1,
+        version: 1,
+        name: 'gaspare',
+        system_prompt: 'Sei Gaspare.',
+        tone: null,
+        fallback_message: null,
+        is_active: true,
+        created_at: 'now',
+        created_by: 'admin',
+      },
+    ];
+    fetchMock.mockResolvedValueOnce(jsonResponse(versions));
+
+    const result = await getPersonaVersions('gaspare');
+
+    expect(result).toEqual(versions);
+    expect(lastCall(fetchMock)[0]).toBe('/admin/api/persona?name=gaspare');
+  });
+
+  it('createPersona POSTs the persona payload', async () => {
+    const persona = {
+      id: 2,
+      version: 2,
+      name: 'gaspare',
+      system_prompt: 'Sei Gaspare, versione due.',
+      tone: 'cordiale',
+      fallback_message: 'Non lo so.',
+      is_active: true,
+      created_at: 'now',
+      created_by: 'admin',
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(persona, 201));
+
+    const result = await createPersona({
+      name: 'gaspare',
+      system_prompt: 'Sei Gaspare, versione due.',
+      tone: 'cordiale',
+      fallback_message: 'Non lo so.',
+      activate: true,
+    });
+
+    expect(result).toEqual(persona);
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/admin/api/persona');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({
+      name: 'gaspare',
+      system_prompt: 'Sei Gaspare, versione due.',
+      tone: 'cordiale',
+      fallback_message: 'Non lo so.',
+      activate: true,
+    });
+  });
+
+  it('activatePersona POSTs to the activate endpoint by id', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ status: 'activated' }));
+
+    const result = await activatePersona(2);
+
+    expect(result).toEqual({ status: 'activated' });
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/admin/api/persona/2/activate');
+    expect(init.method).toBe('POST');
+  });
+
+  it('reloadPersona POSTs to the reload endpoint', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ status: 'reloaded' }));
+
+    const result = await reloadPersona();
+
+    expect(result).toEqual({ status: 'reloaded' });
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/admin/api/persona/reload');
     expect(init.method).toBe('POST');
   });
 
