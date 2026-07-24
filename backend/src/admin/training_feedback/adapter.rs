@@ -90,6 +90,28 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn should_return_db_error_for_nonexistent_chunk_id() {
+        let store = Arc::new(temp_store().await);
+        let message_id = sample_message_id(&store).await;
+        let adapter = KbStoreTrainingFeedbackAdapter::new(store);
+
+        let result = adapter
+            .create_feedback(NewTrainingFeedback {
+                message_id,
+                chunk_id: Some(999),
+                answer_span: "test".into(),
+                sentiment: Sentiment::Positive,
+                comment: None,
+            })
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(crate::admin::training_feedback::TrainingFeedbackError::DbError(_))
+        ));
+    }
+
+    #[tokio::test]
     async fn should_return_message_not_found_for_unknown_message() {
         let store = Arc::new(temp_store().await);
         let adapter = KbStoreTrainingFeedbackAdapter::new(store);

@@ -752,10 +752,9 @@ impl KbStore {
                 message_id: row.get::<i64>(1)?,
                 chunk_id: row.get::<Option<i64>>(2)?,
                 answer_span: row.get::<String>(3)?,
-                sentiment: row
-                    .get::<String>(4)?
-                    .parse()
-                    .map_err(KbStoreError::Migration)?,
+                sentiment: row.get::<String>(4)?.parse().map_err(|e| {
+                    KbStoreError::Migration(format!("invalid sentiment in db: {e}"))
+                })?,
                 comment: row.get::<Option<String>>(5)?,
                 created_at: row.get::<String>(6)?,
             }),
@@ -780,10 +779,9 @@ impl KbStore {
                 message_id: row.get::<i64>(1)?,
                 chunk_id: row.get::<Option<i64>>(2)?,
                 answer_span: row.get::<String>(3)?,
-                sentiment: row
-                    .get::<String>(4)?
-                    .parse()
-                    .map_err(KbStoreError::Migration)?,
+                sentiment: row.get::<String>(4)?.parse().map_err(|e| {
+                    KbStoreError::Migration(format!("invalid sentiment in db: {e}"))
+                })?,
                 comment: row.get::<Option<String>>(5)?,
                 created_at: row.get::<String>(6)?,
             });

@@ -119,6 +119,9 @@ mod tests {
             if req.message_id == 999 {
                 return Err(TrainingFeedbackError::MessageNotFound(req.message_id));
             }
+            if req.message_id == 500 {
+                return Err(TrainingFeedbackError::DbError("connection refused".into()));
+            }
             Ok(TrainingFeedbackResponse {
                 id: 1,
                 message_id: req.message_id,
@@ -206,6 +209,17 @@ mod tests {
         assert!(result.is_err());
         let (status, _) = result.unwrap_err();
         assert_eq!(status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn should_return_500_when_create_feedback_hits_a_db_error() {
+        let state = test_state();
+        let mut req = sample_request();
+        req.message_id = 500;
+        let result = create_feedback(State(state), auth_headers(), Json(req)).await;
+        assert!(result.is_err());
+        let (status, _) = result.unwrap_err();
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[tokio::test]

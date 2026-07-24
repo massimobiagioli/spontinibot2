@@ -1,8 +1,10 @@
 # Plan 0014: `/admin/api/training/feedback` — point-in-answer feedback
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-24 by Sisyphus
 - **Implemented**: 2026-07-24 by Sisyphus
+- **Closed**: 2026-07-24 by Sisyphus
+- **Review verdict**: changes-requested (resolved)
 - **Branch**: feat/admin-api-training-feedback
 - **Feature ID**: 0014
 - **Created**: 2026-07-24
