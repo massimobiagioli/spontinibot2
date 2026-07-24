@@ -13,6 +13,8 @@ use backend::admin::ingest_config::{
     IngestConfigAdminPort, IngestConfigError, IngestScheduleResponse, IngestSectionResponse,
     IngestSourceResponse,
 };
+use backend::admin::ingest_run::handlers::IngestRunState;
+use backend::admin::ingest_run::{IngestRunAdminPort, IngestRunError, IngestRunResponse};
 use backend::admin::upload::UploadError;
 use backend::admin::upload::ports::UploadPort;
 use backend::admin::upload::preview_store::PreviewStore;
@@ -144,6 +146,18 @@ impl IngestConfigAdminPort for StubIngestConfigAdmin {
     }
 }
 
+struct StubIngestRunAdmin;
+
+#[async_trait]
+impl IngestRunAdminPort for StubIngestRunAdmin {
+    async fn trigger_run(&self) -> Result<IngestRunResponse, IngestRunError> {
+        unimplemented!("stub")
+    }
+    async fn get_run(&self, _id: i64) -> Result<Option<IngestRunResponse>, IngestRunError> {
+        unimplemented!("stub")
+    }
+}
+
 #[derive(Debug)]
 struct RecordingGeneration {
     call_count: AtomicUsize,
@@ -173,6 +187,9 @@ struct BotWorld {
     upload_router: Option<axum::Router>,
     ingest_config_db_path: Option<String>,
     ingest_config_router: Option<axum::Router>,
+    ingest_run_db_path: Option<String>,
+    ingest_run_router: Option<axum::Router>,
+    ingest_run_id: Option<i64>,
 }
 
 impl Drop for BotWorld {
@@ -184,6 +201,9 @@ impl Drop for BotWorld {
             let _ = std::fs::remove_file(path);
         }
         if let Some(ref path) = self.ingest_config_db_path {
+            let _ = std::fs::remove_file(path);
+        }
+        if let Some(ref path) = self.ingest_run_db_path {
             let _ = std::fs::remove_file(path);
         }
     }
@@ -241,6 +261,13 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
         config: config.clone(),
     };
 
+    let ingest_run_port: Arc<dyn IngestRunAdminPort> =
+        Arc::new(backend::admin::ingest_run::adapter::KbStoreIngestRunAdapter::new(store.clone()));
+    let ingest_run_state = IngestRunState {
+        ingest_run: ingest_run_port,
+        config: config.clone(),
+    };
+
     backend::router_with(
         AppState { rag_engine },
         persona_admin,
@@ -248,6 +275,7 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
         upload,
         preview_store,
         ingest_config_state,
+        ingest_run_state,
     )
 }
 
@@ -267,6 +295,13 @@ fn temp_db() -> String {
 fn stub_ingest_config_state(config: Config) -> IngestConfigState {
     IngestConfigState {
         ingest_config: Arc::new(StubIngestConfigAdmin),
+        config,
+    }
+}
+
+fn stub_ingest_run_state(config: Config) -> IngestRunState {
+    IngestRunState {
+        ingest_run: Arc::new(StubIngestRunAdmin),
         config,
     }
 }
@@ -300,6 +335,7 @@ async fn when_check_health(world: &mut BotWorld) {
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
     let ingest_config_state = stub_ingest_config_state(config.clone());
+    let ingest_run_state = stub_ingest_run_state(config.clone());
     let router = backend::router_with(
         AppState { rag_engine },
         admin,
@@ -307,6 +343,7 @@ async fn when_check_health(world: &mut BotWorld) {
         upload,
         preview_store,
         ingest_config_state,
+        ingest_run_state,
     );
     let response = router
         .oneshot(
@@ -380,6 +417,7 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
     let ingest_config_state = stub_ingest_config_state(config.clone());
+    let ingest_run_state = stub_ingest_run_state(config.clone());
     let router = backend::router_with(
         {
             let rag_engine = Arc::new(RagEngine::new(
@@ -401,6 +439,7 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
         upload,
         preview_store,
         ingest_config_state,
+        ingest_run_state,
     );
 
     let body = serde_json::json!({ "question": question });
@@ -1005,6 +1044,13 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
         config: config.clone(),
     };
 
+    let ingest_run_port: Arc<dyn IngestRunAdminPort> =
+        Arc::new(backend::admin::ingest_run::adapter::KbStoreIngestRunAdapter::new(store.clone()));
+    let ingest_run_state = IngestRunState {
+        ingest_run: ingest_run_port,
+        config: config.clone(),
+    };
+
     backend::router_with(
         AppState { rag_engine },
         persona_admin,
@@ -1012,6 +1058,7 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
         upload,
         preview_store,
         ingest_config_state,
+        ingest_run_state,
     )
 }
 
@@ -1289,6 +1336,13 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
         config: config.clone(),
     };
 
+    let ingest_run_port: Arc<dyn IngestRunAdminPort> =
+        Arc::new(backend::admin::ingest_run::adapter::KbStoreIngestRunAdapter::new(store.clone()));
+    let ingest_run_state = IngestRunState {
+        ingest_run: ingest_run_port,
+        config: config.clone(),
+    };
+
     let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
@@ -1296,6 +1350,7 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
         upload,
         preview_store,
         ingest_config_state,
+        ingest_run_state,
     );
 
     world.ingest_config_db_path = Some(path);
@@ -1731,6 +1786,173 @@ async fn then_source_disabled_coming_soon(world: &mut BotWorld, section_name: St
         }
     }
     panic!("section '{section_name}' not found in response");
+}
+
+// ---------------------------------------------------------------------------
+// Ingest run BDD step definitions
+// ---------------------------------------------------------------------------
+
+#[given("the ingest run API is available")]
+async fn given_ingest_run_api_available(world: &mut BotWorld) {
+    let path = temp_db();
+    let store = Arc::new(
+        kb_store::KbStore::open(&path)
+            .await
+            .expect("failed to open test kb.db for ingest run"),
+    );
+    let persona: Arc<dyn PersonaPort> = Arc::new(
+        backend::rag_engine::persona::PersonaAdapter::new(store.clone()),
+    );
+    let persona_admin: Arc<dyn PersonaAdminPort> = Arc::new(
+        backend::rag_engine::persona_admin::PersonaAdminAdapter::new(store.clone(), persona),
+    );
+
+    let config = Config {
+        embed_url: "http://embed:8080".into(),
+        generate_url: "http://generate:8080".into(),
+        kb_path: path.clone(),
+        top_k: 5,
+        min_score: 0.35,
+        admin_api_key: "test-key".into(),
+        upload_max_bytes: 10_485_760,
+    };
+
+    let rag_engine = Arc::new(RagEngine::new(
+        Arc::new(StubEmbedding),
+        Arc::new(ConfigurableRetrieval { chunks: vec![] }),
+        Arc::new(ConfigurablePersona { snapshot: None }),
+        Arc::new(RecordingGeneration {
+            call_count: AtomicUsize::new(0),
+            last_prompt: std::sync::Mutex::new(None),
+        }),
+        5,
+        0.35,
+    ));
+
+    let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
+    let preview_store = Arc::new(PreviewStore::new(15));
+    let ingest_config_state = stub_ingest_config_state(config.clone());
+
+    let ingest_run_port: Arc<dyn IngestRunAdminPort> =
+        Arc::new(backend::admin::ingest_run::adapter::KbStoreIngestRunAdapter::new(store.clone()));
+    let ingest_run_state = IngestRunState {
+        ingest_run: ingest_run_port,
+        config: config.clone(),
+    };
+
+    let router = backend::router_with(
+        AppState { rag_engine },
+        persona_admin,
+        config,
+        upload,
+        preview_store,
+        ingest_config_state,
+        ingest_run_state,
+    );
+
+    world.ingest_run_db_path = Some(path);
+    world.ingest_run_router = Some(router);
+}
+
+async fn ingest_run_request(world: &mut BotWorld, method: &str, uri: String, with_auth: bool) {
+    let router = world
+        .ingest_run_router
+        .as_ref()
+        .expect("ingest run router not initialized")
+        .clone();
+
+    let mut builder = Request::builder().method(method).uri(uri);
+    if with_auth {
+        builder = builder.header("x-admin-key", "test-key");
+    }
+    let response = router
+        .oneshot(builder.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when("the operator triggers an ingest run")]
+async fn when_trigger_ingest_run(world: &mut BotWorld) {
+    ingest_run_request(world, "POST", "/admin/api/ingest/run".into(), true).await;
+
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    world.ingest_run_id = body["id"].as_i64();
+}
+
+#[when("the operator triggers an ingest run without admin key")]
+async fn when_trigger_ingest_run_no_auth(world: &mut BotWorld) {
+    ingest_run_request(world, "POST", "/admin/api/ingest/run".into(), false).await;
+}
+
+#[when(regex = r"^the operator checks the status of ingest run (\d+)$")]
+async fn when_check_run_status_by_id(world: &mut BotWorld, id: i64) {
+    ingest_run_request(world, "GET", format!("/admin/api/ingest/run/{id}"), true).await;
+}
+
+#[when(regex = r"^the operator checks the status of ingest run (\d+) without admin key$")]
+async fn when_check_run_status_by_id_no_auth(world: &mut BotWorld, id: i64) {
+    ingest_run_request(world, "GET", format!("/admin/api/ingest/run/{id}"), false).await;
+}
+
+#[when("the operator checks the status of that ingest run")]
+async fn when_check_run_status(world: &mut BotWorld) {
+    let id = world.ingest_run_id.expect("no ingest run triggered yet");
+    ingest_run_request(world, "GET", format!("/admin/api/ingest/run/{id}"), true).await;
+}
+
+#[when("the ingest service picks up and completes that run")]
+async fn when_ingest_service_completes_run(world: &mut BotWorld) {
+    let path = world
+        .ingest_run_db_path
+        .clone()
+        .expect("ingest run db not initialized");
+    let id = world.ingest_run_id.expect("no ingest run triggered yet");
+
+    let store = kb_store::KbStore::open(&path)
+        .await
+        .expect("failed to reopen test kb.db for ingest run");
+    let consumed = store
+        .consume_run_request()
+        .await
+        .expect("consume_run_request failed")
+        .expect("expected a pending run request");
+    assert_eq!(
+        consumed.id, id,
+        "consumed a different run than the one triggered"
+    );
+    store
+        .complete_run(id, kb_store::RunRequestStatus::Done)
+        .await
+        .expect("complete_run failed");
+}
+
+#[then("a new ingest run is queued with pending status")]
+async fn then_run_queued_pending(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(202));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["status"].as_str(), Some("pending"));
+    assert!(body["id"].as_i64().is_some());
+}
+
+#[then(regex = r#"^the ingest run status is "([^"]+)"$"#)]
+async fn then_run_status_is(world: &mut BotWorld, expected_status: String) {
+    assert_eq!(world.response_status, Some(200));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["status"].as_str(), Some(expected_status.as_str()));
+}
+
+#[then("the ingest run is not found")]
+async fn then_run_not_found(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(404));
 }
 
 #[tokio::main]

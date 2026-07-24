@@ -5,6 +5,8 @@ use axum::routing::{delete, get, post, put};
 
 use crate::admin::ingest_config::adapter::KbStoreIngestConfigAdapter;
 use crate::admin::ingest_config::handlers::IngestConfigState;
+use crate::admin::ingest_run::adapter::KbStoreIngestRunAdapter;
+use crate::admin::ingest_run::handlers::IngestRunState;
 use crate::admin::upload::adapter::IngestCoreUploadAdapter;
 use crate::admin::upload::ports::UploadPort;
 use crate::admin::upload::preview_store::PreviewStore;
@@ -90,6 +92,13 @@ pub async fn router() -> Router {
         config: config.clone(),
     };
 
+    let ingest_run_port: Arc<dyn crate::admin::ingest_run::IngestRunAdminPort> =
+        Arc::new(KbStoreIngestRunAdapter::new(store.clone()));
+    let ingest_run_state = IngestRunState {
+        ingest_run: ingest_run_port,
+        config: config.clone(),
+    };
+
     router_with(
         AppState { rag_engine },
         persona_admin,
@@ -97,6 +106,7 @@ pub async fn router() -> Router {
         upload_port,
         preview_store,
         ingest_config_state,
+        ingest_run_state,
     )
 }
 
@@ -107,6 +117,7 @@ pub fn router_with(
     upload: Arc<dyn UploadPort>,
     preview_store: Arc<PreviewStore>,
     ingest_config_state: IngestConfigState,
+    ingest_run_state: IngestRunState,
 ) -> Router {
     let admin_state = admin::AdminState {
         persona_admin,
@@ -177,5 +188,13 @@ pub fn router_with(
         .route(
             "/admin/api/ingest/config/sources/:id",
             delete(admin::ingest_config::handlers::delete_source).with_state(ingest_config_state),
+        )
+        .route(
+            "/admin/api/ingest/run",
+            post(admin::ingest_run::handlers::trigger_run).with_state(ingest_run_state.clone()),
+        )
+        .route(
+            "/admin/api/ingest/run/:id",
+            get(admin::ingest_run::handlers::get_run).with_state(ingest_run_state),
         )
 }
