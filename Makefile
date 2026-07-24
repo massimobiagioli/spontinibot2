@@ -93,6 +93,11 @@ lint:
 	$(COMPOSE) run --rm frontend npm run lint
 	$(COMPOSE) run --rm admin-ui npm run lint
 
+.PHONY: a11y
+## a11y: pa11y accessibility gate for admin-ui (built app, zero-error gate)
+a11y:
+	$(COMPOSE) run --rm admin-ui npm run a11y
+
 .PHONY: fmt
 ## fmt: format the whole codebase (write mode)
 fmt:
@@ -145,8 +150,8 @@ provision-models:
 
 # --- Pre-completion gate --------------------------------------------------
 .PHONY: verify
-## verify: pre-completion gate (build + test + lint + fmt-check + coverage + compose config)
-verify: build test lint fmt-check coverage compose-config
+## verify: pre-completion gate (build + test + lint + fmt-check + coverage + compose config + a11y)
+verify: build test lint fmt-check coverage compose-config a11y
 	@echo "verify: all gates passed"
 
 # --- Cleanup --------------------------------------------------------------
