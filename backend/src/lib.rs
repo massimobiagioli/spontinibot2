@@ -7,6 +7,8 @@ use crate::admin::ingest_config::adapter::KbStoreIngestConfigAdapter;
 use crate::admin::ingest_config::handlers::IngestConfigState;
 use crate::admin::ingest_run::adapter::KbStoreIngestRunAdapter;
 use crate::admin::ingest_run::handlers::IngestRunState;
+use crate::admin::training_messages::adapter::RagTrainingMessageAdapter;
+use crate::admin::training_messages::handlers::TrainingMessageState;
 use crate::admin::training_sessions::adapter::KbStoreTrainingSessionAdapter;
 use crate::admin::training_sessions::handlers::TrainingSessionState;
 use crate::admin::upload::adapter::IngestCoreUploadAdapter;
@@ -29,6 +31,17 @@ mod routes;
 #[derive(Clone)]
 pub struct AppState {
     pub rag_engine: Arc<RagEngine>,
+}
+
+/// Bundles the per-endpoint-group admin states so `router_with` takes one
+/// parameter instead of growing an argument per admin feature added.
+#[derive(Clone)]
+pub struct AdminRouterState {
+    pub upload: admin::upload::handlers::UploadState,
+    pub ingest_config: IngestConfigState,
+    pub ingest_run: IngestRunState,
+    pub training_sessions: TrainingSessionState,
+    pub training_messages: TrainingMessageState,
 }
 
 pub async fn router() -> Router {
@@ -113,14 +126,27 @@ pub async fn router() -> Router {
         config: config.clone(),
     };
 
+    let training_message_port: Arc<dyn crate::admin::training_messages::TrainingMessageAdminPort> =
+        Arc::new(RagTrainingMessageAdapter::new(
+            store.clone(),
+            rag_engine.clone(),
+        ));
+    let training_message_state = TrainingMessageState {
+        training_messages: training_message_port,
+        config: config.clone(),
+    };
+
     router_with(
         AppState { rag_engine },
         persona_admin,
         config,
-        upload_state,
-        ingest_config_state,
-        ingest_run_state,
-        training_session_state,
+        AdminRouterState {
+            upload: upload_state,
+            ingest_config: ingest_config_state,
+            ingest_run: ingest_run_state,
+            training_sessions: training_session_state,
+            training_messages: training_message_state,
+        },
     )
 }
 
@@ -128,11 +154,16 @@ pub fn router_with(
     state: AppState,
     persona_admin: Arc<dyn PersonaAdminPort>,
     config: Config,
-    upload_state: admin::upload::handlers::UploadState,
-    ingest_config_state: IngestConfigState,
-    ingest_run_state: IngestRunState,
-    training_session_state: TrainingSessionState,
+    admin_router_state: AdminRouterState,
 ) -> Router {
+    let AdminRouterState {
+        upload: upload_state,
+        ingest_config: ingest_config_state,
+        ingest_run: ingest_run_state,
+        training_sessions: training_session_state,
+        training_messages: training_message_state,
+    } = admin_router_state;
+
     let admin_state = admin::AdminState {
         persona_admin,
         config,
@@ -219,5 +250,11 @@ pub fn router_with(
             "/admin/api/training/sessions/:id/close",
             post(admin::training_sessions::handlers::close_session)
                 .with_state(training_session_state),
+        )
+        .route(
+            "/admin/api/training/sessions/:id/messages",
+            post(admin::training_messages::handlers::create_message)
+                .get(admin::training_messages::handlers::list_messages)
+                .with_state(training_message_state),
         )
 }

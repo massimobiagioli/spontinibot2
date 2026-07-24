@@ -15,6 +15,10 @@ use backend::admin::ingest_config::{
 };
 use backend::admin::ingest_run::handlers::IngestRunState;
 use backend::admin::ingest_run::{IngestRunAdminPort, IngestRunError, IngestRunResponse};
+use backend::admin::training_messages::handlers::TrainingMessageState;
+use backend::admin::training_messages::{
+    TrainingMessageAdminPort, TrainingMessageError, TrainingMessageResponse,
+};
 use backend::admin::training_sessions::handlers::TrainingSessionState;
 use backend::admin::training_sessions::{
     TrainingSessionAdminPort, TrainingSessionError, TrainingSessionResponse,
@@ -187,6 +191,25 @@ impl TrainingSessionAdminPort for StubTrainingSessionAdmin {
     }
 }
 
+struct StubTrainingMessageAdmin;
+
+#[async_trait]
+impl TrainingMessageAdminPort for StubTrainingMessageAdmin {
+    async fn ask(
+        &self,
+        _session_id: i64,
+        _question: String,
+    ) -> Result<TrainingMessageResponse, TrainingMessageError> {
+        unimplemented!("stub")
+    }
+    async fn list_messages(
+        &self,
+        _session_id: i64,
+    ) -> Result<Vec<TrainingMessageResponse>, TrainingMessageError> {
+        Ok(vec![])
+    }
+}
+
 #[derive(Debug)]
 struct RecordingGeneration {
     call_count: AtomicUsize,
@@ -318,14 +341,28 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
         config: config.clone(),
     };
 
+    let training_message_port: Arc<dyn TrainingMessageAdminPort> = Arc::new(
+        backend::admin::training_messages::adapter::RagTrainingMessageAdapter::new(
+            store.clone(),
+            rag_engine.clone(),
+        ),
+    );
+    let training_message_state = TrainingMessageState {
+        training_messages: training_message_port,
+        config: config.clone(),
+    };
+
     backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
-        upload_state,
-        ingest_config_state,
-        ingest_run_state,
-        training_session_state,
+        backend::AdminRouterState {
+            upload: upload_state,
+            ingest_config: ingest_config_state,
+            ingest_run: ingest_run_state,
+            training_sessions: training_session_state,
+            training_messages: training_message_state,
+        },
     )
 }
 
@@ -359,6 +396,13 @@ fn stub_ingest_run_state(config: Config) -> IngestRunState {
 fn stub_training_session_state(config: Config) -> TrainingSessionState {
     TrainingSessionState {
         training_sessions: Arc::new(StubTrainingSessionAdmin),
+        config,
+    }
+}
+
+fn stub_training_message_state(config: Config) -> TrainingMessageState {
+    TrainingMessageState {
+        training_messages: Arc::new(StubTrainingMessageAdmin),
         config,
     }
 }
@@ -399,14 +443,18 @@ async fn when_check_health(world: &mut BotWorld) {
     let ingest_config_state = stub_ingest_config_state(config.clone());
     let ingest_run_state = stub_ingest_run_state(config.clone());
     let training_session_state = stub_training_session_state(config.clone());
+    let training_message_state = stub_training_message_state(config.clone());
     let router = backend::router_with(
         AppState { rag_engine },
         admin,
         config,
-        upload_state,
-        ingest_config_state,
-        ingest_run_state,
-        training_session_state,
+        backend::AdminRouterState {
+            upload: upload_state,
+            ingest_config: ingest_config_state,
+            ingest_run: ingest_run_state,
+            training_sessions: training_session_state,
+            training_messages: training_message_state,
+        },
     );
     let response = router
         .oneshot(
@@ -487,6 +535,7 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
     let ingest_config_state = stub_ingest_config_state(config.clone());
     let ingest_run_state = stub_ingest_run_state(config.clone());
     let training_session_state = stub_training_session_state(config.clone());
+    let training_message_state = stub_training_message_state(config.clone());
     let router = backend::router_with(
         {
             let rag_engine = Arc::new(RagEngine::new(
@@ -505,10 +554,13 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
         },
         admin,
         config,
-        upload_state,
-        ingest_config_state,
-        ingest_run_state,
-        training_session_state,
+        backend::AdminRouterState {
+            upload: upload_state,
+            ingest_config: ingest_config_state,
+            ingest_run: ingest_run_state,
+            training_sessions: training_session_state,
+            training_messages: training_message_state,
+        },
     );
 
     let body = serde_json::json!({ "question": question });
@@ -1135,14 +1187,28 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
         config: config.clone(),
     };
 
+    let training_message_port: Arc<dyn TrainingMessageAdminPort> = Arc::new(
+        backend::admin::training_messages::adapter::RagTrainingMessageAdapter::new(
+            store.clone(),
+            rag_engine.clone(),
+        ),
+    );
+    let training_message_state = TrainingMessageState {
+        training_messages: training_message_port,
+        config: config.clone(),
+    };
+
     backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
-        upload_state,
-        ingest_config_state,
-        ingest_run_state,
-        training_session_state,
+        backend::AdminRouterState {
+            upload: upload_state,
+            ingest_config: ingest_config_state,
+            ingest_run: ingest_run_state,
+            training_sessions: training_session_state,
+            training_messages: training_message_state,
+        },
     )
 }
 
@@ -1442,14 +1508,28 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
         config: config.clone(),
     };
 
+    let training_message_port: Arc<dyn TrainingMessageAdminPort> = Arc::new(
+        backend::admin::training_messages::adapter::RagTrainingMessageAdapter::new(
+            store.clone(),
+            rag_engine.clone(),
+        ),
+    );
+    let training_message_state = TrainingMessageState {
+        training_messages: training_message_port,
+        config: config.clone(),
+    };
+
     let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
-        upload_state,
-        ingest_config_state,
-        ingest_run_state,
-        training_session_state,
+        backend::AdminRouterState {
+            upload: upload_state,
+            ingest_config: ingest_config_state,
+            ingest_run: ingest_run_state,
+            training_sessions: training_session_state,
+            training_messages: training_message_state,
+        },
     );
 
     world.ingest_config_db_path = Some(path);
@@ -1954,14 +2034,28 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
         config: config.clone(),
     };
 
+    let training_message_port: Arc<dyn TrainingMessageAdminPort> = Arc::new(
+        backend::admin::training_messages::adapter::RagTrainingMessageAdapter::new(
+            store.clone(),
+            rag_engine.clone(),
+        ),
+    );
+    let training_message_state = TrainingMessageState {
+        training_messages: training_message_port,
+        config: config.clone(),
+    };
+
     let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
-        upload_state,
-        ingest_config_state,
-        ingest_run_state,
-        training_session_state,
+        backend::AdminRouterState {
+            upload: upload_state,
+            ingest_config: ingest_config_state,
+            ingest_run: ingest_run_state,
+            training_sessions: training_session_state,
+            training_messages: training_message_state,
+        },
     );
 
     world.ingest_run_db_path = Some(path);
@@ -2130,14 +2224,28 @@ async fn given_training_sessions_api_available(world: &mut BotWorld) {
         config: config.clone(),
     };
 
+    let training_message_port: Arc<dyn TrainingMessageAdminPort> = Arc::new(
+        backend::admin::training_messages::adapter::RagTrainingMessageAdapter::new(
+            store.clone(),
+            rag_engine.clone(),
+        ),
+    );
+    let training_message_state = TrainingMessageState {
+        training_messages: training_message_port,
+        config: config.clone(),
+    };
+
     let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
-        upload_state,
-        ingest_config_state,
-        ingest_run_state,
-        training_session_state,
+        backend::AdminRouterState {
+            upload: upload_state,
+            ingest_config: ingest_config_state,
+            ingest_run: ingest_run_state,
+            training_sessions: training_session_state,
+            training_messages: training_message_state,
+        },
     );
 
     world.training_sessions_db_path = Some(path);
@@ -2356,6 +2464,253 @@ async fn then_closing_has_no_effect(world: &mut BotWorld) {
 #[then("the training session is not found")]
 async fn then_session_not_found(world: &mut BotWorld) {
     assert_eq!(world.response_status, Some(404));
+}
+
+// ---------------------------------------------------------------------------
+// Admin training messages BDD steps
+// ---------------------------------------------------------------------------
+
+#[given("the training messages API is available")]
+async fn given_training_messages_api_available(world: &mut BotWorld) {
+    let path = temp_db();
+    let store = Arc::new(
+        kb_store::KbStore::open(&path)
+            .await
+            .expect("failed to open test kb.db for training messages"),
+    );
+    let persona: Arc<dyn PersonaPort> = Arc::new(
+        backend::rag_engine::persona::PersonaAdapter::new(store.clone()),
+    );
+    let persona_admin: Arc<dyn PersonaAdminPort> = Arc::new(
+        backend::rag_engine::persona_admin::PersonaAdminAdapter::new(store.clone(), persona),
+    );
+
+    let config = Config {
+        embed_url: "http://embed:8080".into(),
+        generate_url: "http://generate:8080".into(),
+        kb_path: path.clone(),
+        top_k: 5,
+        min_score: 0.35,
+        admin_api_key: "test-key".into(),
+        upload_max_bytes: 10_485_760,
+    };
+
+    let counter = Arc::new(RecordingGeneration {
+        call_count: AtomicUsize::new(0),
+        last_prompt: std::sync::Mutex::new(None),
+    });
+    world.generation = Some(counter.clone());
+
+    let rag_engine = Arc::new(RagEngine::new(
+        Arc::new(StubEmbedding),
+        Arc::new(ConfigurableRetrieval {
+            chunks: world.chunks.clone(),
+        }),
+        Arc::new(ConfigurablePersona {
+            snapshot: world.persona.clone(),
+        }),
+        counter,
+        5,
+        0.35,
+    ));
+
+    let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
+    let preview_store = Arc::new(PreviewStore::new(15));
+    let upload_state = UploadState {
+        upload,
+        preview_store,
+        config: config.clone(),
+    };
+    let ingest_config_state = stub_ingest_config_state(config.clone());
+    let ingest_run_state = stub_ingest_run_state(config.clone());
+
+    let training_session_port: Arc<dyn TrainingSessionAdminPort> = Arc::new(
+        backend::admin::training_sessions::adapter::KbStoreTrainingSessionAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_session_state = TrainingSessionState {
+        training_sessions: training_session_port,
+        config: config.clone(),
+    };
+
+    let training_message_port: Arc<dyn TrainingMessageAdminPort> = Arc::new(
+        backend::admin::training_messages::adapter::RagTrainingMessageAdapter::new(
+            store.clone(),
+            rag_engine.clone(),
+        ),
+    );
+    let training_message_state = TrainingMessageState {
+        training_messages: training_message_port,
+        config: config.clone(),
+    };
+
+    let router = backend::router_with(
+        AppState { rag_engine },
+        persona_admin,
+        config,
+        backend::AdminRouterState {
+            upload: upload_state,
+            ingest_config: ingest_config_state,
+            ingest_run: ingest_run_state,
+            training_sessions: training_session_state,
+            training_messages: training_message_state,
+        },
+    );
+
+    world.training_sessions_db_path = Some(path);
+    world.training_sessions_router = Some(router);
+}
+
+#[when(regex = r#"^the operator asks "([^"]+)" in that training session$"#)]
+async fn when_ask_in_that_training_session(world: &mut BotWorld, question: String) {
+    let id = world
+        .training_session_id
+        .expect("no training session created yet");
+    let body = serde_json::json!({ "question": question });
+    training_session_request(
+        world,
+        "POST",
+        format!("/admin/api/training/sessions/{id}/messages"),
+        true,
+        Some(body),
+    )
+    .await;
+}
+
+#[given(regex = r#"^the operator has asked "([^"]+)" in that training session$"#)]
+async fn given_asked_in_that_training_session(world: &mut BotWorld, question: String) {
+    when_ask_in_that_training_session(world, question).await;
+}
+
+#[when(regex = r#"^the operator asks "([^"]+)" in training session (\d+)$"#)]
+async fn when_ask_in_training_session_by_id(world: &mut BotWorld, question: String, id: i64) {
+    let body = serde_json::json!({ "question": question });
+    training_session_request(
+        world,
+        "POST",
+        format!("/admin/api/training/sessions/{id}/messages"),
+        true,
+        Some(body),
+    )
+    .await;
+}
+
+#[when("the operator asks a question in that training session without admin key")]
+async fn when_ask_no_auth(world: &mut BotWorld) {
+    let id = world
+        .training_session_id
+        .expect("no training session created yet");
+    let body = serde_json::json!({ "question": "domanda" });
+    training_session_request(
+        world,
+        "POST",
+        format!("/admin/api/training/sessions/{id}/messages"),
+        false,
+        Some(body),
+    )
+    .await;
+}
+
+#[when("the operator lists that training session's messages")]
+async fn when_list_that_training_session_messages(world: &mut BotWorld) {
+    let id = world
+        .training_session_id
+        .expect("no training session created yet");
+    training_session_request(
+        world,
+        "GET",
+        format!("/admin/api/training/sessions/{id}/messages"),
+        true,
+        None,
+    )
+    .await;
+}
+
+#[when("the operator lists that training session's messages without admin key")]
+async fn when_list_messages_no_auth(world: &mut BotWorld) {
+    let id = world
+        .training_session_id
+        .expect("no training session created yet");
+    training_session_request(
+        world,
+        "GET",
+        format!("/admin/api/training/sessions/{id}/messages"),
+        false,
+        None,
+    )
+    .await;
+}
+
+#[then("the training message answers using the content of the retrieved document")]
+async fn then_training_message_answers_using_content(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(201));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(
+        body["answer"].as_str(),
+        Some("Lo sportello anagrafe e' aperto dalle 9:00 alle 12:30.")
+    );
+}
+
+#[then("the training message cites the source document by title")]
+async fn then_training_message_cites_source(world: &mut BotWorld) {
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    let sources = body["sources"].as_array().unwrap();
+    assert_eq!(sources.len(), 1);
+    assert_eq!(
+        sources[0]["source_ref"].as_str().unwrap(),
+        "Orari sportello anagrafe"
+    );
+}
+
+#[then("the training message is not a fallback")]
+async fn then_training_message_not_fallback(world: &mut BotWorld) {
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["fell_back"], false);
+}
+
+#[then("the training message is a fallback")]
+async fn then_training_message_is_fallback(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(201));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["fell_back"], true);
+}
+
+#[then("the training message has no cited sources")]
+async fn then_training_message_no_sources(world: &mut BotWorld) {
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert!(body["sources"].as_array().unwrap().is_empty());
+}
+
+#[then(regex = r#"^the training message list contains a message with question "([^"]+)"$"#)]
+async fn then_message_list_contains(world: &mut BotWorld, question: String) {
+    let id = world
+        .training_session_id
+        .expect("no training session created yet");
+    training_session_request(
+        world,
+        "GET",
+        format!("/admin/api/training/sessions/{id}/messages"),
+        true,
+        None,
+    )
+    .await;
+    let messages: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    let found = messages
+        .as_array()
+        .expect("messages should be an array")
+        .iter()
+        .any(|m| m["question"].as_str() == Some(question.as_str()));
+    assert!(
+        found,
+        "expected a message with question '{question}' in the list"
+    );
 }
 
 #[tokio::main]
