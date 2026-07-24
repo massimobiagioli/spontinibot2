@@ -29,8 +29,8 @@ pub use error::{KbStoreError, Result};
 pub use types::{
     Document, DocumentSource, EMBEDDING_DIM, IngestRunRequest, IngestSchedule, IngestSection,
     IngestSource, NewDocument, NewIngestSchedule, NewIngestSection, NewIngestSource, NewPersona,
-    NewTrainingMessage, NewTrainingSession, Persona, RunRequestStatus, ScoredDocument, SourceType,
-    TrainingMessage, TrainingSession,
+    NewTrainingFeedback, NewTrainingMessage, NewTrainingSession, Persona, RunRequestStatus,
+    ScoredDocument, Sentiment, SourceType, TrainingFeedback, TrainingMessage, TrainingSession,
 };
 
 use libsql::{Builder, Database, Row};
@@ -678,6 +678,28 @@ impl KbStore {
         }
     }
 
+    pub async fn get_training_message(&self, id: i64) -> Result<Option<TrainingMessage>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, session_id, question, answer, sources, fell_back, created_at FROM training_message WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => Ok(Some(TrainingMessage {
+                id: row.get::<i64>(0)?,
+                session_id: row.get::<i64>(1)?,
+                question: row.get::<String>(2)?,
+                answer: row.get::<String>(3)?,
+                sources: row.get::<String>(4)?,
+                fell_back: row.get::<i64>(5)? != 0,
+                created_at: row.get::<String>(6)?,
+            })),
+            None => Ok(None),
+        }
+    }
+
     pub async fn list_training_messages(&self, session_id: i64) -> Result<Vec<TrainingMessage>> {
         let conn = self.db.connect()?;
         let mut rows = conn
@@ -699,6 +721,74 @@ impl KbStore {
             });
         }
         Ok(messages)
+    }
+
+    pub async fn create_training_feedback(
+        &self,
+        feedback: NewTrainingFeedback,
+    ) -> Result<TrainingFeedback> {
+        let conn = self.db.connect()?;
+        conn.execute(
+            "INSERT INTO training_feedback (message_id, chunk_id, answer_span, sentiment, comment) VALUES (?1, ?2, ?3, ?4, ?5)",
+            libsql::params![
+                feedback.message_id,
+                feedback.chunk_id,
+                feedback.answer_span,
+                feedback.sentiment.to_string(),
+                feedback.comment,
+            ],
+        )
+        .await?;
+        let id = conn.last_insert_rowid();
+        let mut rows = conn
+            .query(
+                "SELECT id, message_id, chunk_id, answer_span, sentiment, comment, created_at FROM training_feedback WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => Ok(TrainingFeedback {
+                id: row.get::<i64>(0)?,
+                message_id: row.get::<i64>(1)?,
+                chunk_id: row.get::<Option<i64>>(2)?,
+                answer_span: row.get::<String>(3)?,
+                sentiment: row
+                    .get::<String>(4)?
+                    .parse()
+                    .map_err(KbStoreError::Migration)?,
+                comment: row.get::<Option<String>>(5)?,
+                created_at: row.get::<String>(6)?,
+            }),
+            None => Err(KbStoreError::Migration(
+                "training feedback not found after insert".into(),
+            )),
+        }
+    }
+
+    pub async fn list_training_feedback(&self, message_id: i64) -> Result<Vec<TrainingFeedback>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, message_id, chunk_id, answer_span, sentiment, comment, created_at FROM training_feedback WHERE message_id = ?1 ORDER BY created_at ASC, id ASC",
+                libsql::params![message_id],
+            )
+            .await?;
+        let mut feedback = Vec::new();
+        while let Some(row) = rows.next().await? {
+            feedback.push(TrainingFeedback {
+                id: row.get::<i64>(0)?,
+                message_id: row.get::<i64>(1)?,
+                chunk_id: row.get::<Option<i64>>(2)?,
+                answer_span: row.get::<String>(3)?,
+                sentiment: row
+                    .get::<String>(4)?
+                    .parse()
+                    .map_err(KbStoreError::Migration)?,
+                comment: row.get::<Option<String>>(5)?,
+                created_at: row.get::<String>(6)?,
+            });
+        }
+        Ok(feedback)
     }
 
     pub async fn complete_run(&self, id: i64, status: RunRequestStatus) -> Result<()> {
@@ -1899,6 +1989,232 @@ mod tests {
             .expect("list_training_messages failed");
         assert_eq!(messages_a.len(), 1);
         assert_eq!(messages_a[0].question, "domanda A");
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_get_training_message_by_id() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let created = sample_training_message(&store).await;
+
+        let fetched = store
+            .get_training_message(created.id)
+            .await
+            .expect("get_training_message failed")
+            .expect("should find the message");
+        assert_eq!(fetched.id, created.id);
+        assert_eq!(fetched.question, created.question);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_none_when_getting_unknown_training_message() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let result = store
+            .get_training_message(999)
+            .await
+            .expect("get_training_message failed");
+        assert!(result.is_none());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    async fn sample_training_message(store: &KbStore) -> TrainingMessage {
+        let session = store
+            .create_training_session(NewTrainingSession {
+                title: "Sessione".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create_training_session failed");
+        store
+            .create_training_message(NewTrainingMessage {
+                session_id: session.id,
+                question: "domanda".into(),
+                answer: "risposta".into(),
+                sources: "[]".into(),
+                fell_back: false,
+            })
+            .await
+            .expect("create_training_message failed")
+    }
+
+    #[tokio::test]
+    async fn should_create_training_feedback_with_no_chunk() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let message = sample_training_message(&store).await;
+
+        let feedback = store
+            .create_training_feedback(NewTrainingFeedback {
+                message_id: message.id,
+                chunk_id: None,
+                answer_span: "Lo sportello apre alle 9:00".into(),
+                sentiment: Sentiment::Positive,
+                comment: None,
+            })
+            .await
+            .expect("create_training_feedback failed");
+
+        assert!(feedback.id > 0);
+        assert_eq!(feedback.message_id, message.id);
+        assert_eq!(feedback.chunk_id, None);
+        assert_eq!(feedback.answer_span, "Lo sportello apre alle 9:00");
+        assert_eq!(feedback.sentiment, Sentiment::Positive);
+        assert_eq!(feedback.comment, None);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_create_training_feedback_with_chunk_and_comment() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let message = sample_training_message(&store).await;
+        let document = store
+            .insert_document(NewDocument {
+                source: DocumentSource::Manual,
+                source_ref: "orari.md".into(),
+                content: "Lo sportello apre alle 9:00".into(),
+                metadata: None,
+                embedding: vec![0.0; EMBEDDING_DIM],
+            })
+            .await
+            .expect("insert_document failed");
+
+        let feedback = store
+            .create_training_feedback(NewTrainingFeedback {
+                message_id: message.id,
+                chunk_id: Some(document.id),
+                answer_span: "alle 9:00".into(),
+                sentiment: Sentiment::Negative,
+                comment: Some("orario sbagliato".into()),
+            })
+            .await
+            .expect("create_training_feedback failed");
+
+        assert_eq!(feedback.chunk_id, Some(document.id));
+        assert_eq!(feedback.sentiment, Sentiment::Negative);
+        assert_eq!(feedback.comment.as_deref(), Some("orario sbagliato"));
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_fail_to_create_training_feedback_for_nonexistent_message() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let result = store
+            .create_training_feedback(NewTrainingFeedback {
+                message_id: 999,
+                chunk_id: None,
+                answer_span: "test".into(),
+                sentiment: Sentiment::Positive,
+                comment: None,
+            })
+            .await;
+
+        assert!(
+            result.is_err(),
+            "the training_feedback.message_id foreign key should reject an unknown message"
+        );
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_list_training_feedback_oldest_first_for_message() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let message = sample_training_message(&store).await;
+
+        let first = store
+            .create_training_feedback(NewTrainingFeedback {
+                message_id: message.id,
+                chunk_id: None,
+                answer_span: "prima porzione".into(),
+                sentiment: Sentiment::Positive,
+                comment: None,
+            })
+            .await
+            .expect("create failed");
+        let second = store
+            .create_training_feedback(NewTrainingFeedback {
+                message_id: message.id,
+                chunk_id: None,
+                answer_span: "seconda porzione".into(),
+                sentiment: Sentiment::Negative,
+                comment: None,
+            })
+            .await
+            .expect("create failed");
+
+        let feedback = store
+            .list_training_feedback(message.id)
+            .await
+            .expect("list_training_feedback failed");
+        assert_eq!(feedback.len(), 2);
+        assert_eq!(feedback[0].id, first.id);
+        assert_eq!(feedback[1].id, second.id);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_empty_vec_when_listing_feedback_for_message_with_none() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let message = sample_training_message(&store).await;
+
+        let feedback = store
+            .list_training_feedback(message.id)
+            .await
+            .expect("list_training_feedback failed");
+        assert!(feedback.is_empty());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_only_list_training_feedback_for_requested_message() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let message_a = sample_training_message(&store).await;
+        let message_b = sample_training_message(&store).await;
+
+        store
+            .create_training_feedback(NewTrainingFeedback {
+                message_id: message_a.id,
+                chunk_id: None,
+                answer_span: "porzione A".into(),
+                sentiment: Sentiment::Positive,
+                comment: None,
+            })
+            .await
+            .expect("create failed");
+        store
+            .create_training_feedback(NewTrainingFeedback {
+                message_id: message_b.id,
+                chunk_id: None,
+                answer_span: "porzione B".into(),
+                sentiment: Sentiment::Negative,
+                comment: None,
+            })
+            .await
+            .expect("create failed");
+
+        let feedback_a = store
+            .list_training_feedback(message_a.id)
+            .await
+            .expect("list_training_feedback failed");
+        assert_eq!(feedback_a.len(), 1);
+        assert_eq!(feedback_a[0].answer_span, "porzione A");
         drop(store);
         let _ = std::fs::remove_file(&path);
     }

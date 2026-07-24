@@ -15,6 +15,10 @@ use backend::admin::ingest_config::{
 };
 use backend::admin::ingest_run::handlers::IngestRunState;
 use backend::admin::ingest_run::{IngestRunAdminPort, IngestRunError, IngestRunResponse};
+use backend::admin::training_feedback::handlers::TrainingFeedbackState;
+use backend::admin::training_feedback::{
+    TrainingFeedbackAdminPort, TrainingFeedbackError, TrainingFeedbackResponse,
+};
 use backend::admin::training_messages::handlers::TrainingMessageState;
 use backend::admin::training_messages::{
     TrainingMessageAdminPort, TrainingMessageError, TrainingMessageResponse,
@@ -210,6 +214,24 @@ impl TrainingMessageAdminPort for StubTrainingMessageAdmin {
     }
 }
 
+struct StubTrainingFeedbackAdmin;
+
+#[async_trait]
+impl TrainingFeedbackAdminPort for StubTrainingFeedbackAdmin {
+    async fn create_feedback(
+        &self,
+        _req: kb_store::NewTrainingFeedback,
+    ) -> Result<TrainingFeedbackResponse, TrainingFeedbackError> {
+        unimplemented!("stub")
+    }
+    async fn list_feedback(
+        &self,
+        _message_id: i64,
+    ) -> Result<Vec<TrainingFeedbackResponse>, TrainingFeedbackError> {
+        Ok(vec![])
+    }
+}
+
 #[derive(Debug)]
 struct RecordingGeneration {
     call_count: AtomicUsize,
@@ -245,6 +267,8 @@ struct BotWorld {
     training_sessions_db_path: Option<String>,
     training_sessions_router: Option<axum::Router>,
     training_session_id: Option<i64>,
+    training_message_id: Option<i64>,
+    cited_chunk_id: Option<i64>,
 }
 
 impl Drop for BotWorld {
@@ -352,6 +376,16 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
         config: config.clone(),
     };
 
+    let training_feedback_port: Arc<dyn TrainingFeedbackAdminPort> = Arc::new(
+        backend::admin::training_feedback::adapter::KbStoreTrainingFeedbackAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_feedback_state = TrainingFeedbackState {
+        training_feedback: training_feedback_port,
+        config: config.clone(),
+    };
+
     backend::router_with(
         AppState { rag_engine },
         persona_admin,
@@ -362,6 +396,7 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
+            training_feedback: training_feedback_state,
         },
     )
 }
@@ -407,6 +442,13 @@ fn stub_training_message_state(config: Config) -> TrainingMessageState {
     }
 }
 
+fn stub_training_feedback_state(config: Config) -> TrainingFeedbackState {
+    TrainingFeedbackState {
+        training_feedback: Arc::new(StubTrainingFeedbackAdmin),
+        config,
+    }
+}
+
 #[given("the backend service is running")]
 async fn given_backend_running(_world: &mut BotWorld) {}
 
@@ -444,6 +486,7 @@ async fn when_check_health(world: &mut BotWorld) {
     let ingest_run_state = stub_ingest_run_state(config.clone());
     let training_session_state = stub_training_session_state(config.clone());
     let training_message_state = stub_training_message_state(config.clone());
+    let training_feedback_state = stub_training_feedback_state(config.clone());
     let router = backend::router_with(
         AppState { rag_engine },
         admin,
@@ -454,6 +497,7 @@ async fn when_check_health(world: &mut BotWorld) {
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
+            training_feedback: training_feedback_state,
         },
     );
     let response = router
@@ -536,6 +580,7 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
     let ingest_run_state = stub_ingest_run_state(config.clone());
     let training_session_state = stub_training_session_state(config.clone());
     let training_message_state = stub_training_message_state(config.clone());
+    let training_feedback_state = stub_training_feedback_state(config.clone());
     let router = backend::router_with(
         {
             let rag_engine = Arc::new(RagEngine::new(
@@ -560,6 +605,7 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
+            training_feedback: training_feedback_state,
         },
     );
 
@@ -1198,6 +1244,16 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
         config: config.clone(),
     };
 
+    let training_feedback_port: Arc<dyn TrainingFeedbackAdminPort> = Arc::new(
+        backend::admin::training_feedback::adapter::KbStoreTrainingFeedbackAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_feedback_state = TrainingFeedbackState {
+        training_feedback: training_feedback_port,
+        config: config.clone(),
+    };
+
     backend::router_with(
         AppState { rag_engine },
         persona_admin,
@@ -1208,6 +1264,7 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
+            training_feedback: training_feedback_state,
         },
     )
 }
@@ -1519,6 +1576,16 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
         config: config.clone(),
     };
 
+    let training_feedback_port: Arc<dyn TrainingFeedbackAdminPort> = Arc::new(
+        backend::admin::training_feedback::adapter::KbStoreTrainingFeedbackAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_feedback_state = TrainingFeedbackState {
+        training_feedback: training_feedback_port,
+        config: config.clone(),
+    };
+
     let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
@@ -1529,6 +1596,7 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
+            training_feedback: training_feedback_state,
         },
     );
 
@@ -2045,6 +2113,16 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
         config: config.clone(),
     };
 
+    let training_feedback_port: Arc<dyn TrainingFeedbackAdminPort> = Arc::new(
+        backend::admin::training_feedback::adapter::KbStoreTrainingFeedbackAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_feedback_state = TrainingFeedbackState {
+        training_feedback: training_feedback_port,
+        config: config.clone(),
+    };
+
     let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
@@ -2055,6 +2133,7 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
+            training_feedback: training_feedback_state,
         },
     );
 
@@ -2235,6 +2314,16 @@ async fn given_training_sessions_api_available(world: &mut BotWorld) {
         config: config.clone(),
     };
 
+    let training_feedback_port: Arc<dyn TrainingFeedbackAdminPort> = Arc::new(
+        backend::admin::training_feedback::adapter::KbStoreTrainingFeedbackAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_feedback_state = TrainingFeedbackState {
+        training_feedback: training_feedback_port,
+        config: config.clone(),
+    };
+
     let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
@@ -2245,6 +2334,7 @@ async fn given_training_sessions_api_available(world: &mut BotWorld) {
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
+            training_feedback: training_feedback_state,
         },
     );
 
@@ -2545,6 +2635,16 @@ async fn given_training_messages_api_available(world: &mut BotWorld) {
         config: config.clone(),
     };
 
+    let training_feedback_port: Arc<dyn TrainingFeedbackAdminPort> = Arc::new(
+        backend::admin::training_feedback::adapter::KbStoreTrainingFeedbackAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_feedback_state = TrainingFeedbackState {
+        training_feedback: training_feedback_port,
+        config: config.clone(),
+    };
+
     let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
@@ -2555,6 +2655,7 @@ async fn given_training_messages_api_available(world: &mut BotWorld) {
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
+            training_feedback: training_feedback_state,
         },
     );
 
@@ -2576,6 +2677,10 @@ async fn when_ask_in_that_training_session(world: &mut BotWorld, question: Strin
         Some(body),
     )
     .await;
+
+    let response: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    world.training_message_id = response["id"].as_i64();
 }
 
 #[given(regex = r#"^the operator has asked "([^"]+)" in that training session$"#)]
@@ -2711,6 +2816,309 @@ async fn then_message_list_contains(world: &mut BotWorld, question: String) {
         found,
         "expected a message with question '{question}' in the list"
     );
+}
+
+// ---------------------------------------------------------------------------
+// Admin training feedback BDD steps
+// ---------------------------------------------------------------------------
+
+#[given("a citable document exists in the knowledge base")]
+async fn given_citable_document_exists(world: &mut BotWorld) {
+    let path = world
+        .training_sessions_db_path
+        .clone()
+        .expect("training messages API not initialized yet");
+    let store = kb_store::KbStore::open(&path)
+        .await
+        .expect("failed to reopen test kb.db");
+    let document = store
+        .insert_document(kb_store::NewDocument {
+            source: kb_store::DocumentSource::Manual,
+            source_ref: "Orari sportello anagrafe".into(),
+            content: "Lo sportello anagrafe e' aperto dalle 9:00 alle 12:30".into(),
+            metadata: None,
+            embedding: vec![0.0; kb_store::EMBEDDING_DIM],
+        })
+        .await
+        .expect("insert_document failed");
+    world.cited_chunk_id = Some(document.id);
+}
+
+#[when(regex = r#"^the operator leaves positive feedback on the span "([^"]+)" of that message$"#)]
+async fn when_leave_positive_feedback(world: &mut BotWorld, span: String) {
+    let message_id = world
+        .training_message_id
+        .expect("no training message asked yet");
+    let body = serde_json::json!({
+        "message_id": message_id,
+        "chunk_id": null,
+        "answer_span": span,
+        "sentiment": "positive",
+        "comment": null
+    });
+    training_session_request(
+        world,
+        "POST",
+        "/admin/api/training/feedback".into(),
+        true,
+        Some(body),
+    )
+    .await;
+}
+
+#[given(
+    regex = r#"^the operator has left positive feedback on the span "([^"]+)" of that message$"#
+)]
+async fn given_left_positive_feedback(world: &mut BotWorld, span: String) {
+    when_leave_positive_feedback(world, span).await;
+}
+
+#[when(
+    regex = r#"^the operator leaves negative feedback on the span "([^"]+)" of that message with comment "([^"]+)"$"#
+)]
+async fn when_leave_negative_feedback_with_comment(
+    world: &mut BotWorld,
+    span: String,
+    comment: String,
+) {
+    let message_id = world
+        .training_message_id
+        .expect("no training message asked yet");
+    let body = serde_json::json!({
+        "message_id": message_id,
+        "chunk_id": null,
+        "answer_span": span,
+        "sentiment": "negative",
+        "comment": comment
+    });
+    training_session_request(
+        world,
+        "POST",
+        "/admin/api/training/feedback".into(),
+        true,
+        Some(body),
+    )
+    .await;
+}
+
+#[when(
+    regex = r#"^the operator leaves positive feedback on the span "([^"]+)" of that message anchored to the cited chunk$"#
+)]
+async fn when_leave_feedback_anchored_to_chunk(world: &mut BotWorld, span: String) {
+    let message_id = world
+        .training_message_id
+        .expect("no training message asked yet");
+    let chunk_id = world.cited_chunk_id.expect("no cited chunk recorded yet");
+    let body = serde_json::json!({
+        "message_id": message_id,
+        "chunk_id": chunk_id,
+        "answer_span": span,
+        "sentiment": "positive",
+        "comment": null
+    });
+    training_session_request(
+        world,
+        "POST",
+        "/admin/api/training/feedback".into(),
+        true,
+        Some(body),
+    )
+    .await;
+}
+
+#[when(regex = r#"^the operator leaves feedback with sentiment "([^"]+)" on that message$"#)]
+async fn when_leave_feedback_with_sentiment(world: &mut BotWorld, sentiment: String) {
+    let message_id = world
+        .training_message_id
+        .expect("no training message asked yet");
+    let body = serde_json::json!({
+        "message_id": message_id,
+        "chunk_id": null,
+        "answer_span": "test",
+        "sentiment": sentiment,
+        "comment": null
+    });
+    training_session_request(
+        world,
+        "POST",
+        "/admin/api/training/feedback".into(),
+        true,
+        Some(body),
+    )
+    .await;
+}
+
+#[when(regex = r"^the operator leaves feedback on unknown message (\d+)$")]
+async fn when_leave_feedback_on_unknown_message(world: &mut BotWorld, message_id: i64) {
+    let body = serde_json::json!({
+        "message_id": message_id,
+        "chunk_id": null,
+        "answer_span": "test",
+        "sentiment": "positive",
+        "comment": null
+    });
+    training_session_request(
+        world,
+        "POST",
+        "/admin/api/training/feedback".into(),
+        true,
+        Some(body),
+    )
+    .await;
+}
+
+#[when("the operator leaves feedback without admin key")]
+async fn when_leave_feedback_no_auth(world: &mut BotWorld) {
+    let message_id = world
+        .training_message_id
+        .expect("no training message asked yet");
+    let body = serde_json::json!({
+        "message_id": message_id,
+        "chunk_id": null,
+        "answer_span": "test",
+        "sentiment": "positive",
+        "comment": null
+    });
+    training_session_request(
+        world,
+        "POST",
+        "/admin/api/training/feedback".into(),
+        false,
+        Some(body),
+    )
+    .await;
+}
+
+#[when("the operator lists feedback for that message without admin key")]
+async fn when_list_feedback_no_auth(world: &mut BotWorld) {
+    let message_id = world
+        .training_message_id
+        .expect("no training message asked yet");
+    training_session_request(
+        world,
+        "GET",
+        format!("/admin/api/training/messages/{message_id}/feedback"),
+        false,
+        None,
+    )
+    .await;
+}
+
+#[then(regex = r#"^the feedback list for that message contains a positive entry for "([^"]+)"$"#)]
+async fn then_feedback_list_contains_positive(world: &mut BotWorld, span: String) {
+    let message_id = world
+        .training_message_id
+        .expect("no training message asked yet");
+    training_session_request(
+        world,
+        "GET",
+        format!("/admin/api/training/messages/{message_id}/feedback"),
+        true,
+        None,
+    )
+    .await;
+    let feedback: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    let found = feedback
+        .as_array()
+        .expect("feedback should be an array")
+        .iter()
+        .any(|f| {
+            f["answer_span"].as_str() == Some(span.as_str())
+                && f["sentiment"].as_str() == Some("positive")
+        });
+    assert!(found, "expected a positive feedback entry for '{span}'");
+}
+
+#[then(
+    regex = r#"^the feedback list for that message contains a negative entry for "([^"]+)" with comment "([^"]+)"$"#
+)]
+async fn then_feedback_list_contains_negative_with_comment(
+    world: &mut BotWorld,
+    span: String,
+    comment: String,
+) {
+    let message_id = world
+        .training_message_id
+        .expect("no training message asked yet");
+    training_session_request(
+        world,
+        "GET",
+        format!("/admin/api/training/messages/{message_id}/feedback"),
+        true,
+        None,
+    )
+    .await;
+    let feedback: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    let found = feedback
+        .as_array()
+        .expect("feedback should be an array")
+        .iter()
+        .any(|f| {
+            f["answer_span"].as_str() == Some(span.as_str())
+                && f["sentiment"].as_str() == Some("negative")
+                && f["comment"].as_str() == Some(comment.as_str())
+        });
+    assert!(
+        found,
+        "expected a negative feedback entry for '{span}' with comment '{comment}'"
+    );
+}
+
+#[then(regex = r"^the feedback list for that message contains (\d+) entries$")]
+async fn then_feedback_list_contains_n_entries(world: &mut BotWorld, expected: usize) {
+    let message_id = world
+        .training_message_id
+        .expect("no training message asked yet");
+    training_session_request(
+        world,
+        "GET",
+        format!("/admin/api/training/messages/{message_id}/feedback"),
+        true,
+        None,
+    )
+    .await;
+    let feedback: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(feedback.as_array().unwrap().len(), expected);
+}
+
+#[then("the feedback list for that message contains an entry anchored to a chunk")]
+async fn then_feedback_list_contains_entry_anchored_to_chunk(world: &mut BotWorld) {
+    let message_id = world
+        .training_message_id
+        .expect("no training message asked yet");
+    let chunk_id = world.cited_chunk_id.expect("no cited chunk recorded yet");
+    training_session_request(
+        world,
+        "GET",
+        format!("/admin/api/training/messages/{message_id}/feedback"),
+        true,
+        None,
+    )
+    .await;
+    let feedback: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    let found = feedback
+        .as_array()
+        .expect("feedback should be an array")
+        .iter()
+        .any(|f| f["chunk_id"].as_i64() == Some(chunk_id));
+    assert!(
+        found,
+        "expected a feedback entry anchored to chunk {chunk_id}"
+    );
+}
+
+#[then("the training message is not found")]
+async fn then_training_message_not_found(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(404));
+}
+
+#[then("the request is rejected with 400")]
+async fn then_rejected_400(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(400));
 }
 
 #[tokio::main]

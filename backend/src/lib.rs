@@ -7,6 +7,8 @@ use crate::admin::ingest_config::adapter::KbStoreIngestConfigAdapter;
 use crate::admin::ingest_config::handlers::IngestConfigState;
 use crate::admin::ingest_run::adapter::KbStoreIngestRunAdapter;
 use crate::admin::ingest_run::handlers::IngestRunState;
+use crate::admin::training_feedback::adapter::KbStoreTrainingFeedbackAdapter;
+use crate::admin::training_feedback::handlers::TrainingFeedbackState;
 use crate::admin::training_messages::adapter::RagTrainingMessageAdapter;
 use crate::admin::training_messages::handlers::TrainingMessageState;
 use crate::admin::training_sessions::adapter::KbStoreTrainingSessionAdapter;
@@ -42,6 +44,7 @@ pub struct AdminRouterState {
     pub ingest_run: IngestRunState,
     pub training_sessions: TrainingSessionState,
     pub training_messages: TrainingMessageState,
+    pub training_feedback: TrainingFeedbackState,
 }
 
 pub async fn router() -> Router {
@@ -136,6 +139,14 @@ pub async fn router() -> Router {
         config: config.clone(),
     };
 
+    let training_feedback_port: Arc<
+        dyn crate::admin::training_feedback::TrainingFeedbackAdminPort,
+    > = Arc::new(KbStoreTrainingFeedbackAdapter::new(store.clone()));
+    let training_feedback_state = TrainingFeedbackState {
+        training_feedback: training_feedback_port,
+        config: config.clone(),
+    };
+
     router_with(
         AppState { rag_engine },
         persona_admin,
@@ -146,6 +157,7 @@ pub async fn router() -> Router {
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
+            training_feedback: training_feedback_state,
         },
     )
 }
@@ -162,6 +174,7 @@ pub fn router_with(
         ingest_run: ingest_run_state,
         training_sessions: training_session_state,
         training_messages: training_message_state,
+        training_feedback: training_feedback_state,
     } = admin_router_state;
 
     let admin_state = admin::AdminState {
@@ -256,5 +269,15 @@ pub fn router_with(
             post(admin::training_messages::handlers::create_message)
                 .get(admin::training_messages::handlers::list_messages)
                 .with_state(training_message_state),
+        )
+        .route(
+            "/admin/api/training/feedback",
+            post(admin::training_feedback::handlers::create_feedback)
+                .with_state(training_feedback_state.clone()),
+        )
+        .route(
+            "/admin/api/training/messages/:id/feedback",
+            get(admin::training_feedback::handlers::list_feedback)
+                .with_state(training_feedback_state),
         )
 }
