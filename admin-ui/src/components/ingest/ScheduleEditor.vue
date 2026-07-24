@@ -28,7 +28,6 @@ watch(
 );
 
 const enabledCheckboxId = useId();
-const cronHelpId = useId();
 
 async function save(): Promise<void> {
   saving.value = true;
@@ -54,12 +53,9 @@ async function save(): Promise<void> {
     <DsInput
       v-model="cronExpr"
       label="Espressione cron"
-      hint='Formato standard a 5 campi, es. "0 */4 * * *" per ogni 4 ore.'
+      hint='Formato standard a 5 campi (Minuto Ora GiornoMese Mese GiornoSettimana), es. "0 */4 * * *" per ogni 4 ore.'
       required
     />
-    <span :id="cronHelpId" title="Minuto Ora GiornoMese Mese GiornoSettimana">
-      ?
-    </span>
 
     <div class="form-check">
       <input

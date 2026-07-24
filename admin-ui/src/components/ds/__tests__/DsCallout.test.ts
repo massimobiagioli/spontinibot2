@@ -28,4 +28,25 @@ describe('DsCallout', () => {
 
     expect(wrapper.classes()).toContain('callout-highlight');
   });
+
+  it('uses an assertive alert role for the danger variant so it is announced without focus', () => {
+    const wrapper = mount(DsCallout, { props: { variant: 'danger' } });
+
+    expect(wrapper.attributes('role')).toBe('alert');
+  });
+
+  it('uses a polite status role for the success variant so it is announced without focus', () => {
+    const wrapper = mount(DsCallout, { props: { variant: 'success' } });
+
+    expect(wrapper.attributes('role')).toBe('status');
+  });
+
+  it('uses the static note role for the primary and warning variants', () => {
+    expect(
+      mount(DsCallout, { props: { variant: 'primary' } }).attributes('role'),
+    ).toBe('note');
+    expect(
+      mount(DsCallout, { props: { variant: 'warning' } }).attributes('role'),
+    ).toBe('note');
+  });
 });

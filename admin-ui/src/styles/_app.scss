@@ -6,6 +6,15 @@
   display: flex;
   min-height: 100vh;
 
+  // DSI's own sidebar link padding tokens render a 42px-tall tap target,
+  // 2px short of the 44px minimum (STACK.md §4.2) — override the box size
+  // without touching DSI's token values.
+  &__nav .list-item {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
   &__nav {
     flex: 0 0 auto;
   }
@@ -14,4 +23,21 @@
     flex: 1 1 auto;
     padding: var(--bs-spacer, 1rem);
   }
+
+  &__dev-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
+// SpanFeedback answer-segment markers carry no DSI button class (they must
+// read as inline text, not chrome), so the UA default button padding leaves
+// them well under the 44px minimum tap height (STACK.md §4.2).
+.span-feedback__segment {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  padding: 0.75rem 0.375rem;
 }
