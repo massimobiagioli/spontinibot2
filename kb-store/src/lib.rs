@@ -500,6 +500,30 @@ impl KbStore {
         }
     }
 
+    pub async fn get_run_request(&self, id: i64) -> Result<Option<IngestRunRequest>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, requested_at, status FROM ingest_run_request WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => {
+                let status_str: String = row.get::<String>(2)?;
+                let status = status_str
+                    .parse::<RunRequestStatus>()
+                    .map_err(|e| KbStoreError::Migration(format!("invalid status in db: {e}")))?;
+                Ok(Some(IngestRunRequest {
+                    id: row.get::<i64>(0)?,
+                    requested_at: row.get::<String>(1)?,
+                    status,
+                }))
+            }
+            None => Ok(None),
+        }
+    }
+
     pub async fn consume_run_request(&self) -> Result<Option<IngestRunRequest>> {
         let conn = self.db.connect()?;
         let tx = conn.transaction().await?;
@@ -1318,6 +1342,85 @@ mod tests {
         let store = KbStore::open(&path).await.expect("failed to open db");
         let result = store.complete_run(999, RunRequestStatus::Done).await;
         assert!(matches!(result, Err(KbStoreError::NotFound(_))));
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_get_run_request_with_pending_status_right_after_request() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let request = store.request_run().await.expect("request_run failed");
+
+        let fetched = store
+            .get_run_request(request.id)
+            .await
+            .expect("get_run_request failed")
+            .expect("should find the request");
+
+        assert_eq!(fetched.id, request.id);
+        assert_eq!(fetched.status, RunRequestStatus::Pending);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_get_run_request_with_running_status_after_consume() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let request = store.request_run().await.expect("request_run failed");
+        store
+            .consume_run_request()
+            .await
+            .expect("consume failed")
+            .expect("should have a pending run");
+
+        let fetched = store
+            .get_run_request(request.id)
+            .await
+            .expect("get_run_request failed")
+            .expect("should find the request");
+
+        assert_eq!(fetched.status, RunRequestStatus::Running);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_get_run_request_with_done_status_after_complete() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let request = store.request_run().await.expect("request_run failed");
+        store
+            .consume_run_request()
+            .await
+            .expect("consume failed")
+            .expect("should have a pending run");
+        store
+            .complete_run(request.id, RunRequestStatus::Done)
+            .await
+            .expect("complete_run failed");
+
+        let fetched = store
+            .get_run_request(request.id)
+            .await
+            .expect("get_run_request failed")
+            .expect("should find the request");
+
+        assert_eq!(fetched.status, RunRequestStatus::Done);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_none_when_getting_unknown_run_request() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let result = store
+            .get_run_request(999)
+            .await
+            .expect("get_run_request failed");
+        assert!(result.is_none());
         drop(store);
         let _ = std::fs::remove_file(&path);
     }
