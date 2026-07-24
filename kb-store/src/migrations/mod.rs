@@ -5,6 +5,7 @@ const V1_SCHEMA: &str = include_str!("V1__initial_schema.sql");
 const V2_SCHEMA: &str = include_str!("V2__ingest_config.sql");
 const V3_SCHEMA: &str = include_str!("V3__training_sessions.sql");
 const V4_SCHEMA: &str = include_str!("V4__training_messages.sql");
+const V5_SCHEMA: &str = include_str!("V5__training_feedback.sql");
 
 /// Run database migrations idempotently.
 ///
@@ -83,6 +84,23 @@ pub async fn run_migrations(conn: &Connection) -> Result<()> {
         tx.execute_batch(V4_SCHEMA).await?;
         tx.execute(
             "INSERT INTO _migrations (version, name) VALUES (4, 'training_messages_schema')",
+            libsql::params![],
+        )
+        .await?;
+        tx.commit().await?;
+    }
+
+    let mut rows = conn
+        .query(
+            "SELECT 1 FROM _migrations WHERE version = 5",
+            libsql::params![],
+        )
+        .await?;
+    if rows.next().await?.is_none() {
+        let tx = conn.transaction().await?;
+        tx.execute_batch(V5_SCHEMA).await?;
+        tx.execute(
+            "INSERT INTO _migrations (version, name) VALUES (5, 'training_feedback_schema')",
             libsql::params![],
         )
         .await?;
@@ -227,6 +245,33 @@ mod tests {
         assert!(
             rows.next().await.unwrap().is_some(),
             "training_message table should exist"
+        );
+
+        run_migrations(&conn)
+            .await
+            .expect("second migration run should also succeed");
+    }
+
+    #[tokio::test]
+    async fn should_create_training_feedback_table_when_migrations_run() {
+        let db = Builder::new_local(":memory:")
+            .build()
+            .await
+            .expect("failed to create in-memory db");
+        let conn = db.connect().expect("failed to connect");
+
+        run_migrations(&conn).await.expect("migrations failed");
+
+        let mut rows = conn
+            .query(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='training_feedback'",
+                libsql::params![],
+            )
+            .await
+            .expect("query failed");
+        assert!(
+            rows.next().await.unwrap().is_some(),
+            "training_feedback table should exist"
         );
 
         run_migrations(&conn)

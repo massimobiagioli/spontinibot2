@@ -227,6 +227,53 @@ pub struct NewTrainingMessage {
     pub fell_back: bool,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Sentiment {
+    Positive,
+    Negative,
+}
+
+impl fmt::Display for Sentiment {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Sentiment::Positive => write!(f, "positive"),
+            Sentiment::Negative => write!(f, "negative"),
+        }
+    }
+}
+
+impl FromStr for Sentiment {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "positive" => Ok(Sentiment::Positive),
+            "negative" => Ok(Sentiment::Negative),
+            other => Err(format!("unknown sentiment: {other}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TrainingFeedback {
+    pub id: i64,
+    pub message_id: i64,
+    pub chunk_id: Option<i64>,
+    pub answer_span: String,
+    pub sentiment: Sentiment,
+    pub comment: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewTrainingFeedback {
+    pub message_id: i64,
+    pub chunk_id: Option<i64>,
+    pub answer_span: String,
+    pub sentiment: Sentiment,
+    pub comment: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -331,6 +378,25 @@ mod tests {
     #[test]
     fn should_reject_unknown_source_type() {
         let result: std::result::Result<SourceType, _> = "folder".parse();
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn should_round_trip_sentiment() {
+        let cases = [
+            (Sentiment::Positive, "positive"),
+            (Sentiment::Negative, "negative"),
+        ];
+        for (variant, expected) in cases {
+            assert_eq!(variant.to_string(), expected);
+            let parsed: Sentiment = expected.parse().unwrap();
+            assert_eq!(parsed, variant);
+        }
+    }
+
+    #[test]
+    fn should_reject_unknown_sentiment() {
+        let result: std::result::Result<Sentiment, _> = "neutral".parse();
         assert!(result.is_err());
     }
 
