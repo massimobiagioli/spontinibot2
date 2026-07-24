@@ -130,8 +130,9 @@ The Vue 3 + TypeScript SPA served by the `admin-ui` container, built on Design S
 
 The Vue 3 + TypeScript SPA served by the `frontend` container, built on Design System Italia, with the citizen-facing chat widget. After Milestone 4, citizens can use Spontini from a browser.
 
-- [ ] **0020** — frontend Design System Italia integration + /dev catalog
+- [x] **0020** — frontend Design System Italia integration + /dev catalog
   - Description: Integrate `bootstrap-italia` + `design-tokens-italia` into `frontend` (Vite + Dart Sass, `@use`/`@forward` only). Build the thin Vue wrapper components under `src/components/ds/` re-exported from a barrel, and add a `/dev` route listing them in isolation. Configure `axe-core` + `pa11y` with zero-violation gate. No chat UI yet.
+  - Closed: Plan [0020](../.project/0020-frontend-design-system-italia-integration-dev-catalog-plan.md). No ADR — reuses ADR 0009's existing Bootstrap Italia 3.x pinned-version-plus-Splide-patch decision (also applied to `admin-ui`); no new architectural decision introduced.
 
 - [ ] **0021** — frontend chat widget with citation rendering
   - Description: Build the public chat widget: a single primary action (send a message), a conversation view, an input box with a forgiving placeholder ("Scrivi la tua domanda…"), and answer rendering with inline expandable source citations built from the `sources` DTO returned by `/chat` (never by parsing the answer text). Touch targets ≥ 44×44 px. Loading / empty / error states are designed, not accidental. BDD scenario for: ask a question, see the answer with expandable citations.

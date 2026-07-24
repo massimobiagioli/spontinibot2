@@ -3,7 +3,7 @@
 - **Status**: accepted
 - **Date**: 2026-07-24
 - **Deciders**: agent
-- **Related**: 0015
+- **Related**: 0015, 0020
 
 ## Context
 

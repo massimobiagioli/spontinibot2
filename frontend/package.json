@@ -8,20 +8,31 @@
     "node": ">=22"
   },
   "scripts": {
+    "postinstall": "patch-package",
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "a11y": "node scripts/run-a11y.mjs",
     "lint": "vue-tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
   "dependencies": {
-    "vue": "^3.5.13"
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/test-utils": "^2.4.11",
+    "axe-core": "^4.12.1",
+    "bootstrap-italia": "3.0.0-beta.2",
+    "design-tokens-italia": "^1.3.3",
+    "jsdom": "^29.1.1",
+    "pa11y": "^9.1.1",
+    "patch-package": "^8.0.1",
     "prettier": "^3.4.2",
+    "sass": "^1.101.7",
     "typescript": "^5.7.2",
     "vite": "^6.0.5",
     "vitest": "^2.1.8",
