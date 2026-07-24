@@ -3,16 +3,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   AdminApiError,
   activatePersona,
+  askTrainingMessage,
+  closeSession,
   confirmUpload,
   createPersona,
   createSection,
+  createSession,
   createSource,
+  createTrainingFeedback,
   deleteSection,
   deleteSource,
   getIngestConfig,
   getIngestRun,
   getPersonaVersions,
+  getSession,
   getUploadPreview,
+  listSessions,
+  listTrainingFeedback,
+  listTrainingMessages,
   reloadPersona,
   triggerIngestRun,
   uploadDocument,
@@ -296,6 +304,285 @@ describe('adminApi', () => {
     const [url, init] = lastCall(fetchMock);
     expect(url).toBe('/admin/api/persona/reload');
     expect(init.method).toBe('POST');
+  });
+
+  it('createSession POSTs the session payload with an optional created_by', async () => {
+    const session = {
+      id: 1,
+      title: 'Sessione di prova',
+      created_at: 'now',
+      created_by: 'operator1',
+      closed_at: null,
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(session, 201));
+
+    const result = await createSession('Sessione di prova', 'operator1');
+
+    expect(result).toEqual(session);
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/admin/api/training/sessions');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({
+      title: 'Sessione di prova',
+      created_by: 'operator1',
+    });
+  });
+
+  it('createSession omits created_by when not provided', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          id: 1,
+          title: 'Sessione',
+          created_at: 'now',
+          created_by: null,
+          closed_at: null,
+        },
+        201,
+      ),
+    );
+
+    await createSession('Sessione');
+
+    const [, init] = lastCall(fetchMock);
+    expect(JSON.parse(init.body as string)).toEqual({ title: 'Sessione' });
+  });
+
+  it('createSession throws AdminApiError on a non-2xx response', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'invalid title' }, 400),
+    );
+
+    const error = await createSession('').catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AdminApiError);
+    expect((error as AdminApiError).status).toBe(400);
+  });
+
+  it('listSessions fetches all sessions', async () => {
+    const sessions = [
+      {
+        id: 1,
+        title: 'Sessione',
+        created_at: 'now',
+        created_by: null,
+        closed_at: null,
+      },
+    ];
+    fetchMock.mockResolvedValueOnce(jsonResponse(sessions));
+
+    const result = await listSessions();
+
+    expect(result).toEqual(sessions);
+    expect(lastCall(fetchMock)[0]).toBe('/admin/api/training/sessions');
+  });
+
+  it('listSessions throws AdminApiError on a non-2xx response', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'server error' }, 500),
+    );
+
+    const error = await listSessions().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AdminApiError);
+    expect((error as AdminApiError).status).toBe(500);
+  });
+
+  it('getSession fetches a session by id', async () => {
+    const session = {
+      id: 1,
+      title: 'Sessione',
+      created_at: 'now',
+      created_by: null,
+      closed_at: null,
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(session));
+
+    const result = await getSession(1);
+
+    expect(result).toEqual(session);
+    expect(lastCall(fetchMock)[0]).toBe('/admin/api/training/sessions/1');
+  });
+
+  it('getSession throws AdminApiError on a non-2xx response', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'training session 999 not found' }, 404),
+    );
+
+    const error = await getSession(999).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AdminApiError);
+    expect((error as AdminApiError).status).toBe(404);
+  });
+
+  it('closeSession POSTs to the close endpoint by id', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ closed: true }));
+
+    const result = await closeSession(1);
+
+    expect(result).toEqual({ closed: true });
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/admin/api/training/sessions/1/close');
+    expect(init.method).toBe('POST');
+  });
+
+  it('closeSession throws AdminApiError on a non-2xx response', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'server error' }, 500),
+    );
+
+    const error = await closeSession(1).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AdminApiError);
+    expect((error as AdminApiError).status).toBe(500);
+  });
+
+  it('askTrainingMessage POSTs the question to the session messages endpoint', async () => {
+    const message = {
+      id: 1,
+      session_id: 1,
+      question: "A che ora apre l'anagrafe?",
+      answer: 'Lo sportello apre alle 9:00.',
+      sources: [{ document_id: 7, source_ref: 'orari.md' }],
+      fell_back: false,
+      created_at: 'now',
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(message, 201));
+
+    const result = await askTrainingMessage(1, "A che ora apre l'anagrafe?");
+
+    expect(result).toEqual(message);
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/admin/api/training/sessions/1/messages');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({
+      question: "A che ora apre l'anagrafe?",
+    });
+  });
+
+  it('askTrainingMessage throws AdminApiError on a non-2xx response', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'generation service error: timeout' }, 502),
+    );
+
+    const error = await askTrainingMessage(1, 'domanda').catch(
+      (e: unknown) => e,
+    );
+
+    expect(error).toBeInstanceOf(AdminApiError);
+    expect((error as AdminApiError).status).toBe(502);
+  });
+
+  it('listTrainingMessages fetches messages for a session', async () => {
+    const messages = [
+      {
+        id: 1,
+        session_id: 1,
+        question: "A che ora apre l'anagrafe?",
+        answer: 'Lo sportello apre alle 9:00.',
+        sources: [],
+        fell_back: false,
+        created_at: 'now',
+      },
+    ];
+    fetchMock.mockResolvedValueOnce(jsonResponse(messages));
+
+    const result = await listTrainingMessages(1);
+
+    expect(result).toEqual(messages);
+    expect(lastCall(fetchMock)[0]).toBe(
+      '/admin/api/training/sessions/1/messages',
+    );
+  });
+
+  it('listTrainingMessages throws AdminApiError on a non-2xx response', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'server error' }, 500),
+    );
+
+    const error = await listTrainingMessages(1).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AdminApiError);
+    expect((error as AdminApiError).status).toBe(500);
+  });
+
+  it('createTrainingFeedback POSTs the feedback payload', async () => {
+    const feedback = {
+      id: 1,
+      message_id: 1,
+      chunk_id: null,
+      answer_span: 'alle 9:00',
+      sentiment: 'negative',
+      comment: 'orario sbagliato',
+      created_at: 'now',
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(feedback, 201));
+
+    const result = await createTrainingFeedback({
+      message_id: 1,
+      answer_span: 'alle 9:00',
+      sentiment: 'negative',
+      comment: 'orario sbagliato',
+    });
+
+    expect(result).toEqual(feedback);
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/admin/api/training/feedback');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body as string)).toEqual({
+      message_id: 1,
+      answer_span: 'alle 9:00',
+      sentiment: 'negative',
+      comment: 'orario sbagliato',
+    });
+  });
+
+  it('createTrainingFeedback throws AdminApiError on a non-2xx response', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'invalid sentiment: neutral' }, 400),
+    );
+
+    const error = await createTrainingFeedback({
+      message_id: 1,
+      answer_span: 'alle 9:00',
+      sentiment: 'negative',
+    }).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AdminApiError);
+    expect((error as AdminApiError).status).toBe(400);
+  });
+
+  it('listTrainingFeedback fetches feedback for a message', async () => {
+    const feedback = [
+      {
+        id: 1,
+        message_id: 1,
+        chunk_id: null,
+        answer_span: 'alle 9:00',
+        sentiment: 'positive',
+        comment: null,
+        created_at: 'now',
+      },
+    ];
+    fetchMock.mockResolvedValueOnce(jsonResponse(feedback));
+
+    const result = await listTrainingFeedback(1);
+
+    expect(result).toEqual(feedback);
+    expect(lastCall(fetchMock)[0]).toBe(
+      '/admin/api/training/messages/1/feedback',
+    );
+  });
+
+  it('listTrainingFeedback throws AdminApiError on a non-2xx response', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'server error' }, 500),
+    );
+
+    const error = await listTrainingFeedback(1).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AdminApiError);
+    expect((error as AdminApiError).status).toBe(500);
   });
 
   it('throws AdminApiError with the parsed message on a non-2xx response', async () => {
