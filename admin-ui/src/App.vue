@@ -12,7 +12,11 @@ const businessLinks = [
   <div class="app-shell">
     <DsNav class="app-shell__nav" :links="businessLinks" />
     <main class="app-shell__main">
-      <p><RouterLink to="/dev">Catalogo componenti</RouterLink></p>
+      <p>
+        <RouterLink to="/dev" class="app-shell__dev-link"
+          >Catalogo componenti</RouterLink
+        >
+      </p>
       <RouterView />
     </main>
   </div>
