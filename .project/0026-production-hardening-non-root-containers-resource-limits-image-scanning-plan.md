@@ -1,8 +1,10 @@
 # Plan 0026: Production hardening: non-root containers, resource limits, image scanning
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-25 by Sisyphus (Claude Code)
 - **Implemented**: 2026-07-25 by Sisyphus (Claude Code)
+- **Closed**: 2026-07-25 by Sisyphus (Claude Code)
+- **Review verdict**: changes-requested (resolved)
 - **Branch**: feat/production-hardening-non-root-containers-resource-limits-image-scanning
 - **Feature ID**: 0026
 - **Created**: 2026-07-25
