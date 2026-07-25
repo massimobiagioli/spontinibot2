@@ -19,6 +19,10 @@ function makeRouter() {
   });
 }
 
+async function openWidget(wrapper: ReturnType<typeof mount>): Promise<void> {
+  await wrapper.get('.chat-widget__toggle').trigger('click');
+}
+
 async function askQuestion(
   wrapper: ReturnType<typeof mount>,
   question: string,
@@ -70,6 +74,16 @@ describe('accessibility', () => {
     wrapper.unmount();
   });
 
+  it('the chat widget has zero axe violations while closed, showing only the toggle button', async () => {
+    const wrapper = mount(ChatWidget, { attachTo: document.body });
+
+    const results = await runAxe(wrapper.element);
+
+    expect(results.violations).toEqual([]);
+
+    wrapper.unmount();
+  });
+
   it('the chat widget has zero axe violations with an answered message and expanded citations', async () => {
     vi.spyOn(chatApi, 'askChat').mockResolvedValue({
       answer: 'Lo sportello anagrafe apre alle 9:00.',
@@ -78,6 +92,7 @@ describe('accessibility', () => {
     });
 
     const wrapper = mount(ChatWidget, { attachTo: document.body });
+    await openWidget(wrapper);
     await askQuestion(wrapper, "A che ore apre l'anagrafe?");
     await flushPromises();
     await wrapper.get('summary').trigger('click');
@@ -97,6 +112,7 @@ describe('accessibility', () => {
     });
 
     const wrapper = mount(ChatWidget, { attachTo: document.body });
+    await openWidget(wrapper);
     await askQuestion(wrapper, 'domanda senza risposta');
     await flushPromises();
 
@@ -113,6 +129,7 @@ describe('accessibility', () => {
     );
 
     const wrapper = mount(ChatWidget, { attachTo: document.body });
+    await openWidget(wrapper);
     await askQuestion(wrapper, 'domanda');
     await flushPromises();
 
@@ -127,6 +144,7 @@ describe('accessibility', () => {
     vi.spyOn(chatApi, 'askChat').mockReturnValue(new Promise(() => {}));
 
     const wrapper = mount(ChatWidget, { attachTo: document.body });
+    await openWidget(wrapper);
     await askQuestion(wrapper, 'domanda');
 
     const results = await runAxe(wrapper.element);

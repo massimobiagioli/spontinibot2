@@ -4,6 +4,10 @@ import { describe, expect, it, vi } from 'vitest';
 import * as chatApi from '../../../services/chatApi';
 import ChatWidget from '../ChatWidget.vue';
 
+async function openWidget(wrapper: ReturnType<typeof mount>): Promise<void> {
+  await wrapper.get('.chat-widget__toggle').trigger('click');
+}
+
 describe('Feature: citizen asks a question and expands the cited sources', () => {
   it('Scenario: a citizen asks a question answerable from a municipal document', async () => {
     // Given the knowledge base contains a document titled "Orari sportello anagrafe"
@@ -14,6 +18,9 @@ describe('Feature: citizen asks a question and expands the cited sources', () =>
       fell_back: false,
     });
     const wrapper = mount(ChatWidget);
+
+    // And the citizen opens the chat widget
+    await openWidget(wrapper);
 
     // When the citizen asks "A che ore apre l'anagrafe?"
     await wrapper.get('input').setValue("A che ore apre l'anagrafe?");
@@ -44,6 +51,7 @@ describe('Feature: citizen asks a question and expands the cited sources', () =>
       fell_back: true,
     });
     const wrapper = mount(ChatWidget);
+    await openWidget(wrapper);
 
     // When the citizen asks "Quanto pago di tasse comunali?"
     await wrapper.get('input').setValue('Quanto pago di tasse comunali?');
@@ -66,6 +74,7 @@ describe('Feature: citizen asks a question and expands the cited sources', () =>
       new chatApi.ChatApiError(503, 'no active persona configured'),
     );
     const wrapper = mount(ChatWidget);
+    await openWidget(wrapper);
 
     // When the citizen asks a question
     await wrapper.get('input').setValue('A che ore apre l-anagrafe?');

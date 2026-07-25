@@ -1,0 +1,109 @@
+// Host-page shell (nav, hero, footer) — gives the dev/demo page hosting the
+// chat widget a visual identity consistent with the widget itself. BEM
+// naming, tokens sourced via var(--spontini-...) (see _tokens.scss) and
+// var(--bs-...) DSI utilities, never hard-coded, per STACK.md §4.3.
+
+.app-shell {
+  font-family: var(--spontini-font-sans);
+  color: var(--spontini-color-text);
+  background: var(--spontini-color-bg);
+
+  &__header {
+    background: var(--spontini-color-primary);
+    color: var(--spontini-color-white);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.5rem;
+  }
+
+  &__brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--spontini-font-serif);
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+
+  &__dev-link {
+    color: rgba(255, 255, 255, 0.85);
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+
+    &:hover {
+      color: var(--spontini-color-white);
+    }
+  }
+
+  &__footer {
+    background: var(--spontini-color-primary);
+    color: rgba(255, 255, 255, 0.7);
+    text-align: center;
+    padding: 1.25rem;
+    font-size: 0.85rem;
+  }
+}
+
+.home {
+  &__hero {
+    background: linear-gradient(
+      135deg,
+      var(--spontini-color-primary) 0%,
+      var(--spontini-color-primary-light) 100%
+    );
+    color: var(--spontini-color-white);
+    padding: 4rem 1.5rem;
+    text-align: center;
+  }
+
+  &__hero-title {
+    font-family: var(--spontini-font-serif);
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+  }
+
+  &__hero-subtitle {
+    font-size: 1.05rem;
+    opacity: 0.9;
+    max-width: 560px;
+    margin: 0 auto;
+  }
+
+  &__cards {
+    max-width: 900px;
+    margin: 2.5rem auto;
+    padding: 0 1.5rem;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+
+    @media (max-width: 768px) {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  &__card {
+    background: var(--spontini-color-white);
+    border-radius: 8px;
+    padding: 1.25rem;
+    border-left: 4px solid var(--spontini-color-accent);
+    box-shadow: 0 2px 8px rgba(31, 42, 55, 0.06);
+
+    h2 {
+      font-family: var(--spontini-font-serif);
+      color: var(--spontini-color-primary);
+      font-size: 1.05rem;
+      margin-bottom: 0.5rem;
+    }
+
+    p {
+      font-size: 0.9rem;
+      color: var(--spontini-color-text-muted);
+      line-height: 1.6;
+      margin: 0;
+    }
+  }
+}

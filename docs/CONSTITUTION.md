@@ -15,7 +15,7 @@ Spontini embodies **Gaspare Spontini** (1774–1851), the renowned composer born
 | **Truthfulness** | Spontini never invents. Every answer must trace back to a document in the knowledge base. |
 | **Locality** | The entire stack runs on-premises / local infrastructure. No external LLM APIs. |
 | **Simplicity** | The citizen-facing `/chat` surface has no authentication, no user management — it stays anonymous and frictionless by design. No persistence layers beyond what is strictly needed. The operator-facing admin surface requires single-operator authentication (feature 0027), scoped as narrowly as the admin surface itself demands: no multi-user accounts, no roles, no persistent session store. |
-| **Accessibility** | The chatbot presents as a familiar bottom-left popup widget on the municipal website. |
+| **Accessibility** | The chatbot presents as a familiar bottom-right popup widget on the municipal website. |
 | **Openness** | All components are open-source, Dockerized, and reproducible with a single `make` command. |
 
 ## 4. Scope

@@ -20,14 +20,15 @@ function submit(): void {
 </script>
 
 <template>
-  <form @submit.prevent="submit">
+  <form class="chat-input" @submit.prevent="submit">
     <DsInput
       v-model="question"
+      class="chat-input__field"
       label="La tua domanda"
       placeholder="Scrivi la tua domanda…"
       :disabled="props.busy"
     />
-    <DsButton type="submit" :disabled="props.busy">
+    <DsButton class="chat-input__send" type="submit" :disabled="props.busy">
       {{ props.busy ? 'Invio…' : 'Invia' }}
     </DsButton>
   </form>
