@@ -1,8 +1,10 @@
 # Plan 0023: frontend accessibility + reduced-motion + keyboard audit
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-25 by agent
 - **Implemented**: 2026-07-25 by agent
+- **Closed**: 2026-07-25 by agent
+- **Review verdict**: approved
 - **Branch**: feat/frontend-accessibility-reduced-motion-keyboard-audit
 - **Feature ID**: 0023
 - **Created**: 2026-07-25
