@@ -2,35 +2,31 @@
 import { ref } from 'vue';
 
 import { DsCallout } from '../ds';
-import {
-  askChat,
-  ChatApiError,
-  type ChatResponse,
-} from '../../services/chatApi';
+import { askChat, type ChatResponse } from '../../services/chatApi';
 import ChatInput from './ChatInput.vue';
 import ChatMessage from './ChatMessage.vue';
+
+const HONEST_ERROR_MESSAGE =
+  'Non riesco a rispondere ora. Riprova tra qualche minuto.';
 
 interface Exchange {
   question: string;
   response: ChatResponse | null;
-  error: string | null;
+  failed: boolean;
 }
 
 const exchanges = ref<Exchange[]>([]);
 const busy = ref(false);
 
 async function ask(question: string): Promise<void> {
-  const exchange: Exchange = { question, response: null, error: null };
+  const exchange: Exchange = { question, response: null, failed: false };
   exchanges.value.push(exchange);
   busy.value = true;
 
   try {
     exchange.response = await askChat(question);
-  } catch (e) {
-    exchange.error =
-      e instanceof ChatApiError
-        ? e.message
-        : 'Non riesco a rispondere ora. Riprova più tardi.';
+  } catch {
+    exchange.failed = true;
   } finally {
     busy.value = false;
   }
@@ -49,12 +45,12 @@ async function ask(question: string): Promise<void> {
         :question="exchange.question"
         :response="exchange.response"
       />
-      <article v-else-if="exchange.error" class="chat-message">
+      <article v-else-if="exchange.failed" class="chat-message">
         <p class="chat-message__question">
           <strong>Tu:</strong> {{ exchange.question }}
         </p>
         <DsCallout variant="danger" title="Errore">{{
-          exchange.error
+          HONEST_ERROR_MESSAGE
         }}</DsCallout>
       </article>
       <article v-else class="chat-message chat-message--pending">

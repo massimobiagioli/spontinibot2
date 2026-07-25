@@ -43,16 +43,18 @@ describe('ChatMessage', () => {
     expect(items[1]?.text()).toContain('Regolamento comunale');
   });
 
-  it('renders a warning callout instead of citations when fell_back is true', () => {
+  it('renders the honest fallback message in a calm callout instead of citations, with no alarming title', () => {
     const wrapper = mount(ChatMessage, {
       props: { question: 'domanda', response: fallbackResponse },
     });
 
     expect(wrapper.findAll('li')).toHaveLength(0);
-    const callout = wrapper.get(
-      '[role="note"], [role="alert"], [role="status"]',
+    const callout = wrapper.get('[role="note"]');
+    expect(callout.text()).toBe(
+      'Non ho trovato informazioni su questo argomento.',
     );
-    expect(callout.text()).toContain('Non ho trovato informazioni');
+    expect(wrapper.find('.callout-title').exists()).toBe(false);
+    expect(callout.classes()).toContain('callout-primary');
   });
 
   it('does not render a citation list when there are no sources even without a fallback', () => {

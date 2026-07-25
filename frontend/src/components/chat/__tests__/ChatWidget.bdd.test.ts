@@ -34,4 +34,48 @@ describe('Feature: citizen asks a question and expands the cited sources', () =>
 
     expect((disclosure.element as HTMLDetailsElement).open).toBe(true);
   });
+
+  it('Scenario: a citizen asks a question not answerable from any document', async () => {
+    // Given the knowledge base contains no document about "tasse comunali"
+    // and Spontini honestly says so instead of inventing an answer
+    vi.spyOn(chatApi, 'askChat').mockResolvedValue({
+      answer: 'Non ho trovato informazioni su questo argomento.',
+      sources: [],
+      fell_back: true,
+    });
+    const wrapper = mount(ChatWidget);
+
+    // When the citizen asks "Quanto pago di tasse comunali?"
+    await wrapper.get('input').setValue('Quanto pago di tasse comunali?');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    // Then Spontini answers that no information was found, calmly, with no citations
+    expect(wrapper.text()).toContain(
+      'Non ho trovato informazioni su questo argomento.',
+    );
+    expect(wrapper.findAll('details')).toHaveLength(0);
+
+    // And Spontini does not invent any detail — the fallback text is the only content shown
+    expect(wrapper.text()).not.toContain('tasse comunali sono');
+  });
+
+  it('Scenario: a citizen asks a question while the backend cannot answer', async () => {
+    // Given /chat is returning an upstream error (e.g. 502/503)
+    vi.spyOn(chatApi, 'askChat').mockRejectedValue(
+      new chatApi.ChatApiError(503, 'no active persona configured'),
+    );
+    const wrapper = mount(ChatWidget);
+
+    // When the citizen asks a question
+    await wrapper.get('input').setValue('A che ore apre l-anagrafe?');
+    await wrapper.get('form').trigger('submit');
+    await flushPromises();
+
+    // Then Spontini honestly says it cannot answer right now
+    expect(wrapper.text()).toContain('Non riesco a rispondere ora');
+
+    // And the raw backend error is never shown to the citizen
+    expect(wrapper.text()).not.toContain('no active persona configured');
+  });
 });
