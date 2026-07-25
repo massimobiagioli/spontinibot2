@@ -85,6 +85,11 @@ test-frontend:
 bdd:
 	$(COMPOSE) run --rm backend cargo test --test bdd $(WORKSPACE_CRATES)
 
+.PHONY: bdd-e2e
+## bdd-e2e: chat.feature against the live stack — real llama.cpp (run `make provision-models` and `make up` first)
+bdd-e2e:
+	cargo test --test bdd_e2e -p backend --features e2e
+
 # --- Lint / format / check ------------------------------------------------
 .PHONY: lint
 ## lint: clippy (Rust) + eslint (frontend) inside containers

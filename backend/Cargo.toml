@@ -4,6 +4,13 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[features]
+# Gates the `bdd_e2e` integration test so it never runs under a plain
+# `cargo test` (which `make test`, `make coverage`, and `make verify` all
+# invoke) — it requires a live stack and real models, and must only run via
+# `make bdd-e2e`.
+e2e = []
+
 [dependencies]
 axum = { version = "0.7", features = ["multipart"] }
 kb-store = { path = "../kb-store" }
@@ -32,3 +39,9 @@ wiremock = "0.6"
 name = "bdd"
 path = "tests/bdd.rs"
 harness = false
+
+[[test]]
+name = "bdd_e2e"
+path = "tests/bdd_e2e.rs"
+harness = false
+required-features = ["e2e"]
