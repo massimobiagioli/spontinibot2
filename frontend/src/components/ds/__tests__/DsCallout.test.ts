@@ -49,4 +49,13 @@ describe('DsCallout', () => {
       mount(DsCallout, { props: { variant: 'warning' } }).attributes('role'),
     ).toBe('note');
   });
+
+  it('lets a consumer override the role for a dynamically-appearing callout that must be announced', () => {
+    const wrapper = mount(DsCallout, {
+      props: { variant: 'primary', role: 'status' },
+    });
+
+    expect(wrapper.attributes('role')).toBe('status');
+    expect(wrapper.classes()).toContain('callout-primary');
+  });
 });

@@ -49,12 +49,21 @@ describe('ChatMessage', () => {
     });
 
     expect(wrapper.findAll('li')).toHaveLength(0);
-    const callout = wrapper.get('[role="note"]');
+    const callout = wrapper.get('.callout-primary');
     expect(callout.text()).toBe(
       'Non ho trovato informazioni su questo argomento.',
     );
     expect(wrapper.find('.callout-title').exists()).toBe(false);
-    expect(callout.classes()).toContain('callout-primary');
+  });
+
+  it('announces the honest fallback message to screen readers without moving focus', () => {
+    const wrapper = mount(ChatMessage, {
+      props: { question: 'domanda', response: fallbackResponse },
+    });
+
+    expect(wrapper.get('[role="status"]').classes()).toContain(
+      'callout-primary',
+    );
   });
 
   it('does not render a citation list when there are no sources even without a fallback', () => {
