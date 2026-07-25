@@ -14,17 +14,26 @@ COPY features/ features/
 
 RUN cargo build --release -p backend
 
+RUN groupadd -g 10001 spontini \
+    && useradd -u 10001 -g spontini -m -s /usr/sbin/nologin spontini \
+    && mkdir -p /usr/local/cargo/registry /usr/local/cargo/git \
+    && chown -R spontini:spontini /app /usr/local/cargo/registry /usr/local/cargo/git
+USER spontini
+
 EXPOSE 8080
 CMD ["./target/release/backend"]
 
 FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get install -y --no-install-recommends ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -g 10001 spontini \
+    && useradd -u 10001 -g spontini -m -s /usr/sbin/nologin spontini
 
 WORKDIR /app
-COPY --from=build /app/target/release/backend /app/backend
+COPY --from=build --chown=spontini:spontini /app/target/release/backend /app/backend
+USER spontini
 
 EXPOSE 8080
 CMD ["/app/backend"]

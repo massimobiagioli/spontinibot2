@@ -14,6 +14,7 @@
 # --- Config ---------------------------------------------------------------
 SERVICE          ?= backend
 COMPOSE          := docker compose
+COMPOSE_PROD     := docker compose -f docker-compose.yml -f docker-compose.prod.yml
 WORKSPACE_CRATES := -p backend -p ingest-core -p ingest -p ingest-cli -p kb-store
 
 # --- Help (self-documenting) ---------------------------------------------
@@ -48,6 +49,21 @@ up:
 ## down: stop the stack (preserves volumes)
 down:
 	$(COMPOSE) down
+
+.PHONY: prod-build
+## prod-build: build images for the production overlay (runtime-stage backend/ingest)
+prod-build:
+	$(COMPOSE_PROD) build
+
+.PHONY: prod-up
+## prod-up: start the full stack with production resource limits and healthchecks
+prod-up:
+	$(COMPOSE_PROD) up -d
+
+.PHONY: prod-down
+## prod-down: stop the production-overlay stack (preserves volumes)
+prod-down:
+	$(COMPOSE_PROD) down
 
 .PHONY: logs
 ## logs: tail logs from every service
@@ -147,6 +163,12 @@ ingest-run:
 ## compose-config: validate the docker-compose.yml
 compose-config:
 	$(COMPOSE) config -q
+
+# --- Security scanning -----------------------------------------------------
+.PHONY: scan
+## scan: trivy image scan on every built/pulled image, zero-high-cve gate (run `make prod-build` first)
+scan:
+	./bin/scan.sh
 
 # --- Models ---------------------------------------------------------------
 .PHONY: provision-models

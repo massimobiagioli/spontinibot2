@@ -81,6 +81,22 @@ Once the stack is up:
 
 The first build downloads the GGUF model files into `models/embed/` and `models/generate/` — see [docs/STACK.md §5](./docs/STACK.md#5-containerization). Until those models are present, the inference containers will refuse to start.
 
+### Production
+
+`docker-compose.yml` alone is dev-first: `backend`/`ingest` build to their `target: build` stage (full Rust toolchain) so `docker compose run --rm <svc> cargo ...` works without installing Rust on the host. `docker-compose.prod.yml` is an overlay for what actually ships: `target: runtime` (slim, non-root) for every owned service, memory/CPU limits sized for the Mac Intel i7 / 16 GB RAM target, and healthchecks for every one of the 6 containers.
+
+```bash
+# Build and start the hardened, resource-limited production stack
+make prod-build
+make prod-up
+
+# Stop it (volumes preserved)
+make prod-down
+
+# Zero-HIGH/CRITICAL-CVE gate on every owned image (run `make prod-build` first)
+make scan
+```
+
 ---
 
 ## Architecture overview

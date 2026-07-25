@@ -23,13 +23,14 @@ services:
     build:
       context: ./admin-ui
       dockerfile: Dockerfile
+      target: build
     ports:
-      - "5173:80"
+      - "5173:8080"
     depends_on:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:80/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -51,10 +52,11 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      target: build
     ports:
-      - "5174:80"
+      - "5174:8080"
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:80/ || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/ || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
