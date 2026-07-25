@@ -1,8 +1,10 @@
 # Plan 0022: frontend honest-unknown + error state UI
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-25 by agent
 - **Implemented**: 2026-07-25 by agent
+- **Closed**: 2026-07-25 by agent
+- **Review verdict**: approved
 - **Branch**: feat/frontend-honest-unknown-error-state-ui
 - **Feature ID**: 0022
 - **Created**: 2026-07-25
