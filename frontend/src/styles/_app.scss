@@ -22,3 +22,35 @@
     min-height: 44px;
   }
 }
+
+// DSI's own .form-control token renders a 40px-tall input box, 4px short of
+// the 44px minimum (STACK.md §4.2) — override the box size without touching
+// DSI's token values, consistent with admin-ui's identical fix (feature 0019).
+.form-control {
+  min-height: 44px;
+}
+
+// The citation disclosure toggle is a bare <summary> with no DSI class, so it
+// renders at native browser text height, well under the 44px minimum tap
+// height (STACK.md §4.2).
+.chat-message details summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--bs-spacer, 0.75rem);
+  cursor: pointer;
+}
+
+// DSI wraps .fade/.collapsing/.modal/.accordion-button transitions in a
+// prefers-reduced-motion guard, but .btn's hover-color transition is a plain,
+// unguarded declaration — close that gap defensively for every element,
+// per STACK.md §4.2.
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

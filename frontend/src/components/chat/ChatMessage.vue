@@ -12,7 +12,7 @@ defineProps<{
   <article class="chat-message">
     <p class="chat-message__question"><strong>Tu:</strong> {{ question }}</p>
 
-    <DsCallout v-if="response.fell_back" variant="primary">
+    <DsCallout v-if="response.fell_back" variant="primary" role="status">
       {{ response.answer }}
     </DsCallout>
     <p v-else class="chat-message__answer">{{ response.answer }}</p>
