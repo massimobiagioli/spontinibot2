@@ -45,4 +45,18 @@ describe('DsInput', () => {
       'Scrivi la tua domanda al Comune.',
     );
   });
+
+  it('passes the placeholder through to the native input', () => {
+    const wrapper = mount(DsInput, {
+      props: {
+        modelValue: '',
+        label: 'Domanda',
+        placeholder: 'Scrivi la tua domanda…',
+      },
+    });
+
+    expect(wrapper.get('input').attributes('placeholder')).toBe(
+      'Scrivi la tua domanda…',
+    );
+  });
 });

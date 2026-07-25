@@ -7,6 +7,7 @@ withDefaults(
     label: string;
     type?: string;
     hint?: string;
+    placeholder?: string;
     disabled?: boolean;
     required?: boolean;
   }>(),
@@ -31,6 +32,7 @@ const hintId = useId();
       class="form-control"
       :type="type"
       :value="modelValue"
+      :placeholder="placeholder"
       :disabled="disabled"
       :required="required"
       :aria-describedby="hint ? hintId : undefined"

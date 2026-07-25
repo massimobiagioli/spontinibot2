@@ -11,6 +11,8 @@ describe('DevCatalog', () => {
       'DsButton',
       'DsInput',
       'DsCallout',
+      'ChatMessage',
+      'ChatInput',
     ]);
   });
 });
