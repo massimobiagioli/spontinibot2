@@ -57,7 +57,7 @@ describe('ChatWidget', () => {
     expect(wrapper.get('input').attributes('disabled')).toBeUndefined();
   });
 
-  it('appends an error callout instead of crashing when askChat rejects', async () => {
+  it('shows the fixed honest error message, never the raw backend error, when askChat rejects with a ChatApiError', async () => {
     vi.spyOn(chatApi, 'askChat').mockRejectedValue(
       new chatApi.ChatApiError(502, 'upstream service unavailable'),
     );
@@ -66,7 +66,22 @@ describe('ChatWidget', () => {
     await askQuestion(wrapper, 'domanda');
     await flushPromises();
 
-    expect(wrapper.text()).toContain('upstream service unavailable');
+    expect(wrapper.text()).toContain('Non riesco a rispondere ora');
+    expect(wrapper.text()).not.toContain('upstream service unavailable');
+    expect(wrapper.get('[role="alert"]')).toBeTruthy();
+  });
+
+  it('shows the same fixed honest error message when askChat rejects with a non-ChatApiError failure', async () => {
+    vi.spyOn(chatApi, 'askChat').mockRejectedValue(
+      new TypeError('Failed to fetch'),
+    );
+    const wrapper = mount(ChatWidget);
+
+    await askQuestion(wrapper, 'domanda');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Non riesco a rispondere ora');
+    expect(wrapper.text()).not.toContain('Failed to fetch');
     expect(wrapper.get('[role="alert"]')).toBeTruthy();
   });
 });
