@@ -142,8 +142,9 @@ The Vue 3 + TypeScript SPA served by the `frontend` container, built on Design S
   - Description: Build the honest-unknown state (when `fell_back=true`, render the fallback message with no citations and a calm "non ho trovato informazioni" tone) and the error state (when `/chat` returns 502/503, render an honest "non riesco a rispondere ora" state, never a raw "Error 500"). Both states are designed per STACK.md §4.5 — honest states, no lying spinners. BDD scenarios for the honest-unknown and the 502/503 paths.
   - Closed: Plan [0022](../.project/0022-frontend-honest-unknown-error-state-ui-plan.md). No ADR — a copy/rendering refinement of the existing chat widget (feature 0021), consuming the same `/chat` DTO with no structural or architectural change.
 
-- [ ] **0023** — frontend accessibility + reduced-motion + keyboard audit
+- [x] **0023** — frontend accessibility + reduced-motion + keyboard audit
   - Description: Audit the public chat against WCAG 2.1 AA with the same rigor as feature 0019: keyboard navigability, visible focus, screen-reader labels, color contrast, reduced-motion honored, touch targets ≥ 44×44 px, semantic HTML. Run `axe-core` + `pa11y` on the chat route, fix every violation, add the zero-violation gate. Manual screen-reader smoke test documented in a BDD scenario. The public chat is the most intuitive surface Spontini offers — accessibility is non-negotiable.
+  - Closed: Plan [0023](../.project/0023-frontend-accessibility-reduced-motion-keyboard-audit-plan.md). No ADR — an audit-and-fix pass over the existing chat widget (extended `axe-core`/`pa11y` coverage, a `DsCallout` ARIA-role fix, two touch-target fixes, and a reduced-motion guard), no architectural decision, consistent with feature 0019's identical no-ADR precedent.
 
 ---
 
