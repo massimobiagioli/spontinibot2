@@ -1,8 +1,10 @@
 # Plan 0025: End-to-end BDD against live containers
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-25 by agent
 - **Implemented**: 2026-07-25 by agent
+- **Closed**: 2026-07-25 by agent
+- **Review verdict**: approved
 - **Branch**: feat/end-to-end-bdd-against-live-containers
 - **Feature ID**: 0025
 - **Created**: 2026-07-25
