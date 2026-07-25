@@ -434,7 +434,8 @@ The Makefile is the **single entry point** for every operator and developer acti
 | `fmt-check` | `cargo fmt --check` + `npm run format -- --check`. |
 | `check` | `cargo check` (workspace) — fast compile gate. |
 | `coverage` | `cargo tarpaulin` (or the chosen tool) inside the backend container; enforces the 100% line / 80% branch gate from [PRINCIPLES.md §7](./docs/PRINCIPLES.md#7-100-test-coverage-on-the-codebase). |
-| `bdd` | Runs Gherkin scenarios end-to-end against the running stack (see [PRINCIPLES.md §5](./docs/PRINCIPLES.md#5-bdd--behavior-driven-development)). |
+| `bdd` | Runs `features/*.feature` in-process against test-doubled `EmbeddingPort`/`GenerationPort` adapters — no live containers, no real models (see [PRINCIPLES.md §5](./docs/PRINCIPLES.md#5-bdd--behavior-driven-development)). |
+| `bdd-e2e` | Runs `features/chat.feature` as an external HTTP client against a live `make up` stack with real `llama-embed`/`llama-generate` — requires `make provision-models` first; native (host) `cargo test`, not containerized, since it targets the stack's published ports. Deliberately excluded from `make verify` and CI. |
 | `ingest-run` | Triggers an immediate ingest run via `/admin/api/ingest/run` against the running `backend`. |
 | `migrate` | Runs the libSQL migrations inside the `backend` (or `ingest`) container. |
 | `clean` | `cargo clean` + `rm -rf frontend/dist admin-ui/dist` inside the relevant containers; `docker compose down -v` only when `CLEAN_VOLUMES=1` is passed (destructive — requires the confirmation flag). |

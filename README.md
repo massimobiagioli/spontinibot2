@@ -66,6 +66,11 @@ make down
 
 # Run the full verification gate (build + test + lint + fmt-check + coverage + compose config)
 make verify
+
+# End-to-end BDD against the live stack — real llama-embed / llama-generate,
+# not test doubles. Requires `make provision-models` and `make up` first;
+# not part of `make verify` or CI (needs multi-gigabyte models + a live stack).
+make bdd-e2e
 ```
 
 Once the stack is up:
