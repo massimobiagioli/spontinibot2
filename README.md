@@ -6,11 +6,11 @@
 
 ## Status
 
-[![Build](https://img.shields.io/badge/build-pending-lightgrey)](./)
-[![Tests](https://img.shields.io/badge/tests-pending-lightgrey)](./)
-[![Coverage](https://img.shields.io/badge/coverage-pending-lightgrey)](./)
+[![Build](https://github.com/massimobiagioli/spontinibot2/actions/workflows/ci.yml/badge.svg)](https://github.com/massimobiagioli/spontinibot2/actions/workflows/ci.yml)
+[![Tests](https://github.com/massimobiagioli/spontinibot2/actions/workflows/ci.yml/badge.svg)](https://github.com/massimobiagioli/spontinibot2/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/badge/coverage-100%25%20line%20%2F%2080%25%20branch%20gate-brightgreen)](https://github.com/massimobiagioli/spontinibot2/actions/workflows/ci.yml)
 
-> CI badges will be wired when the CI pipeline is introduced. Until then, run `make verify` locally.
+> The CI workflow (`.github/workflows/ci.yml`) runs `make verify` on every push and pull request. The Coverage badge reflects the enforced gate threshold, not a live percentage — see the workflow run for the actual `cargo tarpaulin` output.
 
 ---
 

@@ -152,8 +152,9 @@ The Vue 3 + TypeScript SPA served by the `frontend` container, built on Design S
 
 The closing milestone: CI, end-to-end BDD against live containers, and production hardening. After Milestone 5, the system is shippable to the Comune di Maiolati Spontini.
 
-- [ ] **0024** — CI pipeline (GitHub Actions) + README status badges
+- [x] **0024** — CI pipeline (GitHub Actions) + README status badges
   - Description: Add a GitHub Actions workflow that runs `make verify` on every push and PR (build + test + lint + fmt-check + coverage + compose config), caches the Docker layers and the cargo registry, and fails on any non-zero gate. Wire the build/test/coverage badges in `README.md` (currently `pending`). Coverage gate enforced at 100% line / 80% branch per PRINCIPLES.md §7. No deployment step — deployment is a separate, future plan.
+  - Closed: Plan [0024](../.project/0024-ci-pipeline-github-actions-readme-status-badges-plan.md). No ADR — CI wiring and README badge updates are operational/CI configuration, not a structural architectural decision; `make verify`'s gate composition and thresholds are unchanged.
 
 - [ ] **0025** — End-to-end BDD against live containers
   - Description: Add an end-to-end BDD suite that runs the `features/*.feature` scenarios against the full running stack (all 6 containers up via `make up`, real `llama-embed` and `llama-generate`, a seeded `kb.db` with an active persona and a known document). The honest-unknown scenario uses a question that matches no document. Wire the suite as a `make bdd-e2e` target (separate from the unit-level `make bdd` which uses test doubles). This proves the real adapters work against the real `llama.cpp` containers, closing the gap noted in Plan 0003's risks.
