@@ -1,8 +1,10 @@
 # Plan 0027: Operator auth + audit log
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-25 by Sisyphus (Claude Code)
 - **Implemented**: 2026-07-25 by Sisyphus (Claude Code)
+- **Closed**: 2026-07-25 by Sisyphus (Claude Code)
+- **Review verdict**: changes-requested (resolved)
 - **Branch**: feat/operator-auth-audit-log
 - **Feature ID**: 0027
 - **Created**: 2026-07-25

@@ -57,6 +57,8 @@ Async HTTP framework, pure Rust. This is the **core** container. Exposes two cle
 - `/chat` — public endpoint for end users
 
 **Admin surface (operator-facing, protected):**
+- `/admin/api/auth/login` — operator login (username + password against an env-loaded, argon2-hashed credential file); issues a short-lived `HttpOnly` session cookie
+- `/admin/api/auth/logout` — invalidates the current session
 - `/admin/api/persona` — bot identity (imprinting) management
 - `/admin/api/persona/reload` — reload active persona without restart
 - `/admin/api/upload` — manual document upload (tagged)
