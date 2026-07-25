@@ -1,8 +1,10 @@
 # Plan 0021: frontend chat widget with citation rendering
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-25 by agent
 - **Implemented**: 2026-07-25 by agent
+- **Closed**: 2026-07-25 by agent
+- **Review verdict**: approved
 - **Branch**: feat/frontend-chat-widget-with-citation-rendering
 - **Feature ID**: 0021
 - **Created**: 2026-07-25
