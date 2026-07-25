@@ -1,8 +1,10 @@
 # Plan 0024: CI pipeline (GitHub Actions) + README status badges
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-25 by agent
 - **Implemented**: 2026-07-25 by agent
+- **Closed**: 2026-07-25 by agent
+- **Review verdict**: approved
 - **Branch**: feat/ci-pipeline-github-actions-readme-status-badges
 - **Feature ID**: 0024
 - **Created**: 2026-07-25
