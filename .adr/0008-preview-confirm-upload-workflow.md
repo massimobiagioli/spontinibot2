@@ -1,6 +1,6 @@
 # ADR 0008: Preview/Confirm Upload Workflow with In-Memory TTL Token Store
 
-- **Status**: proposed
+- **Status**: accepted
 - **Date**: 2026-07-24
 - **Deciders**: Sisyphus
 - **Related**: Feature 0009
