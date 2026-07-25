@@ -28,12 +28,12 @@ describe('IngestView', () => {
 
   it('renders an honest error state when the config fetch fails', async () => {
     vi.spyOn(adminApi, 'getIngestConfig').mockRejectedValue(
-      new adminApi.AdminApiError(401, 'invalid or missing X-Admin-Key header'),
+      new adminApi.AdminApiError(401, 'invalid or missing session cookie'),
     );
 
     const wrapper = mount(IngestView);
     await flushPromises();
 
-    expect(wrapper.text()).toContain('invalid or missing X-Admin-Key header');
+    expect(wrapper.text()).toContain('invalid or missing session cookie');
   });
 });

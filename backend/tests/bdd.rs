@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use argon2::PasswordHasher;
 use async_trait::async_trait;
 use axum::body::Body;
 use axum::http::Request;
@@ -31,6 +32,9 @@ use backend::admin::upload::UploadError;
 use backend::admin::upload::handlers::UploadState;
 use backend::admin::upload::ports::UploadPort;
 use backend::admin::upload::preview_store::PreviewStore;
+use backend::audit::adapter::KbStoreAuditLogAdapter;
+use backend::audit::{AuditError, AuditLogPort};
+use backend::auth::session_store::SessionStore;
 use backend::config::Config;
 use backend::rag_engine::engine::RagEngine;
 use backend::rag_engine::ports::{
@@ -113,6 +117,21 @@ impl UploadPort for StubUploadPort {
         _metadata: &backend::admin::upload::preview_store::UploadMetadata,
     ) -> Result<Vec<i64>, UploadError> {
         Ok(vec![])
+    }
+}
+
+struct NoopAudit;
+
+#[async_trait]
+impl AuditLogPort for NoopAudit {
+    async fn record(
+        &self,
+        _actor: &str,
+        _action: &str,
+        _target: &str,
+        _payload: &serde_json::Value,
+    ) -> Result<(), AuditError> {
+        Ok(())
     }
 }
 
@@ -256,6 +275,9 @@ struct BotWorld {
     response_status: Option<u16>,
     response_body: Option<String>,
     admin_db_path: Option<String>,
+    admin_session_cookie: Option<String>,
+    response_set_cookie: Option<String>,
+    persisted_router: Option<axum::Router>,
     upload_token: Option<String>,
     upload_db_path: Option<String>,
     upload_router: Option<axum::Router>,
@@ -294,7 +316,14 @@ impl Drop for BotWorld {
 /// Build an axum Router for the admin BDD scenarios.
 /// Opens the KbStore at `db_path` and wires everything with stubs for
 /// Embedding/Retrieval/Generation ports and a real PersonaAdminAdapter.
-async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
+/// Builds a fully-wired admin router for BDD scenarios, plus a ready-to-use
+/// `Cookie` header value for an already-authenticated operator session (most
+/// scenarios test admin behavior, not the login flow itself, so tests skip
+/// the HTTP login round-trip and seed a valid session directly). A real
+/// operator credential file is also written — backed by `admin_key` as the
+/// password — so the dedicated login/logout scenarios can exercise the real
+/// `POST /admin/api/auth/login` flow against the same router.
+async fn build_admin_router(db_path: &str, admin_key: &str) -> (axum::Router, String) {
     let store = Arc::new(
         kb_store::KbStore::open(db_path)
             .await
@@ -310,13 +339,26 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
         ),
     );
 
+    let credential_path = format!("{db_path}.operator-credential.json");
+    let salt = argon2::password_hash::SaltString::generate(&mut rand::rngs::OsRng);
+    let password_hash = argon2::Argon2::default()
+        .hash_password(admin_key.as_bytes(), &salt)
+        .expect("hash_password failed")
+        .to_string();
+    std::fs::write(
+        &credential_path,
+        format!(r#"{{"username":"operator","password_hash":"{password_hash}"}}"#),
+    )
+    .expect("failed to write test operator credential file");
+
     let config = Config {
         embed_url: "http://embed:8080".into(),
         generate_url: "http://generate:8080".into(),
         kb_path: db_path.into(),
         top_k: 5,
         min_score: 0.35,
-        admin_api_key: admin_key.into(),
+        operator_credential_path: credential_path,
+        session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
 
@@ -338,6 +380,7 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
         upload,
         preview_store,
         config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let ingest_config_port: Arc<dyn IngestConfigAdminPort> = Arc::new(
@@ -345,14 +388,14 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
     );
     let ingest_config_state = IngestConfigState {
         ingest_config: ingest_config_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let ingest_run_port: Arc<dyn IngestRunAdminPort> =
         Arc::new(backend::admin::ingest_run::adapter::KbStoreIngestRunAdapter::new(store.clone()));
     let ingest_run_state = IngestRunState {
         ingest_run: ingest_run_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_session_port: Arc<dyn TrainingSessionAdminPort> = Arc::new(
@@ -362,7 +405,7 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
     );
     let training_session_state = TrainingSessionState {
         training_sessions: training_session_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_message_port: Arc<dyn TrainingMessageAdminPort> = Arc::new(
@@ -373,7 +416,7 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
     );
     let training_message_state = TrainingMessageState {
         training_messages: training_message_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_feedback_port: Arc<dyn TrainingFeedbackAdminPort> = Arc::new(
@@ -383,13 +426,19 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
     );
     let training_feedback_state = TrainingFeedbackState {
         training_feedback: training_feedback_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
-    backend::router_with(
+    let session_store = Arc::new(SessionStore::new(config.session_ttl_secs));
+    let session_token = session_store.insert("operator".into());
+    let audit_port: Arc<dyn AuditLogPort> = Arc::new(KbStoreAuditLogAdapter::new(store.clone()));
+
+    let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
+        session_store,
+        audit_port,
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
@@ -398,7 +447,9 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> axum::Router {
             training_messages: training_message_state,
             training_feedback: training_feedback_state,
         },
-    )
+    );
+
+    (router, format!("session={session_token}"))
 }
 
 fn temp_db() -> String {
@@ -414,38 +465,38 @@ fn temp_db() -> String {
     path
 }
 
-fn stub_ingest_config_state(config: Config) -> IngestConfigState {
+fn stub_ingest_config_state() -> IngestConfigState {
     IngestConfigState {
         ingest_config: Arc::new(StubIngestConfigAdmin),
-        config,
+        audit: Arc::new(NoopAudit),
     }
 }
 
-fn stub_ingest_run_state(config: Config) -> IngestRunState {
+fn stub_ingest_run_state() -> IngestRunState {
     IngestRunState {
         ingest_run: Arc::new(StubIngestRunAdmin),
-        config,
+        audit: Arc::new(NoopAudit),
     }
 }
 
-fn stub_training_session_state(config: Config) -> TrainingSessionState {
+fn stub_training_session_state() -> TrainingSessionState {
     TrainingSessionState {
         training_sessions: Arc::new(StubTrainingSessionAdmin),
-        config,
+        audit: Arc::new(NoopAudit),
     }
 }
 
-fn stub_training_message_state(config: Config) -> TrainingMessageState {
+fn stub_training_message_state() -> TrainingMessageState {
     TrainingMessageState {
         training_messages: Arc::new(StubTrainingMessageAdmin),
-        config,
+        audit: Arc::new(NoopAudit),
     }
 }
 
-fn stub_training_feedback_state(config: Config) -> TrainingFeedbackState {
+fn stub_training_feedback_state() -> TrainingFeedbackState {
     TrainingFeedbackState {
         training_feedback: Arc::new(StubTrainingFeedbackAdmin),
-        config,
+        audit: Arc::new(NoopAudit),
     }
 }
 
@@ -472,7 +523,8 @@ async fn when_check_health(world: &mut BotWorld) {
         kb_path: "/tmp/test.db".into(),
         top_k: 5,
         min_score: 0.35,
-        admin_api_key: "test-key".into(),
+        operator_credential_path: "/nonexistent-bdd-credential.json".into(),
+        session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
@@ -481,16 +533,19 @@ async fn when_check_health(world: &mut BotWorld) {
         upload,
         preview_store,
         config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
-    let ingest_config_state = stub_ingest_config_state(config.clone());
-    let ingest_run_state = stub_ingest_run_state(config.clone());
-    let training_session_state = stub_training_session_state(config.clone());
-    let training_message_state = stub_training_message_state(config.clone());
-    let training_feedback_state = stub_training_feedback_state(config.clone());
+    let ingest_config_state = stub_ingest_config_state();
+    let ingest_run_state = stub_ingest_run_state();
+    let training_session_state = stub_training_session_state();
+    let training_message_state = stub_training_message_state();
+    let training_feedback_state = stub_training_feedback_state();
     let router = backend::router_with(
         AppState { rag_engine },
         admin,
-        config,
+        config.clone(),
+        Arc::new(SessionStore::new(config.session_ttl_secs)),
+        Arc::new(NoopAudit),
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
@@ -566,7 +621,8 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
         kb_path: "/tmp/test.db".into(),
         top_k: 5,
         min_score: 0.35,
-        admin_api_key: "test-key".into(),
+        operator_credential_path: "/nonexistent-bdd-credential.json".into(),
+        session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
@@ -575,12 +631,13 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
         upload,
         preview_store,
         config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
-    let ingest_config_state = stub_ingest_config_state(config.clone());
-    let ingest_run_state = stub_ingest_run_state(config.clone());
-    let training_session_state = stub_training_session_state(config.clone());
-    let training_message_state = stub_training_message_state(config.clone());
-    let training_feedback_state = stub_training_feedback_state(config.clone());
+    let ingest_config_state = stub_ingest_config_state();
+    let ingest_run_state = stub_ingest_run_state();
+    let training_session_state = stub_training_session_state();
+    let training_message_state = stub_training_message_state();
+    let training_feedback_state = stub_training_feedback_state();
     let router = backend::router_with(
         {
             let rag_engine = Arc::new(RagEngine::new(
@@ -598,7 +655,9 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
             AppState { rag_engine }
         },
         admin,
-        config,
+        config.clone(),
+        Arc::new(SessionStore::new(config.session_ttl_secs)),
+        Arc::new(NoopAudit),
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
@@ -846,7 +905,7 @@ async fn given_cache_has_active_persona(world: &mut BotWorld) {
 #[when(regex = r#"^the operator creates a new version of persona "([^"]+)" with activation$"#)]
 async fn when_insert_with_activate(world: &mut BotWorld, name: String) {
     let path = world.admin_db_path.as_ref().expect("no db path set");
-    let router = build_admin_router(path, ADMIN_KEY).await;
+    let (router, cookie) = build_admin_router(path, ADMIN_KEY).await;
 
     let body = serde_json::json!({
         "name": name,
@@ -860,7 +919,7 @@ async fn when_insert_with_activate(world: &mut BotWorld, name: String) {
                 .method("POST")
                 .uri("/admin/api/persona")
                 .header("content-type", "application/json")
-                .header("x-admin-key", ADMIN_KEY)
+                .header("cookie", &cookie)
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))
                 .unwrap(),
         )
@@ -877,14 +936,14 @@ async fn when_insert_with_activate(world: &mut BotWorld, name: String) {
 #[when(regex = r#"^the operator requests all versions of persona "([^"]+)"$"#)]
 async fn when_list_versions(world: &mut BotWorld, name: String) {
     let path = world.admin_db_path.as_ref().expect("no db path set");
-    let router = build_admin_router(path, ADMIN_KEY).await;
+    let (router, cookie) = build_admin_router(path, ADMIN_KEY).await;
 
     let response = router
         .oneshot(
             Request::builder()
                 .method("GET")
                 .uri(format!("/admin/api/persona?name={name}"))
-                .header("x-admin-key", ADMIN_KEY)
+                .header("cookie", &cookie)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -901,7 +960,7 @@ async fn when_list_versions(world: &mut BotWorld, name: String) {
 #[when(regex = r#"^the operator activates version (\d+) of persona "([^"]+)"$"#)]
 async fn when_activate_version(world: &mut BotWorld, _version: u32, name: String) {
     let path = world.admin_db_path.as_ref().expect("no db path set");
-    let router = build_admin_router(path, ADMIN_KEY).await;
+    let (router, cookie) = build_admin_router(path, ADMIN_KEY).await;
 
     // We need the persona's id — fetch the list first
     let list_resp = router
@@ -910,7 +969,7 @@ async fn when_activate_version(world: &mut BotWorld, _version: u32, name: String
             Request::builder()
                 .method("GET")
                 .uri(format!("/admin/api/persona?name={name}"))
-                .header("x-admin-key", ADMIN_KEY)
+                .header("cookie", &cookie)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -932,7 +991,7 @@ async fn when_activate_version(world: &mut BotWorld, _version: u32, name: String
             Request::builder()
                 .method("POST")
                 .uri(format!("/admin/api/persona/{id}/activate"))
-                .header("x-admin-key", ADMIN_KEY)
+                .header("cookie", &cookie)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -949,14 +1008,14 @@ async fn when_activate_version(world: &mut BotWorld, _version: u32, name: String
 #[when("the operator reloads the persona cache")]
 async fn when_reload_persona(world: &mut BotWorld) {
     let path = world.admin_db_path.as_ref().expect("no db path set");
-    let router = build_admin_router(path, ADMIN_KEY).await;
+    let (router, cookie) = build_admin_router(path, ADMIN_KEY).await;
 
     let response = router
         .oneshot(
             Request::builder()
                 .method("POST")
                 .uri("/admin/api/persona/reload")
-                .header("x-admin-key", ADMIN_KEY)
+                .header("cookie", &cookie)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1002,14 +1061,14 @@ async fn then_version_active(world: &mut BotWorld, _version: i64) {
 async fn then_version_inactive(world: &mut BotWorld, _version: i64) {
     // Fetch all versions and check ordering
     let path = world.admin_db_path.as_ref().expect("no db path set");
-    let router = build_admin_router(path, ADMIN_KEY).await;
+    let (router, cookie) = build_admin_router(path, ADMIN_KEY).await;
 
     let response = router
         .oneshot(
             Request::builder()
                 .method("GET")
                 .uri("/admin/api/persona?name=gaspare")
-                .header("x-admin-key", ADMIN_KEY)
+                .header("cookie", &cookie)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1058,7 +1117,8 @@ async fn when_list_versions_no_key(world: &mut BotWorld) {
     drop(store);
     world.admin_db_path = Some(path);
 
-    let router = build_admin_router(world.admin_db_path.as_ref().unwrap(), ADMIN_KEY).await;
+    let (router, _cookie) =
+        build_admin_router(world.admin_db_path.as_ref().unwrap(), ADMIN_KEY).await;
     let response = router
         .oneshot(
             Request::builder()
@@ -1101,14 +1161,14 @@ async fn then_new_version_is_active(world: &mut BotWorld) {
 async fn then_previous_inactive(world: &mut BotWorld) {
     // Fetch all versions to verify
     let path = world.admin_db_path.as_ref().expect("no db path set");
-    let router = build_admin_router(path, ADMIN_KEY).await;
+    let (router, cookie) = build_admin_router(path, ADMIN_KEY).await;
 
     let response = router
         .oneshot(
             Request::builder()
                 .method("GET")
                 .uri("/admin/api/persona?name=gaspare")
-                .header("x-admin-key", ADMIN_KEY)
+                .header("cookie", &cookie)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1125,6 +1185,167 @@ async fn then_previous_inactive(world: &mut BotWorld) {
     assert!(versions.len() >= 2, "expected at least 2 versions");
     assert!(versions[0]["is_active"].as_bool().unwrap());
     assert!(!versions[1]["is_active"].as_bool().unwrap());
+}
+
+// ---------------------------------------------------------------------------
+// Auth / audit log BDD step definitions
+// ---------------------------------------------------------------------------
+
+#[when("the operator creates a persona version without a session")]
+async fn when_create_persona_without_session(world: &mut BotWorld) {
+    let path = temp_db();
+    let (router, _cookie) = build_admin_router(&path, ADMIN_KEY).await;
+    world.admin_db_path = Some(path);
+
+    let body = serde_json::json!({
+        "name": "gaspare",
+        "system_prompt": "Sei Gaspare.",
+        "activate": true,
+    });
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/persona")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+async fn login_request(world: &mut BotWorld, password: &str) {
+    let path = temp_db();
+    let (router, _cookie) = build_admin_router(&path, ADMIN_KEY).await;
+    world.admin_db_path = Some(path);
+
+    let body = serde_json::json!({"username": "operator", "password": password});
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/auth/login")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    world.response_set_cookie = response
+        .headers()
+        .get(axum::http::header::SET_COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when("the operator logs in with the correct password")]
+async fn when_login_correct(world: &mut BotWorld) {
+    login_request(world, ADMIN_KEY).await;
+}
+
+#[when("the operator logs in with an incorrect password")]
+async fn when_login_incorrect(world: &mut BotWorld) {
+    login_request(world, "wrong-password").await;
+}
+
+#[then("the login succeeds and a session cookie is set")]
+async fn then_login_succeeds(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(200));
+    let cookie = world
+        .response_set_cookie
+        .as_ref()
+        .expect("expected a Set-Cookie header");
+    assert!(cookie.starts_with("session="), "got: {cookie}");
+    assert!(cookie.contains("HttpOnly"), "got: {cookie}");
+}
+
+#[then("the login is rejected with 401")]
+async fn then_login_rejected(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(401));
+}
+
+#[then(regex = r#"^the audit log contains an entry for action "([^"]+)"$"#)]
+async fn then_audit_log_contains_action(world: &mut BotWorld, action: String) {
+    let path = world.admin_db_path.as_ref().expect("no db path set");
+    let store = kb_store::KbStore::open(path)
+        .await
+        .expect("failed to open db");
+    let entries = store
+        .list_audit_entries()
+        .await
+        .expect("list_audit_entries failed");
+    assert!(
+        entries.iter().any(|e| e.action == action),
+        "expected an audit entry for action {action}, got: {entries:?}"
+    );
+}
+
+#[when("the operator logs out")]
+async fn when_operator_logs_out(world: &mut BotWorld) {
+    let path = temp_db();
+    let (router, cookie) = build_admin_router(&path, ADMIN_KEY).await;
+    world.admin_db_path = Some(path);
+
+    let response = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/api/auth/logout")
+                .header("cookie", &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status().as_u16(), 200);
+
+    world.admin_session_cookie = Some(cookie);
+    world.persisted_router = Some(router);
+}
+
+#[when("the operator requests persona versions again with the same, now-stale cookie")]
+async fn when_list_versions_with_stale_cookie(world: &mut BotWorld) {
+    let router = world
+        .persisted_router
+        .take()
+        .expect("no persisted router — did you forget 'When the operator logs out'?");
+    let cookie = world
+        .admin_session_cookie
+        .clone()
+        .expect("no session cookie stored");
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/api/persona?name=gaspare")
+                .header("cookie", &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
 }
 
 // ---------------------------------------------------------------------------
@@ -1165,7 +1386,7 @@ fn multipart_body(filename: &str, section: &str, content: &[u8]) -> (String, Vec
     (boundary.to_string(), body)
 }
 
-async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
+async fn build_upload_router(db_path: &str, admin_key: &str) -> (axum::Router, String) {
     let store = Arc::new(
         kb_store::KbStore::open(db_path)
             .await
@@ -1178,13 +1399,26 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
         backend::rag_engine::persona_admin::PersonaAdminAdapter::new(store.clone(), persona),
     );
 
+    let credential_path = format!("{db_path}.operator-credential.json");
+    let salt = argon2::password_hash::SaltString::generate(&mut rand::rngs::OsRng);
+    let password_hash = argon2::Argon2::default()
+        .hash_password(admin_key.as_bytes(), &salt)
+        .expect("hash_password failed")
+        .to_string();
+    std::fs::write(
+        &credential_path,
+        format!(r#"{{"username":"operator","password_hash":"{password_hash}"}}"#),
+    )
+    .expect("failed to write test operator credential file");
+
     let config = Config {
         embed_url: "http://embed:8080".into(),
         generate_url: "http://generate:8080".into(),
         kb_path: db_path.into(),
         top_k: 5,
         min_score: 0.35,
-        admin_api_key: admin_key.into(),
+        operator_credential_path: credential_path,
+        session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
 
@@ -1206,6 +1440,7 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
         upload,
         preview_store,
         config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let ingest_config_port: Arc<dyn IngestConfigAdminPort> = Arc::new(
@@ -1213,14 +1448,14 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
     );
     let ingest_config_state = IngestConfigState {
         ingest_config: ingest_config_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let ingest_run_port: Arc<dyn IngestRunAdminPort> =
         Arc::new(backend::admin::ingest_run::adapter::KbStoreIngestRunAdapter::new(store.clone()));
     let ingest_run_state = IngestRunState {
         ingest_run: ingest_run_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_session_port: Arc<dyn TrainingSessionAdminPort> = Arc::new(
@@ -1230,7 +1465,7 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
     );
     let training_session_state = TrainingSessionState {
         training_sessions: training_session_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_message_port: Arc<dyn TrainingMessageAdminPort> = Arc::new(
@@ -1241,7 +1476,7 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
     );
     let training_message_state = TrainingMessageState {
         training_messages: training_message_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_feedback_port: Arc<dyn TrainingFeedbackAdminPort> = Arc::new(
@@ -1251,13 +1486,19 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
     );
     let training_feedback_state = TrainingFeedbackState {
         training_feedback: training_feedback_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
-    backend::router_with(
+    let session_store = Arc::new(SessionStore::new(config.session_ttl_secs));
+    let session_token = session_store.insert("operator".into());
+    let audit_port: Arc<dyn AuditLogPort> = Arc::new(KbStoreAuditLogAdapter::new(store.clone()));
+
+    let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
+        session_store,
+        audit_port,
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
@@ -1266,7 +1507,9 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> axum::Router {
             training_messages: training_message_state,
             training_feedback: training_feedback_state,
         },
-    )
+    );
+
+    (router, format!("session={session_token}"))
 }
 
 // ---------------------------------------------------------------------------
@@ -1308,8 +1551,9 @@ async fn given_upload_api_enabled(world: &mut BotWorld) {
     if world.upload_db_path.is_none() {
         world.upload_db_path = Some(db_path.clone());
     }
-    let router = build_upload_router(&db_path, "test-key").await;
+    let (router, cookie) = build_upload_router(&db_path, "test-key").await;
     world.upload_router = Some(router);
+    world.admin_session_cookie = Some(cookie);
 }
 
 #[when(regex = r#"^the operator uploads a file "([^"]+)" with section "([^"]+)"$"#)]
@@ -1334,7 +1578,7 @@ async fn when_upload_file(world: &mut BotWorld, filename: String, section: Strin
                     "content-type",
                     format!("multipart/form-data; boundary={boundary}"),
                 )
-                .header("x-admin-key", "test-key")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
                 .body(Body::from(body))
                 .unwrap(),
         )
@@ -1372,7 +1616,7 @@ async fn when_get_preview(world: &mut BotWorld) {
             Request::builder()
                 .method("GET")
                 .uri(format!("/admin/api/upload/preview/{token}"))
-                .header("x-admin-key", "test-key")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1417,7 +1661,7 @@ async fn when_confirm_upload(world: &mut BotWorld) {
             Request::builder()
                 .method("POST")
                 .uri(format!("/admin/api/upload/confirm/{token}"))
-                .header("x-admin-key", "test-key")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1516,7 +1760,8 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
         kb_path: path.clone(),
         top_k: 5,
         min_score: 0.35,
-        admin_api_key: "test-key".into(),
+        operator_credential_path: "/nonexistent-bdd-credential.json".into(),
+        session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
 
@@ -1538,6 +1783,7 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
         upload,
         preview_store,
         config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let ingest_config_port: Arc<dyn IngestConfigAdminPort> = Arc::new(
@@ -1545,14 +1791,14 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
     );
     let ingest_config_state = IngestConfigState {
         ingest_config: ingest_config_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let ingest_run_port: Arc<dyn IngestRunAdminPort> =
         Arc::new(backend::admin::ingest_run::adapter::KbStoreIngestRunAdapter::new(store.clone()));
     let ingest_run_state = IngestRunState {
         ingest_run: ingest_run_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_session_port: Arc<dyn TrainingSessionAdminPort> = Arc::new(
@@ -1562,7 +1808,7 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
     );
     let training_session_state = TrainingSessionState {
         training_sessions: training_session_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_message_port: Arc<dyn TrainingMessageAdminPort> = Arc::new(
@@ -1573,7 +1819,7 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
     );
     let training_message_state = TrainingMessageState {
         training_messages: training_message_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_feedback_port: Arc<dyn TrainingFeedbackAdminPort> = Arc::new(
@@ -1583,13 +1829,20 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
     );
     let training_feedback_state = TrainingFeedbackState {
         training_feedback: training_feedback_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
+
+    let session_store = Arc::new(SessionStore::new(config.session_ttl_secs));
+    let session_token = session_store.insert("operator".into());
+    world.admin_session_cookie = Some(format!("session={session_token}"));
+    let audit_port: Arc<dyn AuditLogPort> = Arc::new(KbStoreAuditLogAdapter::new(store.clone()));
 
     let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
+        session_store,
+        audit_port,
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
@@ -1618,7 +1871,7 @@ async fn given_ingest_section_exists(world: &mut BotWorld, name: String) {
             Request::builder()
                 .method("POST")
                 .uri("/admin/api/ingest/config/sections")
-                .header("x-admin-key", "test-key")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))
                 .unwrap(),
@@ -1649,7 +1902,7 @@ async fn given_scrape_source_exists_in_section(world: &mut BotWorld, section_nam
                     "/admin/api/ingest/config/sources?section_id={}",
                     find_section_id(world, &section_name).await
                 ))
-                .header("x-admin-key", "test-key")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))
                 .unwrap(),
@@ -1671,7 +1924,7 @@ async fn find_section_id(world: &mut BotWorld, section_name: &str) -> i64 {
             Request::builder()
                 .method("GET")
                 .uri("/admin/api/ingest/config")
-                .header("x-admin-key", "test-key")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1701,7 +1954,7 @@ async fn find_first_source_id(world: &mut BotWorld, section_name: &str) -> i64 {
             Request::builder()
                 .method("GET")
                 .uri("/admin/api/ingest/config")
-                .header("x-admin-key", "test-key")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1735,7 +1988,7 @@ async fn when_get_ingest_config(world: &mut BotWorld) {
             Request::builder()
                 .method("GET")
                 .uri("/admin/api/ingest/config")
-                .header("x-admin-key", "test-key")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1766,7 +2019,7 @@ async fn when_set_ingest_schedule(world: &mut BotWorld, cron_expr: String, enabl
             Request::builder()
                 .method("PUT")
                 .uri("/admin/api/ingest/config/schedule")
-                .header("x-admin-key", "test-key")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))
                 .unwrap(),
@@ -1795,7 +2048,7 @@ async fn when_create_ingest_section(world: &mut BotWorld, name: String, ordering
             Request::builder()
                 .method("POST")
                 .uri("/admin/api/ingest/config/sections")
-                .header("x-admin-key", "test-key")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))
                 .unwrap(),
@@ -1836,7 +2089,7 @@ async fn when_create_source(
                 .uri(format!(
                     "/admin/api/ingest/config/sources?section_id={section_id}"
                 ))
-                .header("x-admin-key", "test-key")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
                 .header("content-type", "application/json")
                 .body(Body::from(serde_json::to_vec(&body).unwrap()))
                 .unwrap(),
@@ -1865,7 +2118,7 @@ async fn when_delete_source(world: &mut BotWorld, section_name: String) {
             Request::builder()
                 .method("DELETE")
                 .uri(format!("/admin/api/ingest/config/sources/{source_id}"))
-                .header("x-admin-key", "test-key")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1893,7 +2146,7 @@ async fn when_delete_section(world: &mut BotWorld, section_name: String) {
             Request::builder()
                 .method("DELETE")
                 .uri(format!("/admin/api/ingest/config/sections/{section_id}"))
-                .header("x-admin-key", "test-key")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -1919,7 +2172,7 @@ async fn fetch_ingest_config(world: &mut BotWorld) -> serde_json::Value {
             Request::builder()
                 .method("GET")
                 .uri("/admin/api/ingest/config")
-                .header("x-admin-key", "test-key")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -2060,7 +2313,8 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
         kb_path: path.clone(),
         top_k: 5,
         min_score: 0.35,
-        admin_api_key: "test-key".into(),
+        operator_credential_path: "/nonexistent-bdd-credential.json".into(),
+        session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
 
@@ -2082,14 +2336,15 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
         upload,
         preview_store,
         config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
-    let ingest_config_state = stub_ingest_config_state(config.clone());
+    let ingest_config_state = stub_ingest_config_state();
 
     let ingest_run_port: Arc<dyn IngestRunAdminPort> =
         Arc::new(backend::admin::ingest_run::adapter::KbStoreIngestRunAdapter::new(store.clone()));
     let ingest_run_state = IngestRunState {
         ingest_run: ingest_run_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_session_port: Arc<dyn TrainingSessionAdminPort> = Arc::new(
@@ -2099,7 +2354,7 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
     );
     let training_session_state = TrainingSessionState {
         training_sessions: training_session_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_message_port: Arc<dyn TrainingMessageAdminPort> = Arc::new(
@@ -2110,7 +2365,7 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
     );
     let training_message_state = TrainingMessageState {
         training_messages: training_message_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_feedback_port: Arc<dyn TrainingFeedbackAdminPort> = Arc::new(
@@ -2120,13 +2375,20 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
     );
     let training_feedback_state = TrainingFeedbackState {
         training_feedback: training_feedback_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
+
+    let session_store = Arc::new(SessionStore::new(config.session_ttl_secs));
+    let session_token = session_store.insert("operator".into());
+    world.admin_session_cookie = Some(format!("session={session_token}"));
+    let audit_port: Arc<dyn AuditLogPort> = Arc::new(KbStoreAuditLogAdapter::new(store.clone()));
 
     let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
+        session_store,
+        audit_port,
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
@@ -2150,7 +2412,7 @@ async fn ingest_run_request(world: &mut BotWorld, method: &str, uri: String, wit
 
     let mut builder = Request::builder().method(method).uri(uri);
     if with_auth {
-        builder = builder.header("x-admin-key", "test-key");
+        builder = builder.header("cookie", world.admin_session_cookie.as_ref().unwrap());
     }
     let response = router
         .oneshot(builder.body(Body::empty()).unwrap())
@@ -2267,7 +2529,8 @@ async fn given_training_sessions_api_available(world: &mut BotWorld) {
         kb_path: path.clone(),
         top_k: 5,
         min_score: 0.35,
-        admin_api_key: "test-key".into(),
+        operator_credential_path: "/nonexistent-bdd-credential.json".into(),
+        session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
 
@@ -2289,9 +2552,10 @@ async fn given_training_sessions_api_available(world: &mut BotWorld) {
         upload,
         preview_store,
         config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
-    let ingest_config_state = stub_ingest_config_state(config.clone());
-    let ingest_run_state = stub_ingest_run_state(config.clone());
+    let ingest_config_state = stub_ingest_config_state();
+    let ingest_run_state = stub_ingest_run_state();
 
     let training_session_port: Arc<dyn TrainingSessionAdminPort> = Arc::new(
         backend::admin::training_sessions::adapter::KbStoreTrainingSessionAdapter::new(
@@ -2300,7 +2564,7 @@ async fn given_training_sessions_api_available(world: &mut BotWorld) {
     );
     let training_session_state = TrainingSessionState {
         training_sessions: training_session_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_message_port: Arc<dyn TrainingMessageAdminPort> = Arc::new(
@@ -2311,7 +2575,7 @@ async fn given_training_sessions_api_available(world: &mut BotWorld) {
     );
     let training_message_state = TrainingMessageState {
         training_messages: training_message_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_feedback_port: Arc<dyn TrainingFeedbackAdminPort> = Arc::new(
@@ -2321,13 +2585,20 @@ async fn given_training_sessions_api_available(world: &mut BotWorld) {
     );
     let training_feedback_state = TrainingFeedbackState {
         training_feedback: training_feedback_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
+
+    let session_store = Arc::new(SessionStore::new(config.session_ttl_secs));
+    let session_token = session_store.insert("operator".into());
+    world.admin_session_cookie = Some(format!("session={session_token}"));
+    let audit_port: Arc<dyn AuditLogPort> = Arc::new(KbStoreAuditLogAdapter::new(store.clone()));
 
     let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
+        session_store,
+        audit_port,
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
@@ -2357,7 +2628,7 @@ async fn training_session_request(
 
     let mut builder = Request::builder().method(method).uri(uri);
     if with_auth {
-        builder = builder.header("x-admin-key", "test-key");
+        builder = builder.header("cookie", world.admin_session_cookie.as_ref().unwrap());
     }
     let request = if let Some(body) = body {
         builder
@@ -2581,7 +2852,8 @@ async fn given_training_messages_api_available(world: &mut BotWorld) {
         kb_path: path.clone(),
         top_k: 5,
         min_score: 0.35,
-        admin_api_key: "test-key".into(),
+        operator_credential_path: "/nonexistent-bdd-credential.json".into(),
+        session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
 
@@ -2610,9 +2882,10 @@ async fn given_training_messages_api_available(world: &mut BotWorld) {
         upload,
         preview_store,
         config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
-    let ingest_config_state = stub_ingest_config_state(config.clone());
-    let ingest_run_state = stub_ingest_run_state(config.clone());
+    let ingest_config_state = stub_ingest_config_state();
+    let ingest_run_state = stub_ingest_run_state();
 
     let training_session_port: Arc<dyn TrainingSessionAdminPort> = Arc::new(
         backend::admin::training_sessions::adapter::KbStoreTrainingSessionAdapter::new(
@@ -2621,7 +2894,7 @@ async fn given_training_messages_api_available(world: &mut BotWorld) {
     );
     let training_session_state = TrainingSessionState {
         training_sessions: training_session_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_message_port: Arc<dyn TrainingMessageAdminPort> = Arc::new(
@@ -2632,7 +2905,7 @@ async fn given_training_messages_api_available(world: &mut BotWorld) {
     );
     let training_message_state = TrainingMessageState {
         training_messages: training_message_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
 
     let training_feedback_port: Arc<dyn TrainingFeedbackAdminPort> = Arc::new(
@@ -2642,13 +2915,20 @@ async fn given_training_messages_api_available(world: &mut BotWorld) {
     );
     let training_feedback_state = TrainingFeedbackState {
         training_feedback: training_feedback_port,
-        config: config.clone(),
+        audit: Arc::new(NoopAudit),
     };
+
+    let session_store = Arc::new(SessionStore::new(config.session_ttl_secs));
+    let session_token = session_store.insert("operator".into());
+    world.admin_session_cookie = Some(format!("session={session_token}"));
+    let audit_port: Arc<dyn AuditLogPort> = Arc::new(KbStoreAuditLogAdapter::new(store.clone()));
 
     let router = backend::router_with(
         AppState { rag_engine },
         persona_admin,
         config,
+        session_store,
+        audit_port,
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,

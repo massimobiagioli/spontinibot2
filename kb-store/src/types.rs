@@ -274,6 +274,24 @@ pub struct NewTrainingFeedback {
     pub comment: Option<String>,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct AuditLogEntry {
+    pub id: i64,
+    pub actor: String,
+    pub action: String,
+    pub target: String,
+    pub payload: String,
+    pub at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct NewAuditLogEntry {
+    pub actor: String,
+    pub action: String,
+    pub target: String,
+    pub payload: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -2,21 +2,22 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Path, Query, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 
 use crate::admin::ErrorResponse;
-use crate::admin::check_admin_key;
 use crate::admin::ingest_config::{
     IngestConfigAdminPort, IngestConfigError, IngestConfigResponse, IngestScheduleResponse,
     IngestSectionResponse, IngestSourceResponse,
 };
-use crate::config::Config;
+use crate::audit::AuditLogPort;
+use crate::audit::record_best_effort;
+use crate::auth::extractor::OperatorSession;
 
 #[derive(Clone)]
 pub struct IngestConfigState {
     pub ingest_config: Arc<dyn IngestConfigAdminPort>,
-    pub config: Config,
+    pub audit: Arc<dyn AuditLogPort>,
 }
 
 #[derive(Deserialize)]
@@ -62,10 +63,8 @@ fn map_config_error(e: IngestConfigError) -> (StatusCode, Json<ErrorResponse>) {
 
 pub async fn get_config(
     State(state): State<IngestConfigState>,
-    headers: HeaderMap,
+    _session: OperatorSession,
 ) -> Result<Json<IngestConfigResponse>, (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
-
     let schedule = state
         .ingest_config
         .get_schedule()
@@ -96,11 +95,9 @@ pub async fn get_config(
 
 pub async fn upsert_schedule(
     State(state): State<IngestConfigState>,
-    headers: HeaderMap,
+    session: OperatorSession,
     Json(req): Json<UpsertScheduleRequest>,
 ) -> Result<Json<IngestScheduleResponse>, (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
-
     let schedule = kb_store::NewIngestSchedule {
         cron_expr: req.cron_expr,
         enabled: req.enabled,
@@ -110,16 +107,22 @@ pub async fn upsert_schedule(
         .upsert_schedule(schedule)
         .await
         .map_err(map_config_error)?;
+    record_best_effort(
+        state.audit.as_ref(),
+        &session.actor,
+        "upsert_schedule",
+        "ingest_schedule",
+        &serde_json::to_value(&response).unwrap_or_default(),
+    )
+    .await;
     Ok(Json(response))
 }
 
 pub async fn create_section(
     State(state): State<IngestConfigState>,
-    headers: HeaderMap,
+    session: OperatorSession,
     Json(req): Json<CreateSectionRequest>,
 ) -> Result<(StatusCode, Json<IngestSectionResponse>), (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
-
     let section = kb_store::NewIngestSection {
         name: req.name,
         ordering: req.ordering,
@@ -129,32 +132,44 @@ pub async fn create_section(
         .create_section(section)
         .await
         .map_err(map_config_error)?;
+    record_best_effort(
+        state.audit.as_ref(),
+        &session.actor,
+        "create_section",
+        &format!("ingest_section:{}", response.id),
+        &serde_json::to_value(&response).unwrap_or_default(),
+    )
+    .await;
     Ok((StatusCode::CREATED, Json(response)))
 }
 
 pub async fn delete_section(
     State(state): State<IngestConfigState>,
-    headers: HeaderMap,
+    session: OperatorSession,
     Path(id): Path<i64>,
 ) -> Result<Json<DeletedResponse>, (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
-
     let deleted = state
         .ingest_config
         .delete_section(id)
         .await
         .map_err(map_config_error)?;
+    record_best_effort(
+        state.audit.as_ref(),
+        &session.actor,
+        "delete_section",
+        &format!("ingest_section:{id}"),
+        &serde_json::json!({"deleted": deleted}),
+    )
+    .await;
     Ok(Json(DeletedResponse { deleted }))
 }
 
 pub async fn create_source(
     State(state): State<IngestConfigState>,
-    headers: HeaderMap,
+    session: OperatorSession,
     Query(query): Query<SectionIdQuery>,
     Json(req): Json<CreateSourceRequest>,
 ) -> Result<(StatusCode, Json<IngestSourceResponse>), (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
-
     let source_type = req.source_type.parse().map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -175,21 +190,35 @@ pub async fn create_source(
         .create_source(query.section_id, source)
         .await
         .map_err(map_config_error)?;
+    record_best_effort(
+        state.audit.as_ref(),
+        &session.actor,
+        "create_source",
+        &format!("ingest_source:{}", response.id),
+        &serde_json::to_value(&response).unwrap_or_default(),
+    )
+    .await;
     Ok((StatusCode::CREATED, Json(response)))
 }
 
 pub async fn delete_source(
     State(state): State<IngestConfigState>,
-    headers: HeaderMap,
+    session: OperatorSession,
     Path(id): Path<i64>,
 ) -> Result<Json<DeletedResponse>, (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
-
     let deleted = state
         .ingest_config
         .delete_source(id)
         .await
         .map_err(map_config_error)?;
+    record_best_effort(
+        state.audit.as_ref(),
+        &session.actor,
+        "delete_source",
+        &format!("ingest_source:{id}"),
+        &serde_json::json!({"deleted": deleted}),
+    )
+    .await;
     Ok(Json(DeletedResponse { deleted }))
 }
 
@@ -197,20 +226,33 @@ pub async fn delete_source(
 mod tests {
     use super::*;
     use crate::admin::ingest_config::IngestScheduleResponse;
+    use crate::audit::AuditError;
 
     fn test_state() -> IngestConfigState {
-        let config = Config {
-            embed_url: "http://localhost:8080".into(),
-            generate_url: "http://localhost:8081".into(),
-            kb_path: "/tmp/test.db".into(),
-            top_k: 5,
-            min_score: 0.35,
-            admin_api_key: "test-key".into(),
-            upload_max_bytes: 10_485_760,
-        };
         IngestConfigState {
             ingest_config: Arc::new(MockIngestConfigAdmin),
-            config,
+            audit: Arc::new(NoopAudit),
+        }
+    }
+
+    fn session() -> OperatorSession {
+        OperatorSession {
+            actor: "operator".into(),
+        }
+    }
+
+    struct NoopAudit;
+
+    #[async_trait::async_trait]
+    impl AuditLogPort for NoopAudit {
+        async fn record(
+            &self,
+            _actor: &str,
+            _action: &str,
+            _target: &str,
+            _payload: &serde_json::Value,
+        ) -> Result<(), AuditError> {
+            Ok(())
         }
     }
 
@@ -278,29 +320,10 @@ mod tests {
         }
     }
 
-    fn auth_headers() -> HeaderMap {
-        let mut headers = HeaderMap::new();
-        headers.insert("x-admin-key", "test-key".parse().unwrap());
-        headers
-    }
-
-    fn no_auth_headers() -> HeaderMap {
-        HeaderMap::new()
-    }
-
-    #[tokio::test]
-    async fn should_reject_request_without_admin_key() {
-        let state = test_state();
-        let result = get_config(State(state), no_auth_headers()).await;
-        assert!(result.is_err());
-        let (status, _) = result.unwrap_err();
-        assert_eq!(status, StatusCode::UNAUTHORIZED);
-    }
-
     #[tokio::test]
     async fn should_return_config_with_schedule() {
         let state = test_state();
-        let result = get_config(State(state), auth_headers()).await;
+        let result = get_config(State(state), session()).await;
         assert!(result.is_ok());
         let Json(config) = result.unwrap();
         assert!(config.schedule.is_some());
@@ -314,7 +337,7 @@ mod tests {
             cron_expr: "0 */4 * * *".into(),
             enabled: true,
         };
-        let result = upsert_schedule(State(state), auth_headers(), Json(req)).await;
+        let result = upsert_schedule(State(state), session(), Json(req)).await;
         assert!(result.is_ok());
     }
 
@@ -325,7 +348,7 @@ mod tests {
             name: "sport".into(),
             ordering: 10,
         };
-        let result = create_section(State(state), auth_headers(), Json(req)).await;
+        let result = create_section(State(state), session(), Json(req)).await;
         assert!(result.is_ok());
         let (status, _) = result.unwrap();
         assert_eq!(status, StatusCode::CREATED);
@@ -334,7 +357,7 @@ mod tests {
     #[tokio::test]
     async fn should_delete_section() {
         let state = test_state();
-        let result = delete_section(State(state), auth_headers(), Path(1)).await;
+        let result = delete_section(State(state), session(), Path(1)).await;
         assert!(result.is_ok());
         let Json(resp) = result.unwrap();
         assert!(resp.deleted);
@@ -343,7 +366,7 @@ mod tests {
     #[tokio::test]
     async fn should_delete_source() {
         let state = test_state();
-        let result = delete_source(State(state), auth_headers(), Path(1)).await;
+        let result = delete_source(State(state), session(), Path(1)).await;
         assert!(result.is_ok());
         let Json(resp) = result.unwrap();
         assert!(resp.deleted);

@@ -29,6 +29,7 @@ docx-rs = "0.4"
 dashmap = "6"
 rand = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
+argon2 = "0.5"
 
 [dev-dependencies]
 cucumber = "0.21"

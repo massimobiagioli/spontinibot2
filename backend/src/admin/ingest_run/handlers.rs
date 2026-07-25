@@ -2,17 +2,18 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Path, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 
 use crate::admin::ErrorResponse;
-use crate::admin::check_admin_key;
 use crate::admin::ingest_run::{IngestRunAdminPort, IngestRunError, IngestRunResponse};
-use crate::config::Config;
+use crate::audit::AuditLogPort;
+use crate::audit::record_best_effort;
+use crate::auth::extractor::OperatorSession;
 
 #[derive(Clone)]
 pub struct IngestRunState {
     pub ingest_run: Arc<dyn IngestRunAdminPort>,
-    pub config: Config,
+    pub audit: Arc<dyn AuditLogPort>,
 }
 
 fn map_run_error(e: IngestRunError) -> (StatusCode, Json<ErrorResponse>) {
@@ -26,25 +27,29 @@ fn map_run_error(e: IngestRunError) -> (StatusCode, Json<ErrorResponse>) {
 
 pub async fn trigger_run(
     State(state): State<IngestRunState>,
-    headers: HeaderMap,
+    session: OperatorSession,
 ) -> Result<(StatusCode, Json<IngestRunResponse>), (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
-
     let response = state
         .ingest_run
         .trigger_run()
         .await
         .map_err(map_run_error)?;
+    record_best_effort(
+        state.audit.as_ref(),
+        &session.actor,
+        "trigger_run",
+        &format!("ingest_run:{}", response.id),
+        &serde_json::to_value(&response).unwrap_or_default(),
+    )
+    .await;
     Ok((StatusCode::ACCEPTED, Json(response)))
 }
 
 pub async fn get_run(
     State(state): State<IngestRunState>,
-    headers: HeaderMap,
+    _session: OperatorSession,
     Path(id): Path<i64>,
 ) -> Result<Json<IngestRunResponse>, (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
-
     let response = state.ingest_run.get_run(id).await.map_err(map_run_error)?;
     response.map(Json).ok_or_else(|| {
         (
@@ -59,20 +64,33 @@ pub async fn get_run(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::audit::AuditError;
 
     fn test_state() -> IngestRunState {
-        let config = Config {
-            embed_url: "http://localhost:8080".into(),
-            generate_url: "http://localhost:8081".into(),
-            kb_path: "/tmp/test.db".into(),
-            top_k: 5,
-            min_score: 0.35,
-            admin_api_key: "test-key".into(),
-            upload_max_bytes: 10_485_760,
-        };
         IngestRunState {
             ingest_run: Arc::new(MockIngestRunAdmin),
-            config,
+            audit: Arc::new(NoopAudit),
+        }
+    }
+
+    fn session() -> OperatorSession {
+        OperatorSession {
+            actor: "operator".into(),
+        }
+    }
+
+    struct NoopAudit;
+
+    #[async_trait::async_trait]
+    impl AuditLogPort for NoopAudit {
+        async fn record(
+            &self,
+            _actor: &str,
+            _action: &str,
+            _target: &str,
+            _payload: &serde_json::Value,
+        ) -> Result<(), AuditError> {
+            Ok(())
         }
     }
 
@@ -101,29 +119,10 @@ mod tests {
         }
     }
 
-    fn auth_headers() -> HeaderMap {
-        let mut headers = HeaderMap::new();
-        headers.insert("x-admin-key", "test-key".parse().unwrap());
-        headers
-    }
-
-    fn no_auth_headers() -> HeaderMap {
-        HeaderMap::new()
-    }
-
-    #[tokio::test]
-    async fn should_reject_trigger_without_admin_key() {
-        let state = test_state();
-        let result = trigger_run(State(state), no_auth_headers()).await;
-        assert!(result.is_err());
-        let (status, _) = result.unwrap_err();
-        assert_eq!(status, StatusCode::UNAUTHORIZED);
-    }
-
     #[tokio::test]
     async fn should_trigger_run_and_return_accepted() {
         let state = test_state();
-        let result = trigger_run(State(state), auth_headers()).await;
+        let result = trigger_run(State(state), session()).await;
         assert!(result.is_ok());
         let (status, Json(response)) = result.unwrap();
         assert_eq!(status, StatusCode::ACCEPTED);
@@ -131,18 +130,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_reject_get_run_without_admin_key() {
-        let state = test_state();
-        let result = get_run(State(state), no_auth_headers(), Path(1)).await;
-        assert!(result.is_err());
-        let (status, _) = result.unwrap_err();
-        assert_eq!(status, StatusCode::UNAUTHORIZED);
-    }
-
-    #[tokio::test]
     async fn should_return_run_for_known_id() {
         let state = test_state();
-        let result = get_run(State(state), auth_headers(), Path(1)).await;
+        let result = get_run(State(state), session(), Path(1)).await;
         assert!(result.is_ok());
         let Json(response) = result.unwrap();
         assert_eq!(response.status, "done");
@@ -151,7 +141,7 @@ mod tests {
     #[tokio::test]
     async fn should_return_404_for_unknown_id() {
         let state = test_state();
-        let result = get_run(State(state), auth_headers(), Path(999)).await;
+        let result = get_run(State(state), session(), Path(999)).await;
         assert!(result.is_err());
         let (status, _) = result.unwrap_err();
         assert_eq!(status, StatusCode::NOT_FOUND);

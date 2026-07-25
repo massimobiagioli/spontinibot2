@@ -67,12 +67,12 @@ describe('TrainingSessionsView', () => {
 
   it('renders an honest error state when the fetch fails', async () => {
     vi.spyOn(adminApi, 'listSessions').mockRejectedValue(
-      new adminApi.AdminApiError(401, 'invalid or missing X-Admin-Key header'),
+      new adminApi.AdminApiError(401, 'invalid or missing session cookie'),
     );
 
     const wrapper = await mountWithRouter();
     await flushPromises();
 
-    expect(wrapper.text()).toContain('invalid or missing X-Admin-Key header');
+    expect(wrapper.text()).toContain('invalid or missing session cookie');
   });
 });

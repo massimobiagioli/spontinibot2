@@ -2,20 +2,21 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Path, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 use serde::Deserialize;
 
 use crate::admin::ErrorResponse;
-use crate::admin::check_admin_key;
 use crate::admin::training_feedback::{
     TrainingFeedbackAdminPort, TrainingFeedbackError, TrainingFeedbackResponse,
 };
-use crate::config::Config;
+use crate::audit::AuditLogPort;
+use crate::audit::record_best_effort;
+use crate::auth::extractor::OperatorSession;
 
 #[derive(Clone)]
 pub struct TrainingFeedbackState {
     pub training_feedback: Arc<dyn TrainingFeedbackAdminPort>,
-    pub config: Config,
+    pub audit: Arc<dyn AuditLogPort>,
 }
 
 #[derive(Deserialize)]
@@ -44,11 +45,9 @@ fn map_feedback_error(e: TrainingFeedbackError) -> (StatusCode, Json<ErrorRespon
 
 pub async fn create_feedback(
     State(state): State<TrainingFeedbackState>,
-    headers: HeaderMap,
+    session: OperatorSession,
     Json(req): Json<CreateFeedbackRequest>,
 ) -> Result<(StatusCode, Json<TrainingFeedbackResponse>), (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
-
     let sentiment: kb_store::Sentiment = req.sentiment.parse().map_err(|_| {
         (
             StatusCode::BAD_REQUEST,
@@ -70,16 +69,22 @@ pub async fn create_feedback(
         .create_feedback(feedback)
         .await
         .map_err(map_feedback_error)?;
+    record_best_effort(
+        state.audit.as_ref(),
+        &session.actor,
+        "create_feedback",
+        &format!("training_feedback:{}", response.id),
+        &serde_json::to_value(&response).unwrap_or_default(),
+    )
+    .await;
     Ok((StatusCode::CREATED, Json(response)))
 }
 
 pub async fn list_feedback(
     State(state): State<TrainingFeedbackState>,
-    headers: HeaderMap,
+    _session: OperatorSession,
     Path(message_id): Path<i64>,
 ) -> Result<Json<Vec<TrainingFeedbackResponse>>, (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
-
     let feedback = state
         .training_feedback
         .list_feedback(message_id)
@@ -91,20 +96,33 @@ pub async fn list_feedback(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::audit::AuditError;
 
     fn test_state() -> TrainingFeedbackState {
-        let config = Config {
-            embed_url: "http://localhost:8080".into(),
-            generate_url: "http://localhost:8081".into(),
-            kb_path: "/tmp/test.db".into(),
-            top_k: 5,
-            min_score: 0.35,
-            admin_api_key: "test-key".into(),
-            upload_max_bytes: 10_485_760,
-        };
         TrainingFeedbackState {
             training_feedback: Arc::new(MockTrainingFeedbackAdmin),
-            config,
+            audit: Arc::new(NoopAudit),
+        }
+    }
+
+    fn session() -> OperatorSession {
+        OperatorSession {
+            actor: "operator".into(),
+        }
+    }
+
+    struct NoopAudit;
+
+    #[async_trait::async_trait]
+    impl AuditLogPort for NoopAudit {
+        async fn record(
+            &self,
+            _actor: &str,
+            _action: &str,
+            _target: &str,
+            _payload: &serde_json::Value,
+        ) -> Result<(), AuditError> {
+            Ok(())
         }
     }
 
@@ -149,16 +167,6 @@ mod tests {
         }
     }
 
-    fn auth_headers() -> HeaderMap {
-        let mut headers = HeaderMap::new();
-        headers.insert("x-admin-key", "test-key".parse().unwrap());
-        headers
-    }
-
-    fn no_auth_headers() -> HeaderMap {
-        HeaderMap::new()
-    }
-
     fn sample_request() -> CreateFeedbackRequest {
         CreateFeedbackRequest {
             message_id: 1,
@@ -170,18 +178,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn should_reject_create_feedback_without_admin_key() {
-        let state = test_state();
-        let result = create_feedback(State(state), no_auth_headers(), Json(sample_request())).await;
-        assert!(result.is_err());
-        let (status, _) = result.unwrap_err();
-        assert_eq!(status, StatusCode::UNAUTHORIZED);
-    }
-
-    #[tokio::test]
     async fn should_create_feedback_and_return_created() {
         let state = test_state();
-        let result = create_feedback(State(state), auth_headers(), Json(sample_request())).await;
+        let result = create_feedback(State(state), session(), Json(sample_request())).await;
         assert!(result.is_ok());
         let (status, Json(response)) = result.unwrap();
         assert_eq!(status, StatusCode::CREATED);
@@ -194,7 +193,7 @@ mod tests {
         let state = test_state();
         let mut req = sample_request();
         req.message_id = 999;
-        let result = create_feedback(State(state), auth_headers(), Json(req)).await;
+        let result = create_feedback(State(state), session(), Json(req)).await;
         assert!(result.is_err());
         let (status, _) = result.unwrap_err();
         assert_eq!(status, StatusCode::NOT_FOUND);
@@ -205,7 +204,7 @@ mod tests {
         let state = test_state();
         let mut req = sample_request();
         req.sentiment = "neutral".into();
-        let result = create_feedback(State(state), auth_headers(), Json(req)).await;
+        let result = create_feedback(State(state), session(), Json(req)).await;
         assert!(result.is_err());
         let (status, _) = result.unwrap_err();
         assert_eq!(status, StatusCode::BAD_REQUEST);
@@ -216,23 +215,16 @@ mod tests {
         let state = test_state();
         let mut req = sample_request();
         req.message_id = 500;
-        let result = create_feedback(State(state), auth_headers(), Json(req)).await;
+        let result = create_feedback(State(state), session(), Json(req)).await;
         assert!(result.is_err());
         let (status, _) = result.unwrap_err();
         assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[tokio::test]
-    async fn should_reject_list_feedback_without_admin_key() {
-        let state = test_state();
-        let result = list_feedback(State(state), no_auth_headers(), Path(1)).await;
-        assert!(result.is_err());
-    }
-
-    #[tokio::test]
     async fn should_list_feedback_for_known_message() {
         let state = test_state();
-        let result = list_feedback(State(state), auth_headers(), Path(1)).await;
+        let result = list_feedback(State(state), session(), Path(1)).await;
         assert!(result.is_ok());
         let Json(feedback) = result.unwrap();
         assert_eq!(feedback.len(), 1);

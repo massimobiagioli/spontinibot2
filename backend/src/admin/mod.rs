@@ -2,10 +2,12 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Path, Query, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 
-use crate::config::Config;
+use crate::audit::AuditLogPort;
+use crate::audit::record_best_effort;
+use crate::auth::extractor::OperatorSession;
 use crate::rag_engine::ports::PersonaAdminPort;
 use crate::rag_engine::types::{AdminPersonaSnapshot, NewPersonaRequest, RagError};
 
@@ -64,26 +66,6 @@ pub struct ErrorResponse {
     pub error: String,
 }
 
-pub fn check_admin_key(
-    headers: &HeaderMap,
-    config: &Config,
-) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
-    let header_val = headers
-        .get("x-admin-key")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    if header_val != config.admin_api_key {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "invalid or missing X-Admin-Key header".into(),
-            }),
-        ));
-    }
-    Ok(())
-}
-
 fn map_rag_error(e: RagError) -> (StatusCode, Json<ErrorResponse>) {
     match e {
         RagError::PersonaNotFound => (
@@ -104,15 +86,14 @@ fn map_rag_error(e: RagError) -> (StatusCode, Json<ErrorResponse>) {
 #[derive(Clone)]
 pub struct AdminState {
     pub persona_admin: Arc<dyn PersonaAdminPort>,
-    pub config: Config,
+    pub audit: Arc<dyn AuditLogPort>,
 }
 
 pub async fn list_persona_versions(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    _session: OperatorSession,
     Query(query): Query<ListVersionsQuery>,
 ) -> Result<Json<Vec<PersonaResponse>>, (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
     let versions = state
         .persona_admin
         .list_versions(&query.name)
@@ -125,50 +106,71 @@ pub async fn list_persona_versions(
 
 pub async fn create_persona(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    session: OperatorSession,
     Json(req): Json<CreatePersonaRequest>,
 ) -> Result<(StatusCode, Json<PersonaResponse>), (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
     let domain_req = NewPersonaRequest {
         name: req.name,
         system_prompt: req.system_prompt,
         tone: req.tone,
         fallback_message: req.fallback_message,
         activate: req.activate,
-        // TODO(0027): use authenticated admin identity
-        created_by: Some("admin".into()),
+        created_by: Some(session.actor.clone()),
     };
     let persona = state
         .persona_admin
         .insert_persona(domain_req)
         .await
         .map_err(map_rag_error)?;
-    Ok((StatusCode::CREATED, Json(PersonaResponse::from(persona))))
+    let response = PersonaResponse::from(persona);
+    record_best_effort(
+        state.audit.as_ref(),
+        &session.actor,
+        "create_persona",
+        &format!("persona:{}", response.id),
+        &serde_json::to_value(&response).unwrap_or_default(),
+    )
+    .await;
+    Ok((StatusCode::CREATED, Json(response)))
 }
 
 pub async fn activate_persona(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    session: OperatorSession,
     Path(id): Path<i64>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
     state
         .persona_admin
         .activate_persona(id)
         .await
         .map_err(map_rag_error)?;
+    record_best_effort(
+        state.audit.as_ref(),
+        &session.actor,
+        "activate_persona",
+        &format!("persona:{id}"),
+        &serde_json::json!({"id": id}),
+    )
+    .await;
     Ok(Json(serde_json::json!({"status": "activated"})))
 }
 
 pub async fn reload_persona(
     State(state): State<AdminState>,
-    headers: HeaderMap,
+    session: OperatorSession,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
     state
         .persona_admin
         .reload_persona()
         .await
         .map_err(map_rag_error)?;
+    record_best_effort(
+        state.audit.as_ref(),
+        &session.actor,
+        "reload_persona",
+        "persona:active",
+        &serde_json::json!({}),
+    )
+    .await;
     Ok(Json(serde_json::json!({"status": "reloaded"})))
 }

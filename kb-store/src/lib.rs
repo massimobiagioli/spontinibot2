@@ -27,10 +27,11 @@ pub mod types;
 
 pub use error::{KbStoreError, Result};
 pub use types::{
-    Document, DocumentSource, EMBEDDING_DIM, IngestRunRequest, IngestSchedule, IngestSection,
-    IngestSource, NewDocument, NewIngestSchedule, NewIngestSection, NewIngestSource, NewPersona,
-    NewTrainingFeedback, NewTrainingMessage, NewTrainingSession, Persona, RunRequestStatus,
-    ScoredDocument, Sentiment, SourceType, TrainingFeedback, TrainingMessage, TrainingSession,
+    AuditLogEntry, Document, DocumentSource, EMBEDDING_DIM, IngestRunRequest, IngestSchedule,
+    IngestSection, IngestSource, NewAuditLogEntry, NewDocument, NewIngestSchedule,
+    NewIngestSection, NewIngestSource, NewPersona, NewTrainingFeedback, NewTrainingMessage,
+    NewTrainingSession, Persona, RunRequestStatus, ScoredDocument, Sentiment, SourceType,
+    TrainingFeedback, TrainingMessage, TrainingSession,
 };
 
 use libsql::{Builder, Database, Row};
@@ -810,6 +811,57 @@ impl KbStore {
         )
         .await?;
         Ok(())
+    }
+
+    pub async fn insert_audit_entry(&self, entry: NewAuditLogEntry) -> Result<AuditLogEntry> {
+        let conn = self.db.connect()?;
+        conn.execute(
+            "INSERT INTO audit_log (actor, action, target, payload) VALUES (?1, ?2, ?3, ?4)",
+            libsql::params![entry.actor, entry.action, entry.target, entry.payload],
+        )
+        .await?;
+        let id = conn.last_insert_rowid();
+        let mut rows = conn
+            .query(
+                "SELECT id, actor, action, target, payload, at FROM audit_log WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => Ok(AuditLogEntry {
+                id: row.get::<i64>(0)?,
+                actor: row.get::<String>(1)?,
+                action: row.get::<String>(2)?,
+                target: row.get::<String>(3)?,
+                payload: row.get::<String>(4)?,
+                at: row.get::<String>(5)?,
+            }),
+            None => Err(KbStoreError::Migration(
+                "audit log entry not found after insert".into(),
+            )),
+        }
+    }
+
+    pub async fn list_audit_entries(&self) -> Result<Vec<AuditLogEntry>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, actor, action, target, payload, at FROM audit_log ORDER BY at DESC, id DESC",
+                libsql::params![],
+            )
+            .await?;
+        let mut entries = Vec::new();
+        while let Some(row) = rows.next().await? {
+            entries.push(AuditLogEntry {
+                id: row.get::<i64>(0)?,
+                actor: row.get::<String>(1)?,
+                action: row.get::<String>(2)?,
+                target: row.get::<String>(3)?,
+                payload: row.get::<String>(4)?,
+                at: row.get::<String>(5)?,
+            });
+        }
+        Ok(entries)
     }
 }
 
@@ -2213,6 +2265,65 @@ mod tests {
             .expect("list_training_feedback failed");
         assert_eq!(feedback_a.len(), 1);
         assert_eq!(feedback_a[0].answer_span, "porzione A");
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_insert_and_retrieve_audit_entry() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let entry = store
+            .insert_audit_entry(NewAuditLogEntry {
+                actor: "operator".into(),
+                action: "create_persona".into(),
+                target: "persona:1".into(),
+                payload: "{\"name\":\"gaspare\"}".into(),
+            })
+            .await
+            .expect("insert_audit_entry failed");
+
+        assert!(entry.id > 0);
+        assert_eq!(entry.actor, "operator");
+        assert_eq!(entry.action, "create_persona");
+        assert_eq!(entry.target, "persona:1");
+        assert_eq!(entry.payload, "{\"name\":\"gaspare\"}");
+        assert!(!entry.at.is_empty());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_list_audit_entries_newest_first() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        store
+            .insert_audit_entry(NewAuditLogEntry {
+                actor: "operator".into(),
+                action: "create_persona".into(),
+                target: "persona:1".into(),
+                payload: "{}".into(),
+            })
+            .await
+            .expect("insert failed");
+        let second = store
+            .insert_audit_entry(NewAuditLogEntry {
+                actor: "operator".into(),
+                action: "activate_persona".into(),
+                target: "persona:2".into(),
+                payload: "{}".into(),
+            })
+            .await
+            .expect("insert failed");
+
+        let entries = store
+            .list_audit_entries()
+            .await
+            .expect("list_audit_entries failed");
+        assert_eq!(entries.len(), 2);
+        assert_eq!(entries[0].id, second.id, "newest entry should be first");
         drop(store);
         let _ = std::fs::remove_file(&path);
     }

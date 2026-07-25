@@ -1,9 +1,3 @@
-const ADMIN_KEY_HEADER = 'X-Admin-Key';
-
-function adminKey(): string {
-  return import.meta.env.VITE_ADMIN_API_KEY ?? 'dev-key';
-}
-
 export class AdminApiError extends Error {
   readonly status: number;
 
@@ -158,19 +152,32 @@ export interface CreateFeedbackRequest {
   comment?: string;
 }
 
+const LOGIN_PATH = '/admin/api/auth/login';
+
+let unauthorizedHandler: (() => void) | null = null;
+
+/**
+ * Registers a callback invoked whenever any admin API call (other than the
+ * login attempt itself) fails with 401 — the router wires this to redirect
+ * to /login, without adminApi.ts depending on the router directly.
+ */
+export function onUnauthorized(handler: () => void): void {
+  unauthorizedHandler = handler;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
-    headers: {
-      [ADMIN_KEY_HEADER]: adminKey(),
-      ...(init?.headers ?? {}),
-    },
+    credentials: 'include',
   });
 
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as {
       error?: string;
     };
+    if (response.status === 401 && path !== LOGIN_PATH) {
+      unauthorizedHandler?.();
+    }
     throw new AdminApiError(
       response.status,
       body.error ?? `request to ${path} failed with status ${response.status}`,
@@ -194,6 +201,20 @@ function jsonRequest<T>(
           body: JSON.stringify(payload),
         };
   return request<T>(path, init);
+}
+
+export function login(
+  username: string,
+  password: string,
+): Promise<StatusResponse> {
+  return jsonRequest<StatusResponse>('/admin/api/auth/login', 'POST', {
+    username,
+    password,
+  });
+}
+
+export function logout(): Promise<StatusResponse> {
+  return request<StatusResponse>('/admin/api/auth/logout', { method: 'POST' });
 }
 
 export function getIngestConfig(): Promise<IngestConfigResponse> {
