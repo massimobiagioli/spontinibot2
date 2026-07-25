@@ -31,6 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let chunk_overlap: usize = env_or("CHUNK_OVERLAP", "64").parse().unwrap_or(64);
     let config_poll_secs: u64 = env_or("CONFIG_POLL_SECS", "30").parse().unwrap_or(30);
     let run_poll_secs: u64 = env_or("RUN_REQUEST_POLL_SECS", "10").parse().unwrap_or(10);
+    let heartbeat_path = env_or("HEARTBEAT_PATH", "/tmp/ingest-heartbeat");
 
     tracing::info!(
         kb_path = %kb_path,
@@ -39,6 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         chunk_overlap = chunk_overlap,
         config_poll_secs = config_poll_secs,
         run_poll_secs = run_poll_secs,
+        heartbeat_path = %heartbeat_path,
         "ingest service starting"
     );
 
@@ -66,7 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let runner = Arc::new(PipelineRunner::new(pipeline));
 
-    let scheduler = CronScheduler::new(run_poll_secs);
+    let scheduler = CronScheduler::new(run_poll_secs, std::path::PathBuf::from(heartbeat_path));
     if let Err(e) = scheduler.run(config_rx, runner, shutdown).await {
         tracing::info!("ingest service stopped: {e}");
     } else {

@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -32,11 +33,27 @@ fn sleep_until_next_tick(expr: &str) -> Result<Duration, IngestError> {
 
 pub struct CronScheduler {
     run_poll_secs: u64,
+    heartbeat_path: PathBuf,
 }
 
 impl CronScheduler {
-    pub fn new(run_poll_secs: u64) -> Self {
-        Self { run_poll_secs }
+    pub fn new(run_poll_secs: u64, heartbeat_path: PathBuf) -> Self {
+        Self {
+            run_poll_secs,
+            heartbeat_path,
+        }
+    }
+
+    /// Touches the heartbeat file so the Docker healthcheck can confirm the
+    /// scheduler's poll loop is alive. A write failure is logged, not fatal.
+    async fn touch_heartbeat(&self) {
+        let now = Utc::now().to_rfc3339();
+        if let Err(e) = std::fs::write(&self.heartbeat_path, now) {
+            tracing::warn!(
+                "failed to write heartbeat file {:?}: {e}",
+                self.heartbeat_path
+            );
+        }
     }
 
     pub async fn run(
@@ -88,6 +105,7 @@ impl CronScheduler {
                     false
                 }
                 _ = run_interval.tick() => {
+                    self.touch_heartbeat().await;
                     if let Some(ref config) = config
                         && !config.sources.is_empty()
                     {
@@ -142,5 +160,36 @@ mod tests {
     fn should_compute_next_tick_in_future() {
         let dt = next_tick("0 0 */4 * * * *").expect("parse failed");
         assert!(dt > Utc::now(), "next tick should be in the future");
+    }
+
+    #[tokio::test]
+    async fn should_write_heartbeat_file_with_recent_timestamp() {
+        let path = std::env::temp_dir().join(format!(
+            "ingest_heartbeat_test_{}_{}",
+            std::process::id(),
+            "ok"
+        ));
+        let scheduler = CronScheduler::new(10, path.clone());
+
+        scheduler.touch_heartbeat().await;
+
+        let contents = std::fs::read_to_string(&path).expect("heartbeat file should exist");
+        assert!(!contents.is_empty());
+        let written_at: chrono::DateTime<Utc> = contents
+            .parse()
+            .expect("heartbeat content should be RFC3339");
+        assert!(Utc::now() - written_at < chrono::Duration::seconds(5));
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_not_panic_when_heartbeat_write_fails() {
+        let scheduler = CronScheduler::new(
+            10,
+            PathBuf::from("/nonexistent-dir-spontini-heartbeat-test/heartbeat"),
+        );
+
+        scheduler.touch_heartbeat().await;
     }
 }
