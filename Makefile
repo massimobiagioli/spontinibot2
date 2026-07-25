@@ -13,6 +13,7 @@
 
 # --- Config ---------------------------------------------------------------
 SERVICE          ?= backend
+USERNAME         ?= operator
 COMPOSE          := docker compose
 COMPOSE_PROD     := docker compose -f docker-compose.yml -f docker-compose.prod.yml
 WORKSPACE_CRATES := -p backend -p ingest-core -p ingest -p ingest-cli -p kb-store
@@ -157,6 +158,11 @@ migrate:
 ## ingest-run: trigger an immediate ingest run via /admin/api/ingest/run
 ingest-run:
 	@curl -sS -X POST http://localhost:8080/admin/api/ingest/run
+
+.PHONY: set-operator-credential
+## set-operator-credential: hash a password (prompted) and write the operator credential file (USERNAME=operator)
+set-operator-credential:
+	$(COMPOSE) run --rm -it backend cargo run --bin set-operator-credential -- --username $(USERNAME) --output /data/operator-credential.json
 
 # --- Docker config --------------------------------------------------------
 .PHONY: compose-config

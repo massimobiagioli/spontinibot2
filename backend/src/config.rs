@@ -5,7 +5,8 @@ pub struct Config {
     pub kb_path: String,
     pub top_k: i64,
     pub min_score: f64,
-    pub admin_api_key: String,
+    pub operator_credential_path: String,
+    pub session_ttl_secs: i64,
     pub upload_max_bytes: usize,
 }
 
@@ -25,7 +26,12 @@ impl Config {
                 .ok()
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(0.35),
-            admin_api_key: std::env::var("ADMIN_API_KEY").unwrap_or_else(|_| "dev-key".into()),
+            operator_credential_path: std::env::var("OPERATOR_CREDENTIAL_PATH")
+                .unwrap_or_else(|_| "/data/operator-credential.json".into()),
+            session_ttl_secs: std::env::var("SESSION_TTL_SECS")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(1800), // 30 minutes default
             upload_max_bytes: std::env::var("UPLOAD_MAX_BYTES")
                 .ok()
                 .and_then(|v| v.parse().ok())

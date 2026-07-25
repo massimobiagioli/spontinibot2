@@ -9,6 +9,7 @@ import DevCatalog from '../views/DevCatalog.vue';
 import HomeView from '../views/HomeView.vue';
 import ImprintingView from '../views/ImprintingView.vue';
 import IngestView from '../views/IngestView.vue';
+import LoginView from '../views/LoginView.vue';
 import TrainingSessionView from '../views/TrainingSessionView.vue';
 import TrainingSessionsView from '../views/TrainingSessionsView.vue';
 
@@ -17,6 +18,7 @@ function makeRouter() {
     history: createMemoryHistory(),
     routes: [
       { path: '/', component: HomeView },
+      { path: '/login', name: 'login', component: LoginView },
       { path: '/dev', component: DevCatalog },
       { path: '/ingest', component: IngestView },
       { path: '/imprinting', component: ImprintingView },
@@ -55,6 +57,23 @@ describe('accessibility', () => {
   it('the /dev catalog has zero axe violations', async () => {
     const router = makeRouter();
     await router.push('/dev');
+    await router.isReady();
+
+    const wrapper = mount(App, {
+      global: { plugins: [router] },
+      attachTo: document.body,
+    });
+
+    const results = await runAxe(wrapper.element);
+
+    expect(results.violations).toEqual([]);
+
+    wrapper.unmount();
+  });
+
+  it('the /login route has zero axe violations', async () => {
+    const router = makeRouter();
+    await router.push('/login');
     await router.isReady();
 
     const wrapper = mount(App, {

@@ -53,14 +53,14 @@ describe('RunTrigger', () => {
 
   it('shows an honest error message when the trigger fails', async () => {
     vi.spyOn(adminApi, 'triggerIngestRun').mockRejectedValue(
-      new adminApi.AdminApiError(401, 'invalid or missing X-Admin-Key header'),
+      new adminApi.AdminApiError(401, 'invalid or missing session cookie'),
     );
 
     const wrapper = mount(RunTrigger);
     await wrapper.find('button').trigger('click');
     await vi.advanceTimersByTimeAsync(0);
 
-    expect(wrapper.text()).toContain('invalid or missing X-Admin-Key header');
+    expect(wrapper.text()).toContain('invalid or missing session cookie');
   });
 
   it('clears the polling interval on unmount', async () => {

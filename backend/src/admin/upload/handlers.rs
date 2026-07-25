@@ -2,9 +2,12 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Multipart, Path, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::http::StatusCode;
 use serde::Serialize;
 
+use crate::audit::AuditLogPort;
+use crate::audit::record_best_effort;
+use crate::auth::extractor::OperatorSession;
 use crate::config::Config;
 
 use super::UploadError;
@@ -46,26 +49,6 @@ pub struct ErrorResponse {
     pub error: String,
 }
 
-fn check_admin_key(
-    headers: &HeaderMap,
-    config: &Config,
-) -> Result<(), (StatusCode, Json<ErrorResponse>)> {
-    let header_val = headers
-        .get("x-admin-key")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    if header_val != config.admin_api_key {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorResponse {
-                error: "invalid or missing X-Admin-Key header".into(),
-            }),
-        ));
-    }
-    Ok(())
-}
-
 fn map_upload_error(e: UploadError) -> (StatusCode, Json<ErrorResponse>) {
     match e {
         UploadError::UnsupportedFormat(_) => (
@@ -103,11 +86,9 @@ fn map_upload_error(e: UploadError) -> (StatusCode, Json<ErrorResponse>) {
 
 pub async fn upload_document(
     State(state): State<UploadState>,
-    headers: HeaderMap,
+    _session: OperatorSession,
     mut multipart: Multipart,
 ) -> Result<(StatusCode, Json<UploadResponse>), (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
-
     let mut file_bytes: Option<Vec<u8>> = None;
     let mut filename: Option<String> = None;
     let mut section: Option<String> = None;
@@ -209,11 +190,9 @@ pub async fn upload_document(
 
 pub async fn get_preview(
     State(state): State<UploadState>,
-    headers: HeaderMap,
+    _session: OperatorSession,
     Path(token): Path<String>,
 ) -> Result<Json<PreviewResponse>, (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
-
     let entry = state.preview_store.get(&token).map_err(map_upload_error)?;
 
     let chunk_count_estimate = (entry.extracted_text.content.len() / 512).max(1);
@@ -235,11 +214,9 @@ pub async fn get_preview(
 
 pub async fn confirm_upload(
     State(state): State<UploadState>,
-    headers: HeaderMap,
+    session: OperatorSession,
     Path(token): Path<String>,
 ) -> Result<(StatusCode, Json<ConfirmResponse>), (StatusCode, Json<ErrorResponse>)> {
-    check_admin_key(&headers, &state.config)?;
-
     let entry = state
         .preview_store
         .remove(&token)
@@ -258,6 +235,15 @@ pub async fn confirm_upload(
 
     let chunk_count = document_ids.len();
 
+    record_best_effort(
+        state.audit.as_ref(),
+        &session.actor,
+        "confirm_upload",
+        &format!("upload:{}", entry.filename),
+        &serde_json::json!({"document_ids": document_ids, "chunk_count": chunk_count}),
+    )
+    .await;
+
     Ok((
         StatusCode::OK,
         Json(ConfirmResponse {
@@ -272,4 +258,5 @@ pub struct UploadState {
     pub upload: Arc<dyn super::ports::UploadPort>,
     pub preview_store: Arc<super::preview_store::PreviewStore>,
     pub config: Config,
+    pub audit: Arc<dyn AuditLogPort>,
 }

@@ -164,5 +164,6 @@ The closing milestone: CI, end-to-end BDD against live containers, and productio
   - Description: Harden the runtime for production: run every container as a non-root user, set memory and CPU limits in `docker-compose.yml` tuned for the Mac Intel i7 / 16 GB RAM target, add a `healthcheck` to every service (the inference containers included), and add a `make scan` target running `trivy` (or equivalent) on every image with a zero-high-cve gate. Document the hardened compose in an ADR. No functionality change — this is a non-functional hardening pass.
   - Closed: Plan [0026](../.project/0026-production-hardening-non-root-containers-resource-limits-image-scanning-plan.md), ADR [0010](../.adr/0010-production-compose-overlay-non-root-runtime-images-with-resource-limits.md).
 
-- [ ] **0027** — Operator auth + audit log
+- [x] **0027** — Operator auth + audit log
   - Description: Replace the static shared-secret auth placeholder from feature 0008 with a real operator auth scheme (single operator for now: a hashed password in an env-loaded credential file, a short-lived session cookie). Every `/admin/api/*` write is recorded in an `audit_log` table (V6 migration: `id`, `actor`, `action`, `target`, `payload` JSON, `at`). BDD scenarios for: unauthenticated write is rejected; authenticated write succeeds and is audited. This closes the security gap left open by the admin surface plans.
+  - Closed: Plan [0027](../.project/0027-operator-auth-audit-log-plan.md), ADR [0011](../.adr/0011-session-cookie-operator-authentication-with-best-effort-audit-log.md).

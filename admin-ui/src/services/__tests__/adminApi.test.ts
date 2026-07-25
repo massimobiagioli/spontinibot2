@@ -21,6 +21,8 @@ import {
   listSessions,
   listTrainingFeedback,
   listTrainingMessages,
+  login,
+  logout,
   reloadPersona,
   triggerIngestRun,
   uploadDocument,
@@ -53,7 +55,7 @@ describe('adminApi', () => {
     vi.unstubAllGlobals();
   });
 
-  it('getIngestConfig fetches the config and sends the admin key header', async () => {
+  it('getIngestConfig fetches the config and sends the session cookie', async () => {
     const config = { schedule: null, sections: [] };
     fetchMock.mockResolvedValueOnce(jsonResponse(config));
 
@@ -62,9 +64,7 @@ describe('adminApi', () => {
     expect(result).toEqual(config);
     const [url, init] = lastCall(fetchMock);
     expect(url).toBe('/admin/api/ingest/config');
-    expect((init.headers as Record<string, string>)['X-Admin-Key']).toBe(
-      'dev-key',
-    );
+    expect(init.credentials).toBe('include');
   });
 
   it('upsertSchedule PUTs the schedule payload', async () => {
@@ -588,7 +588,7 @@ describe('adminApi', () => {
   it('throws AdminApiError with the parsed message on a non-2xx response', async () => {
     fetchMock.mockImplementation(() =>
       Promise.resolve(
-        jsonResponse({ error: 'invalid or missing X-Admin-Key header' }, 401),
+        jsonResponse({ error: 'invalid or missing session cookie' }, 401),
       ),
     );
 
@@ -597,7 +597,7 @@ describe('adminApi', () => {
     expect(error).toBeInstanceOf(AdminApiError);
     expect((error as AdminApiError).status).toBe(401);
     expect((error as AdminApiError).message).toBe(
-      'invalid or missing X-Admin-Key header',
+      'invalid or missing session cookie',
     );
   });
 
@@ -607,5 +607,44 @@ describe('adminApi', () => {
     await expect(getIngestConfig()).rejects.toMatchObject({
       status: 500,
     });
+  });
+
+  it('login POSTs the username and password and sends credentials', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ status: 'logged_in' }));
+
+    const result = await login('operator', 's3cret');
+
+    expect(result).toEqual({ status: 'logged_in' });
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/admin/api/auth/login');
+    expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('include');
+    expect(JSON.parse(init.body as string)).toEqual({
+      username: 'operator',
+      password: 's3cret',
+    });
+  });
+
+  it('login throws AdminApiError on invalid credentials', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'invalid credentials' }, 401),
+    );
+
+    const error = await login('operator', 'wrong').catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AdminApiError);
+    expect((error as AdminApiError).status).toBe(401);
+  });
+
+  it('logout POSTs and sends credentials', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ status: 'logged_out' }));
+
+    const result = await logout();
+
+    expect(result).toEqual({ status: 'logged_out' });
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/admin/api/auth/logout');
+    expect(init.method).toBe('POST');
+    expect(init.credentials).toBe('include');
   });
 });

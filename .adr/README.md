@@ -14,6 +14,7 @@ This directory holds the ADRs for the Spontini Bot 2 project. Each ADR records a
 | [0008](./0008-preview-confirm-upload-workflow.md) | Preview/Confirm Upload Workflow with In-Memory TTL Token Store | accepted | 2026-07-24 |
 | [0009](./0009-bootstrap-italia-3x-beta-with-patched-splide-exports.md) | Bootstrap Italia 3.x Beta with Patched Splide Exports | accepted | 2026-07-24 |
 | [0010](./0010-production-compose-overlay-non-root-runtime-images-with-resource-limits.md) | Production Compose Overlay: Non-Root Runtime Images with Resource Limits | accepted | 2026-07-25 |
+| [0011](./0011-session-cookie-operator-authentication-with-best-effort-audit-log.md) | Session-Cookie Operator Authentication with Best-Effort Audit Log | accepted | 2026-07-25 |
 
 ## How to add a new ADR
 

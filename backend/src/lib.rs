@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 pub use axum::Router;
+use axum::extract::Extension;
 use axum::routing::{delete, get, post, put};
 
 use crate::admin::ingest_config::adapter::KbStoreIngestConfigAdapter;
@@ -16,6 +17,10 @@ use crate::admin::training_sessions::handlers::TrainingSessionState;
 use crate::admin::upload::adapter::IngestCoreUploadAdapter;
 use crate::admin::upload::ports::UploadPort;
 use crate::admin::upload::preview_store::PreviewStore;
+use crate::audit::AuditLogPort;
+use crate::audit::adapter::KbStoreAuditLogAdapter;
+use crate::auth::handlers::AuthState;
+use crate::auth::session_store::SessionStore;
 use crate::config::Config;
 use crate::rag_engine::embedding::EmbeddingAdapter;
 use crate::rag_engine::engine::RagEngine;
@@ -26,6 +31,8 @@ use crate::rag_engine::ports::PersonaAdminPort;
 use crate::rag_engine::retrieval::RetrievalAdapter;
 
 pub mod admin;
+pub mod audit;
+pub mod auth;
 pub mod config;
 pub mod rag_engine;
 mod routes;
@@ -82,10 +89,12 @@ pub async fn router() -> Router {
     );
     let upload_port: Arc<dyn UploadPort> = Arc::new(IngestCoreUploadAdapter::new(ingest_pipeline));
     let preview_store = Arc::new(PreviewStore::new(15));
+    let audit_port: Arc<dyn AuditLogPort> = Arc::new(KbStoreAuditLogAdapter::new(store.clone()));
     let upload_state = admin::upload::handlers::UploadState {
         upload: upload_port,
         preview_store: preview_store.clone(),
         config: config.clone(),
+        audit: audit_port.clone(),
     };
 
     // Background eviction task for expired preview tokens
@@ -112,21 +121,21 @@ pub async fn router() -> Router {
         Arc::new(KbStoreIngestConfigAdapter::new(store.clone()));
     let ingest_config_state = IngestConfigState {
         ingest_config: ingest_config_port,
-        config: config.clone(),
+        audit: audit_port.clone(),
     };
 
     let ingest_run_port: Arc<dyn crate::admin::ingest_run::IngestRunAdminPort> =
         Arc::new(KbStoreIngestRunAdapter::new(store.clone()));
     let ingest_run_state = IngestRunState {
         ingest_run: ingest_run_port,
-        config: config.clone(),
+        audit: audit_port.clone(),
     };
 
     let training_session_port: Arc<dyn crate::admin::training_sessions::TrainingSessionAdminPort> =
         Arc::new(KbStoreTrainingSessionAdapter::new(store.clone()));
     let training_session_state = TrainingSessionState {
         training_sessions: training_session_port,
-        config: config.clone(),
+        audit: audit_port.clone(),
     };
 
     let training_message_port: Arc<dyn crate::admin::training_messages::TrainingMessageAdminPort> =
@@ -136,7 +145,7 @@ pub async fn router() -> Router {
         ));
     let training_message_state = TrainingMessageState {
         training_messages: training_message_port,
-        config: config.clone(),
+        audit: audit_port.clone(),
     };
 
     let training_feedback_port: Arc<
@@ -144,13 +153,17 @@ pub async fn router() -> Router {
     > = Arc::new(KbStoreTrainingFeedbackAdapter::new(store.clone()));
     let training_feedback_state = TrainingFeedbackState {
         training_feedback: training_feedback_port,
-        config: config.clone(),
+        audit: audit_port.clone(),
     };
+
+    let session_store = Arc::new(SessionStore::new(config.session_ttl_secs));
 
     router_with(
         AppState { rag_engine },
         persona_admin,
         config,
+        session_store,
+        audit_port,
         AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
@@ -166,6 +179,8 @@ pub fn router_with(
     state: AppState,
     persona_admin: Arc<dyn PersonaAdminPort>,
     config: Config,
+    session_store: Arc<SessionStore>,
+    audit: Arc<dyn AuditLogPort>,
     admin_router_state: AdminRouterState,
 ) -> Router {
     let AdminRouterState {
@@ -179,13 +194,25 @@ pub fn router_with(
 
     let admin_state = admin::AdminState {
         persona_admin,
+        audit,
+    };
+    let auth_state = AuthState {
         config,
+        session_store: session_store.clone(),
     };
 
     Router::new()
         .route("/health", get(routes::health))
         .route("/", get(routes::home))
         .route("/chat", post(routes::chat).with_state(state))
+        .route(
+            "/admin/api/auth/login",
+            post(crate::auth::handlers::login).with_state(auth_state.clone()),
+        )
+        .route(
+            "/admin/api/auth/logout",
+            post(crate::auth::handlers::logout).with_state(auth_state),
+        )
         .route(
             "/admin/api/persona",
             get(admin::list_persona_versions)
@@ -280,4 +307,5 @@ pub fn router_with(
             get(admin::training_feedback::handlers::list_feedback)
                 .with_state(training_feedback_state),
         )
+        .layer(Extension(session_store))
 }

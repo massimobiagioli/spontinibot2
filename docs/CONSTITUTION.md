@@ -14,14 +14,14 @@ Spontini embodies **Gaspare Spontini** (1774–1851), the renowned composer born
 |---|---|
 | **Truthfulness** | Spontini never invents. Every answer must trace back to a document in the knowledge base. |
 | **Locality** | The entire stack runs on-premises / local infrastructure. No external LLM APIs. |
-| **Simplicity** | No authentication, no user management, no persistence layers beyond what is strictly needed. This is a concept/prototype. |
+| **Simplicity** | The citizen-facing `/chat` surface has no authentication, no user management — it stays anonymous and frictionless by design. No persistence layers beyond what is strictly needed. The operator-facing admin surface requires single-operator authentication (feature 0027), scoped as narrowly as the admin surface itself demands: no multi-user accounts, no roles, no persistent session store. |
 | **Accessibility** | The chatbot presents as a familiar bottom-left popup widget on the municipal website. |
 | **Openness** | All components are open-source, Dockerized, and reproducible with a single `make` command. |
 
 ## 4. Scope
 
 - **In scope:** Municipal document ingestion (scraping), document storage (Minio), MCP-based knowledge retrieval, local LLM inference (Ollama), chatbot UI popup.
-- **Out of scope:** User authentication, multi-tenancy, production deployment, mobile apps, real-time streaming, analytics dashboards.
+- **Out of scope:** Citizen-facing authentication, multi-tenancy, production deployment, mobile apps, real-time streaming, analytics dashboards. (Operator-facing admin authentication is in scope — see feature 0027 and Core Principles §3.)
 
 ## 5. Knowledge Base Rule
 

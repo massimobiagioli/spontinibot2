@@ -6,6 +6,7 @@ const V2_SCHEMA: &str = include_str!("V2__ingest_config.sql");
 const V3_SCHEMA: &str = include_str!("V3__training_sessions.sql");
 const V4_SCHEMA: &str = include_str!("V4__training_messages.sql");
 const V5_SCHEMA: &str = include_str!("V5__training_feedback.sql");
+const V6_SCHEMA: &str = include_str!("V6__audit_log.sql");
 
 /// Run database migrations idempotently.
 ///
@@ -101,6 +102,23 @@ pub async fn run_migrations(conn: &Connection) -> Result<()> {
         tx.execute_batch(V5_SCHEMA).await?;
         tx.execute(
             "INSERT INTO _migrations (version, name) VALUES (5, 'training_feedback_schema')",
+            libsql::params![],
+        )
+        .await?;
+        tx.commit().await?;
+    }
+
+    let mut rows = conn
+        .query(
+            "SELECT 1 FROM _migrations WHERE version = 6",
+            libsql::params![],
+        )
+        .await?;
+    if rows.next().await?.is_none() {
+        let tx = conn.transaction().await?;
+        tx.execute_batch(V6_SCHEMA).await?;
+        tx.execute(
+            "INSERT INTO _migrations (version, name) VALUES (6, 'audit_log_schema')",
             libsql::params![],
         )
         .await?;
@@ -272,6 +290,33 @@ mod tests {
         assert!(
             rows.next().await.unwrap().is_some(),
             "training_feedback table should exist"
+        );
+
+        run_migrations(&conn)
+            .await
+            .expect("second migration run should also succeed");
+    }
+
+    #[tokio::test]
+    async fn should_create_audit_log_table_when_migrations_run() {
+        let db = Builder::new_local(":memory:")
+            .build()
+            .await
+            .expect("failed to create in-memory db");
+        let conn = db.connect().expect("failed to connect");
+
+        run_migrations(&conn).await.expect("migrations failed");
+
+        let mut rows = conn
+            .query(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='audit_log'",
+                libsql::params![],
+            )
+            .await
+            .expect("query failed");
+        assert!(
+            rows.next().await.unwrap().is_some(),
+            "audit_log table should exist"
         );
 
         run_migrations(&conn)
