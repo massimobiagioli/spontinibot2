@@ -116,6 +116,8 @@ curl -sS -b /tmp/spontini-session.txt -X POST http://localhost:8080/admin/api/in
   -H 'Content-Type: application/json' -d '{"name":"delibere","ordering":30}'
 ```
 
+Ran 2026-07-26: all 3 sections created successfully — `storia` (`id:1`), `news` (`id:2`), `delibere` (`id:3`), all HTTP 201.
+
 ### 5.2 Architectural Gap to Know Before Configuring Sources
 
 The scraper (`ingest-core`) does **a single GET on a single URL** and extracts its visible text — it is not a crawler, it doesn't paginate, it doesn't follow links. The real pages on the comune's site (verified in Appendix B) have different structures:
@@ -141,17 +143,37 @@ curl -sS -b /tmp/spontini-session.txt -X POST http://localhost:8080/admin/api/in
   -d '{"section_id": <storia section id>, "source_type":"scrape", "url":"https://www.comune.maiolatispontini.an.it/c042023/zf/index.php/storia-comune", "enabled": true}'
 ```
 
+**Correction found 2026-07-26** (real discrepancy vs. this file's own text and vs. Appendix A, which claims to be "verified against `backend/src/lib.rs`"): `create_source`'s actual handler (`backend/src/admin/ingest_config/handlers.rs:167-172`) takes `section_id` as a **query parameter**, not a JSON body field — the body call above returns `400 Failed to deserialize query string: missing field 'section_id'`. The real, working shape is:
+```bash
+curl -sS -b /tmp/spontini-session.txt -X POST "http://localhost:8080/admin/api/ingest/config/sources?section_id=1" \
+  -H 'Content-Type: application/json' \
+  -d '{"source_type":"scrape", "url":"https://www.comune.maiolatispontini.an.it/c042023/zf/index.php/storia-comune", "enabled": true}'
+```
+
+**Session findings 2026-07-26 — Phase 3 blocked, do not repeat this without first fixing the code.** All 3 `storia` sources (official page + 2 Wikipedia pages) were created for real using the corrected call above, and immediately surfaced two serious, independently-verified bugs (both added to Appendix C):
+
+1. `ingest/src/scheduler.rs`'s `run_interval.tick()` branch (lines 107-118) calls `runner.run_all(&config.sources)` **unconditionally every `RUN_POLL_SECS` (10s)** the moment any source exists — with no relation to `POST /admin/api/ingest/run` and no backoff on failure. Within seconds of creating the 3 sources, `ingest` started hammering `it.wikipedia.org` and the comune's official site with a fresh GET every ~10 seconds, indefinitely.
+2. Deleting all 3 sources (`DELETE /admin/api/ingest/config/sources/:id`, confirmed via direct `kb.db` query that `ingest_source` was empty) **did not stop the loop** — `ingest` kept re-running the pipeline against the deleted sources for several `CONFIG_POLL_SECS` cycles (2.5+ minutes observed), meaning `ConfigWatcher` is not reliably propagating config changes into the running scheduler. Had to `docker compose stop ingest` to guarantee the external hammering actually stopped, then `docker compose start ingest` (clean restart, config reloaded fresh from `kb.db` with 0 sources, no lock error, no further scraping — verified in logs).
+
+On top of the above, the 3 individual pipeline runs that did execute before the container was stopped **all failed anyway**, for reasons unrelated to the scheduler bug — real, reproducible content/config problems (see Appendix C):
+- Official "Storia del Comune" page: `robots.txt: path /c042023/zf/index.php/storia-comune is disallowed by robots.txt` — contradicts this section's own "perfect fit for a single scrape source" assumption (§5.2 point 1). The site's robots.txt disallows exactly this path.
+- Both Wikipedia pages: `embedding error: HTTP 500 ... input (678 tokens) is too large to process. increase the physical batch size (current batch size: 512)` — `ingest-core`'s chunker is configured for 512-token chunks (`chunk_size=512`), but the real chunks produced from these pages' actual text came out to 678 and 659 tokens by the embed model's own tokenizer, exceeding `llama-embed`'s compiled/configured batch size of 512.
+
+**Net effect**: with the code as it stands today, none of `storia`'s 3 candidate sources can be ingested without a code fix first. Phase 3 (§6) cannot proceed for real until at minimum: (a) the scheduler bug is fixed so it doesn't auto-run on a timer, (b) the config-reload bug is fixed so deletes/disables actually take effect, (c) either `llama-embed`'s batch size is raised or chunking is corrected to respect the model's real tokenization, and (d) an operational decision is made about the robots.txt-blocked official page (alternate source, manual upload, or confirming an exception). None of these are appropriate to patch silently mid-test-session; they need real code changes plus, per this campaign's own rule, an explicit decision (and likely an ADR for the scheduler/config-reload fixes, since they're correctness bugs in already-shipped features, not test-plan tuning).
+
 ### 5.3 Ingested Documents Log (to be filled in during execution)
 
 | # | Section | Real title/subject | URL or file | Document date | Method (scrape/upload) | Verified in KB? |
 |---|---|---|---|---|---|---|
-| 1 | storia | Storia del Comune (official page) | comune.maiolatispontini.an.it/.../storia-comune | n/a (static page) | scrape | ☐ |
-| 2 | storia | Maiolati Spontini (Wikipedia) | it.wikipedia.org/wiki/Maiolati_Spontini | n/a | scrape | ☐ |
-| 3 | storia | Gaspare Spontini (Wikipedia) | it.wikipedia.org/wiki/Gaspare_Spontini | n/a | scrape | ☐ |
+| 1 | storia | Storia del Comune (official page) | comune.maiolatispontini.an.it/.../storia-comune | n/a (static page) | scrape — **attempted 2026-07-26, failed**: blocked by robots.txt | ☐ (not ingested — source deleted after the incident above) |
+| 2 | storia | Maiolati Spontini (Wikipedia) | it.wikipedia.org/wiki/Maiolati_Spontini | n/a | scrape — **attempted 2026-07-26, failed**: embedding HTTP 500, chunk too large (678 tokens > 512 batch limit) | ☐ (not ingested — source deleted after the incident above) |
+| 3 | storia | Gaspare Spontini (Wikipedia) | it.wikipedia.org/wiki/Gaspare_Spontini | n/a | scrape — **attempted 2026-07-26, failed**: embedding HTTP 500, chunk too large (659 tokens > 512 batch limit) | ☐ (not ingested — source deleted after the incident above) |
 | … | news | *(to fill in)* | | | | ☐ |
 | … | delibere | *(to fill in)* | | | | ☐ |
 
 ## 6. Phase 3 — Running the Ingestion and Verifying It
+
+> **BLOCKED as of 2026-07-26** — do not attempt 3.1-3.4 again until this is resolved. Configuring even the simplest, best-understood sources (`storia`) immediately hit two real code bugs (unconditional timer-driven scraping, config deletes not propagating — full detail in §5.2 and Appendix C) plus two content/config problems (robots.txt block, embedding batch-size mismatch). All 3 `storia` sources were deleted and `ingest` was stopped/restarted to contain the fallout; `kb.db` currently has 3 empty sections and 0 sources. Fix the code issues (or get an explicit go-ahead to work around them) before re-attempting Phase 2/3.
 
 - [ ] **3.1** Trigger: `curl -sS -b /tmp/spontini-session.txt -X POST http://localhost:8080/admin/api/ingest/run` → 202 + run `id`.
 - [ ] **3.2** Poll: `curl -sS -b /tmp/spontini-session.txt http://localhost:8080/admin/api/ingest/run/<id>` until `status` is `done` (or `failed` — in that case check `docker compose logs ingest` for the cause: robots.txt, disallowed content-type, timeout, etc.).
@@ -420,7 +442,7 @@ After every significant wave, produce `.project/test-ingestion-report-<date>.md`
 | GET | `/admin/api/ingest/config` | schedule/sections/sources tree |
 | PUT | `/admin/api/ingest/config/schedule` | `{"cron_expr","enabled"}` |
 | POST/DELETE | `/admin/api/ingest/config/sections[/:id]` | `{"name","ordering"}` |
-| POST/DELETE | `/admin/api/ingest/config/sources[/:id]` | `{"section_id","source_type","url","enabled"}` |
+| POST/DELETE | `/admin/api/ingest/config/sources[/:id]` | **Correction (verified 2026-07-26, this cheat-sheet was stale)**: `section_id` is a query parameter (`?section_id=<id>`), not a body field — body is `{"source_type","url","enabled"}` only. See `backend/src/admin/ingest_config/handlers.rs:167-172`. |
 | POST | `/admin/api/ingest/run` | trigger an immediate run → 202 + id |
 | GET | `/admin/api/ingest/run/:id` | status (`pending`/`running`/`done`/`failed`) |
 | POST/GET | `/admin/api/training/sessions` | create/list sessions (`{"title","created_by"}`) |
@@ -451,3 +473,7 @@ All other URLs mentioned in search results (e.g. individual delibera detail page
 - **Latency not measured on this hardware**: no real baseline number yet exists for Qwen2.5-3B-Instruct Q4_K_M on this target hardware — must be measured in Wave 0 (§10.3), not assumed from the parent project (different model and hardware).
 - **Text extraction from pages with tables/complex layout** (e.g. "atti amministrativi" pages with date/office/subject columns): the scraper extracts "visible text", which on a tabular layout can lose the association between columns. Must be checked empirically on the first documents ingested into `delibere` (Category E, question 5 in §7.6 is designed specifically to stress this case).
 - **`kb.db` startup race**: if `backend` and `ingest` start at the exact same instant (e.g. `docker compose restart` or `make up` from a stopped stack), both try to open/migrate the same SQLite/libSQL file and one of them can fail with `database is locked` on startup. Observed in practice on 2026-07-25: `ingest` was automatically restarted by the container's restart policy and recovered on its own a second later, with no data loss. If the stack is restarted during a test campaign, **verify with `docker compose ps` that `ingest` is actually `running` and check its logs** before triggering an ingest run — there's no application-level retry-with-backoff on opening the kb store, it relies on the Docker restart policy.
+- **Scheduler runs the full pipeline unconditionally on a timer, not on request** (found 2026-07-26, blocks Phase 3): `ingest/src/scheduler.rs:107-118`, the `run_interval.tick()` branch calls `runner.run_all(&config.sources)` every `RUN_POLL_SECS` (default 10s) whenever `config.sources` is non-empty — with **no relation at all** to `POST /admin/api/ingest/run` and no failure backoff. The moment any source is configured, `ingest` starts re-scraping every enabled URL every ~10 seconds, forever, regardless of whether anyone ever triggered a run. Observed hammering `it.wikipedia.org` and the comune's official site this way for 10+ minutes before intervention. This contradicts the on-demand model documented in Appendix A (`POST /admin/api/ingest/run` → "trigger an immediate run"). **Needs a real code fix** (gate the timer branch behind an actual pending run request, the way `ingest_run_request`/`trigger_run` implies) before any source can safely be left configured unattended — not something to work around test-session by test-session.
+- **Config changes (deletes/disables) don't reliably propagate to the running scheduler** (found 2026-07-26, blocks Phase 3): after `DELETE /admin/api/ingest/config/sources/:id` for all 3 configured sources (confirmed via direct `kb.db` query that `ingest_source` was empty), the scheduler kept re-running the pipeline against the deleted sources for 2.5+ minutes — well past `CONFIG_POLL_SECS` (default 30s). The only reliable way to stop it was `docker compose stop ingest`; a fresh restart (config loaded once at startup) picked up the empty source list correctly. `ConfigWatcher`'s live-reload path needs investigation — until fixed, disabling/deleting a misbehaving source at runtime cannot be trusted to actually stop it.
+- **Embedding batch-size mismatch**: real chunks produced from the two Wikipedia pages (`ingest-core/src/chunking.rs`, configured `chunk_size=512`) came out to 678 and 659 tokens by `llama-embed`'s own tokenizer — both over its compiled/configured physical batch size of 512, so every embedding call failed with `HTTP 500 ... input (N tokens) is too large to process`. Either `llama-embed`'s `--batch-size`/`--ubatch-size` needs raising in `docker-compose.yml`, or the chunker needs to count tokens the same way the embed model does (it's currently producing chunks larger than its own configured target).
+- **The official "Storia del Comune" page is blocked by robots.txt**: contrary to §5.2 point 1's assumption ("perfect fit for a single scrape source"), a real scrape attempt on 2026-07-26 failed with `robots.txt: path /c042023/zf/index.php/storia-comune is disallowed by robots.txt`. This is a real, verified fact — not something to route around silently. Needs an operational decision: find an alternate page for this content, or download/upload it manually (feature 0009) instead of scraping.
