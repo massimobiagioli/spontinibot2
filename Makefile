@@ -164,6 +164,23 @@ ingest-run:
 set-operator-credential:
 	$(COMPOSE) run --rm -it backend cargo run --bin set-operator-credential -- --username $(USERNAME) --output /data/operator-credential.json
 
+.PHONY: eject-data
+## eject-data: snapshot the live kb-data volume to .data/data-<yyyy-MM-dd>.bin
+eject-data:
+	@mkdir -p .data
+	$(COMPOSE) run --rm --no-deps --user root -v $(PWD)/.data:/backup backend \
+		sh -c 'tar czf /backup/data-$$(date +%Y-%m-%d).bin -C /data .'
+	@echo "snapshot written to .data/data-$$(date +%Y-%m-%d).bin"
+
+.PHONY: use-data
+## use-data: restore a snapshot into the kb-data volume (DATA_FILE=.data/data-<date>.bin)
+use-data:
+	@test -n "$(DATA_FILE)" || { echo "usage: make use-data DATA_FILE=.data/data-<date>.bin"; exit 1; }
+	@test -f "$(DATA_FILE)" || { echo "file not found: $(DATA_FILE)"; exit 1; }
+	$(COMPOSE) run --rm --no-deps --user root -v $(PWD)/.data:/backup backend \
+		sh -c 'rm -rf /data/* && tar xzf /backup/$(notdir $(DATA_FILE)) -C /data'
+	@echo "restored $(DATA_FILE) into kb-data volume"
+
 # --- Docker config --------------------------------------------------------
 .PHONY: compose-config
 ## compose-config: validate the docker-compose.yml

@@ -48,6 +48,9 @@ kb.db
 /data/
 **/data/
 
+# kb-data volume snapshots (make eject-data / make use-data)
+.data/
+
 # ── Models (GGUF files — large, downloaded at provisioning time) ─
 # Only the model binaries are excluded — models/*/README.md is tracked
 # documentation (see AGENTS.md §4).

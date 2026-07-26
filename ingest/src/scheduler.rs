@@ -72,7 +72,10 @@ impl CronScheduler {
                 match runner.run_all(&config.sources).await {
                     Ok(()) => RunRequestStatus::Done,
                     Err(e) => {
-                        tracing::error!("run request {} pipeline execution failed: {e}", request.id);
+                        tracing::error!(
+                            "run request {} pipeline execution failed: {e}",
+                            request.id
+                        );
                         RunRequestStatus::Failed
                     }
                 }
