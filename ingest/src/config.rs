@@ -20,18 +20,21 @@ pub struct IngestConfig {
 }
 
 pub struct ConfigLoader {
-    kb_path: String,
+    kb: KbStore,
 }
 
 impl ConfigLoader {
-    pub fn new(kb_path: String) -> Self {
-        Self { kb_path }
+    /// Takes an already-open, long-lived `KbStore` rather than a path: reopening a
+    /// fresh `Database` on every poll (as this used to do) was observed to return
+    /// stale reads across polls within the same process — see Appendix C of
+    /// TEST-INGESTION-0001.md. A single reused connection reads fresh data reliably,
+    /// matching how every other `KbStore` consumer in this codebase is used.
+    pub fn new(kb: KbStore) -> Self {
+        Self { kb }
     }
 
     pub async fn load(&self) -> Result<IngestConfig, IngestError> {
-        let kb = KbStore::open(&self.kb_path)
-            .await
-            .map_err(|e| IngestError::KbStore(e.to_string()))?;
+        let kb = &self.kb;
 
         let schedule: Option<IngestSchedule> = kb
             .get_schedule()
@@ -150,9 +153,9 @@ mod tests {
     #[tokio::test]
     async fn should_return_empty_config_when_no_schedule() {
         let path = temp_db_path();
-        let _kb = KbStore::open(&path).await.expect("failed to open db");
+        let kb = KbStore::open(&path).await.expect("failed to open db");
 
-        let loader = ConfigLoader::new(path.clone());
+        let loader = ConfigLoader::new(kb);
         let config = loader.load().await.expect("load failed");
         assert_eq!(config.cron_expression, "");
         assert!(!config.schedule_enabled);
@@ -190,9 +193,7 @@ mod tests {
         .await
         .expect("upsert source");
 
-        drop(kb);
-
-        let loader = ConfigLoader::new(path.clone());
+        let loader = ConfigLoader::new(kb);
         let config = loader.load().await.expect("load failed");
         assert_eq!(config.cron_expression, "0 0 */4 * * * *");
         assert!(config.schedule_enabled);
@@ -251,9 +252,7 @@ mod tests {
         .await
         .expect("upsert source");
 
-        drop(kb);
-
-        let loader = ConfigLoader::new(path.clone());
+        let loader = ConfigLoader::new(kb);
         let config = loader.load().await.expect("load failed");
         assert_eq!(config.sources.len(), 1);
         assert_eq!(config.sources[0].url, "https://example.com/sport-enabled");

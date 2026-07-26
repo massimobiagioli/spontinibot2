@@ -67,7 +67,12 @@ services:
     image: ghcr.io/ggml-org/llama.cpp:server
     volumes:
       - ./models/embed:/models
-    command: ["--model", "/models/nomic-embed-text-q4.gguf", "--embeddings"]
+    # --batch-size/--ubatch-size raised from the server's 512 default: real chunks
+    # from ingest-core's 512-*token* chunker come out larger by the embed model's
+    # own tokenizer (678/659 observed on real Wikipedia text), so the server was
+    # rejecting them with "input is too large to process" (TEST-INGESTION-0001.md
+    # Appendix C). 2048 leaves headroom above the observed worst case.
+    command: ["--model", "/models/nomic-embed-text-q4.gguf", "--embeddings", "--batch-size", "2048", "--ubatch-size", "2048"]
     restart: unless-stopped
 
   llama-generate:

@@ -55,20 +55,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         shutdown_signal.cancel();
     });
 
-    let loader = ConfigLoader::new(kb_path.clone());
+    // Each long-lived consumer gets its own open KbStore connection, held for the
+    // life of the process (never reopened on a timer — see ConfigLoader's doc
+    // comment for why that matters).
+    let config_kb = kb_store::KbStore::open(&kb_path)
+        .await
+        .map_err(|e| format!("failed to open kb store (config loader): {e}"))?;
+    let scheduler_kb = kb_store::KbStore::open(&kb_path)
+        .await
+        .map_err(|e| format!("failed to open kb store (scheduler): {e}"))?;
+    let pipeline_kb = kb_store::KbStore::open(&kb_path)
+        .await
+        .map_err(|e| format!("failed to open kb store (pipeline): {e}"))?;
+
+    let loader = ConfigLoader::new(config_kb);
     let watcher = ConfigWatcher::new(loader, config_poll_secs);
     let (config_rx, _watcher_handle) = watcher.run().await;
 
-    let kb = kb_store::KbStore::open(&kb_path)
-        .await
-        .map_err(|e| format!("failed to open kb store: {e}"))?;
-
-    let pipeline = create_pipeline(user_agent, embedder_base_url, chunk_size, chunk_overlap, kb)
-        .map_err(|e| format!("failed to create pipeline: {e}"))?;
+    let pipeline = create_pipeline(
+        user_agent,
+        embedder_base_url,
+        chunk_size,
+        chunk_overlap,
+        pipeline_kb,
+    )
+    .map_err(|e| format!("failed to create pipeline: {e}"))?;
 
     let runner = Arc::new(PipelineRunner::new(pipeline));
 
-    let scheduler = CronScheduler::new(run_poll_secs, std::path::PathBuf::from(heartbeat_path));
+    let scheduler = CronScheduler::new(
+        run_poll_secs,
+        std::path::PathBuf::from(heartbeat_path),
+        scheduler_kb,
+    );
     if let Err(e) = scheduler.run(config_rx, runner, shutdown).await {
         tracing::info!("ingest service stopped: {e}");
     } else {
