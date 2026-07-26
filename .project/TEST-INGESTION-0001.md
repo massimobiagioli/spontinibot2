@@ -77,7 +77,7 @@ The project used as inspiration for the questions (`/Users/massimobiagioli/githu
 
 Other biographical facts (Conservatorio della Pietà dei Turchini in Naples, career in Paris and Berlin, relationship with Napoleon and Friedrich Wilhelm III of Prussia) are **plausible and well-documented historically** (they also appear in the parent project's question set), but must be **reconfirmed against the sources actually ingested in Phase 2** before being treated as certain facts in the `system_prompt` — the persona's `system_prompt` is not a KB document, but it shapes the bot's tone and identity, so it must not introduce facts the KB can't later back up with a citation.
 
-- [ ] **1.1** Create the initial persona (note: `system_prompt`, `tone`, and `fallback_message` are runtime strings shown to citizens, so they stay in Italian — the surrounding curl command and comments stay in English):
+- [x] **1.1** Create the initial persona (note: `system_prompt`, `tone`, and `fallback_message` are runtime strings shown to citizens, so they stay in Italian — the surrounding curl command and comments stay in English):
   ```bash
   curl -sS -b /tmp/spontini-session.txt -X POST http://localhost:8080/admin/api/persona \
     -H 'Content-Type: application/json' \
@@ -90,8 +90,16 @@ Other biographical facts (Conservatorio della Pietà dei Turchini in Naples, car
     }'
   ```
   *(note: the apostrophes inside the Italian strings need correct bash escaping — validate the JSON with `jq` before sending, or build it in a file and use `-d @persona.json` to avoid quoting mistakes.)*
-- [ ] **1.2** Verify activation: `GET /admin/api/persona?name=spontini-bot` → version 1 must have `is_active=true`.
-- [ ] **1.3** Run one identity smoke-test question (see Category A, §7) to confirm the tone behaves as expected, **before** proceeding with bulk ingestion.
+
+  Ran 2026-07-26: built `persona.json` in the scratchpad (validated with `python3 -m json.tool`) and posted it with `-d @persona.json`. Response: `{"id":5,"version":1,"name":"spontini-bot", ... ,"is_active":true,"created_at":"2026-07-26 06:54:12","created_by":"operator"}`, HTTP 201.
+- [x] **1.2** Verify activation: `GET /admin/api/persona?name=spontini-bot` → version 1 must have `is_active=true`. Verified 2026-07-26: `GET /admin/api/persona?name=spontini-bot` (HTTP 200) returned exactly one row, `id:5, version:1, is_active:true`.
+- [x] **1.3** Run one identity smoke-test question (see Category A, §7) to confirm the tone behaves as expected, **before** proceeding with bulk ingestion.
+
+  Ran 2026-07-26: `POST /chat {"question":"Chi sei?"}` (public endpoint, no ingested storia/news/delibere content yet) → HTTP 200 in 22.65s:
+  ```json
+  {"answer":"Sei SpontiniBot, l'assistente digitale del Comune di Maiolati Spontini.","sources":[{"document_id":2,"source_ref":"Orari sportello anagrafe.md"},{"document_id":1,"source_ref":"orari.txt"}],"fell_back":false}
+  ```
+  Tone confirmed as expected (first-person, cordial, concise, matches the persona's `system_prompt`). **Real anomaly observed and recorded, not fixed in this session (out of Phase 1 scope)**: `fell_back:false` with two `sources` cited — but those sources are exactly the two stray leftover `manual` documents flagged as a risk in §0.5 (office-hours content, `id:1`/`id:2`), not anything that grounds the identity claim actually made. This is a real, reproducible instance of the "irrelevant citation" failure mode the scoring rubric penalizes (§9, "Citation correctness") and the exact risk anticipated in Appendix C ("Retrieval threshold known to be potentially permissive", `RAG_MIN_SCORE`). Should be addressed — via the §10.2 `RAG_MIN_SCORE` lever and/or clearing the stray documents — before Phase 3.4's smoke test and before Wave 1 scoring, or it will depress Category A's citation-correctness score from question one.
 
 ## 5. Phase 2 — Ingestion Preparation
 
