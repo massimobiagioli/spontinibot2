@@ -267,11 +267,33 @@ After completing all steps, report:
    - Systemic issues requiring code changes
    - Recommendations for next steps
 
+## Step 9 — Commit and Push
+
+After completing Step 8, commit all files created during this session and push to remote:
+
+1. **Stage the session files**:
+   ```bash
+   git add \
+     .project/test/session-YYYYMMDD-HHmmss.md \
+     .project/test-reports/session-YYYYMMDD-HHmmss-rep.md \
+     .project/test-reports/session-YYYYMMDD-HHmmss-rep-fix.md \
+     .project/test-reports/feedback/session-YYYYMMDD-HHmmss-feedback.md
+   ```
+
+2. **Commit with a descriptive message**:
+   ```bash
+   git commit -m "test: add session YYYYMMDD-HHmmss results and feedback synthesis"
+   ```
+
+3. **Push to remote**:
+   ```bash
+   git push
+   ```
+
 ## Forbidden
 
 - Running fewer than 100 questions (unless categories are empty due to no ingested content)
 - Inventing questions, answers, or feedback values
 - Skipping the training step even if scores are high
 - Creating reports without real data from actual bot invocations
-- Pushing to remote — this command commits locally only
 - Continuing after a failure without reporting it
