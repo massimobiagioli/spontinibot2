@@ -8,6 +8,30 @@ export class AdminApiError extends Error {
   }
 }
 
+/**
+ * Extracts a readable message from an error response body. The backend's own
+ * errors are `{error: string}`, but a gateway/proxy in front of it (nginx,
+ * a load balancer) can return a differently-shaped `{error: {message, ...}}`
+ * on failures the backend never even saw — without this, that nested object
+ * was passed straight to `AdminApiError`, which coerced it to the literal
+ * string "[object Object]" via `Error`'s message-to-string conversion.
+ */
+function extractErrorMessage(body: unknown, fallback: string): string {
+  if (body && typeof body === 'object' && 'error' in body) {
+    const err = (body as { error?: unknown }).error;
+    if (typeof err === 'string') {
+      return err;
+    }
+    if (err && typeof err === 'object' && 'message' in err) {
+      const nestedMessage = (err as { message?: unknown }).message;
+      if (typeof nestedMessage === 'string') {
+        return nestedMessage;
+      }
+    }
+  }
+  return fallback;
+}
+
 export interface IngestScheduleResponse {
   cron_expr: string;
   enabled: boolean;
@@ -172,15 +196,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as {
-      error?: string;
-    };
+    const body: unknown = await response.json().catch(() => ({}));
     if (response.status === 401 && path !== LOGIN_PATH) {
       unauthorizedHandler?.();
     }
     throw new AdminApiError(
       response.status,
-      body.error ?? `request to ${path} failed with status ${response.status}`,
+      extractErrorMessage(
+        body,
+        `request to ${path} failed with status ${response.status}`,
+      ),
     );
   }
 

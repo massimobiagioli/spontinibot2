@@ -609,6 +609,27 @@ describe('adminApi', () => {
     });
   });
 
+  it("extracts a readable message when the error body is a nested object (e.g. a gateway/proxy error, not the backend's own {error: string} shape)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          error: {
+            message: 'File Not Found',
+            type: 'not_found_error',
+            code: 404,
+          },
+        },
+        404,
+      ),
+    );
+
+    const error = await getIngestConfig().catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AdminApiError);
+    expect((error as AdminApiError).status).toBe(404);
+    expect((error as AdminApiError).message).toBe('File Not Found');
+  });
+
   it('login POSTs the username and password and sends credentials', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ status: 'logged_in' }));
 
