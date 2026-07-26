@@ -17,6 +17,7 @@ This directory holds the ADRs for the Spontini Bot 2 project. Each ADR records a
 | [0011](./0011-session-cookie-operator-authentication-with-best-effort-audit-log.md) | Session-Cookie Operator Authentication with Best-Effort Audit Log | accepted | 2026-07-25 |
 | [0012](./0012-categorical-refusal-rules-and-standard-fallback-text.md) | Categorical Refusal Rules and Standard Fallback Text | accepted | 2026-07-26 |
 | [0013](./0013-generation-model-1-5b-and-reduced-rag-top-k-for-latency.md) | Generation Model 1.5B and Reduced RAG_TOP_K for Latency | accepted | 2026-07-26 |
+| [0014](./0014-instant-identity-imprinting-answers-bypass-rag.md) | Instant Identity/Imprinting Answers Bypass RAG Retrieval and Generation | proposed | 2026-07-26 |
 
 ## How to add a new ADR
 

@@ -4,7 +4,7 @@ import { onMounted, ref } from 'vue';
 import { DsCallout } from '../components/ds';
 import RunTrigger from '../components/ingest/RunTrigger.vue';
 import ScheduleEditor from '../components/ingest/ScheduleEditor.vue';
-import SectionList from '../components/ingest/SectionList.vue';
+import SectionsGrid from '../components/ingest/SectionsGrid.vue';
 import {
   AdminApiError,
   getIngestConfig,
@@ -54,6 +54,6 @@ function onScheduleSaved(schedule: IngestScheduleResponse): void {
   <template v-else-if="config">
     <RunTrigger />
     <ScheduleEditor :schedule="config.schedule" @saved="onScheduleSaved" />
-    <SectionList :sections="config.sections" @changed="loadConfig" />
+    <SectionsGrid :sections="config.sections" @changed="loadConfig" />
   </template>
 </template>
