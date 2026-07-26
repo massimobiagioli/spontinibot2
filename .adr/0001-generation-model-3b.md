@@ -1,6 +1,6 @@
 # ADR-0001: Generation model — Qwen2.5-3B-Instruct instead of 7B
 
-- **Status**: Accepted
+- **Status**: Superseded by [ADR-0013](./0013-generation-model-1-5b-and-reduced-rag-top-k-for-latency.md)
 - **Date**: 2026-07-09
 - **Decider**: Massimo Biagioli (with Sisyphus analysis)
 
