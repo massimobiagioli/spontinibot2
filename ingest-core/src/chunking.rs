@@ -316,6 +316,22 @@ mod tests {
     }
 
     #[test]
+    fn should_clamp_to_string_length_when_index_out_of_bounds() {
+        assert_eq!(floor_char_boundary("hello", 100), 5);
+        assert_eq!(floor_char_boundary("hello", 5), 5);
+    }
+
+    #[test]
+    fn should_walk_back_to_nearest_char_boundary_when_index_is_mid_character() {
+        let s = "a“b";
+        // '“' is a 3-byte UTF-8 sequence starting at byte 1; byte 2 and 3
+        // are inside it and must floor back to 1, the char boundary.
+        assert_eq!(floor_char_boundary(s, 2), 1);
+        assert_eq!(floor_char_boundary(s, 3), 1);
+        assert_eq!(floor_char_boundary(s, 4), 4);
+    }
+
+    #[test]
     fn should_not_panic_when_overlap_boundary_falls_inside_multi_byte_char() {
         let chunker = Chunker::new(50, 10).unwrap();
         // Curly quotes ("“", "”") are 3-byte UTF-8 sequences; placed so the

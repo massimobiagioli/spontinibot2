@@ -1,8 +1,10 @@
 # Plan 0028: Real content population (Gaspare persona, storia/news/delibere/Giunta ingestion) + kb.db snapshot Makefile targets
 
-- **Status**: review
+- **Status**: closed
 - **Approved**: 2026-07-26 by Claude Code (autonomous /next-steps run)
 - **Implemented**: 2026-07-26 by Claude Code (autonomous /next-steps run)
+- **Closed**: 2026-07-26 by Claude Code (autonomous /next-steps run)
+- **Review verdict**: changes-requested (resolved)
 - **Branch**: feat/real-content-population-gaspare-persona-storia-news-delibere-giunta-ingestion-kb-db-snapshot-makefile-targets
 - **Feature ID**: 0028
 - **Created**: 2026-07-26
