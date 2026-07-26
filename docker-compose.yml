@@ -6,6 +6,21 @@ services:
       target: build
     ports:
       - "8080:8080"
+    environment:
+      # ADR 0013: lowered from default 5 to shrink the RAG prompt (dominant
+      # latency cost, see llama-generate's comment above) while real testing
+      # showed 2 retrieved chunks still gave correct, complete answers.
+      - RAG_TOP_K=2
+      # TEST-INGESTION-0001 Wave 0 found every question (including
+      # deliberately out-of-KB ones) retrieved chunks and never fell back
+      # at the 0.35 default. Real testing across 0.35-0.9 found NO value
+      # that cleanly separates relevant from irrelevant content for this
+      # KB/embedding model — legitimate and out-of-KB questions' best-chunk
+      # scores overlap and aren't even consistently ordered. 0.6 is a modest,
+      # honest improvement, not a fix — see Appendix C for the full data and
+      # why this needs a different technique (re-ranking / hybrid search),
+      # not further threshold tuning.
+      - RAG_MIN_SCORE=0.6
     volumes:
       - kb-data:/data
     depends_on:
@@ -79,7 +94,11 @@ services:
     image: ghcr.io/ggml-org/llama.cpp:server
     volumes:
       - ./models/generate:/models
-    command: ["--model", "/models/qwen2.5-3b-instruct-q4_k_m.gguf"]
+    # 1.5B (ADR 0013, supersedes ADR 0001's 3B choice): real benchmarking on this
+    # hardware showed prompt-processing time dominates latency and is CPU-bound,
+    # not fixable by threading — the 3B->1.5B swap plus RAG_TOP_K=2 (backend env
+    # below) is the real, measured improvement path (~95s -> ~30s average).
+    command: ["--model", "/models/qwen2.5-1.5b-instruct-q4_k_m.gguf", "--batch-size", "2048", "--ubatch-size", "2048"]
     restart: unless-stopped
 
 volumes:

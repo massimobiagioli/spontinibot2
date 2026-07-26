@@ -8,8 +8,8 @@ GENERATE_DIR="${REPO_ROOT}/models/generate"
 EMBED_FILE="${EMBED_DIR}/nomic-embed-text-q4.gguf"
 EMBED_URL="https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.Q4_0.gguf"
 
-GENERATE_FILE="${GENERATE_DIR}/qwen2.5-3b-instruct-q4_k_m.gguf"
-GENERATE_URL="https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf"
+GENERATE_FILE="${GENERATE_DIR}/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+GENERATE_URL="https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
 
 download() {
     local label="$1"
@@ -28,5 +28,5 @@ download() {
 
 echo "Provisioning GGUF models..."
 download "nomic-embed-text (Q4_0, ~74 MB)" "${EMBED_FILE}" "${EMBED_URL}"
-download "qwen2.5-3b-instruct (Q4_K_M, ~2.1 GB)" "${GENERATE_FILE}" "${GENERATE_URL}"
+download "qwen2.5-1.5b-instruct (Q4_K_M, ~1.1 GB)" "${GENERATE_FILE}" "${GENERATE_URL}"
 echo "Done."
