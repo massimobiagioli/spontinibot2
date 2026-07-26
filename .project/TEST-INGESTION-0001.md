@@ -46,17 +46,25 @@ The project used as inspiration for the questions (`/Users/massimobiagioli/githu
 
 ## 3. Phase 0 — Environment Prerequisites
 
-- [ ] **0.1** Stack up: `make up` (all 6 containers `healthy`, verify with `docker compose ps`).
-- [ ] **0.2** Models provisioned: `make provision-models` (nomic-embed-text + Qwen2.5-3B-Instruct Q4_K_M downloaded into `./models/`).
-- [ ] **0.3** Operator credential set: `make set-operator-credential USERNAME=operator` (interactive password prompt — **do not put the password in plain text in this file or in logged commands**).
-- [ ] **0.4** Login and save the session for later commands:
+- [x] **0.1** Stack up: `make up` (all 6 containers `healthy`, verify with `docker compose ps`). Verified 2026-07-26: all 6 containers up (`backend`, `admin-ui`, `frontend`, `llama-embed`, `llama-generate` reporting `(healthy)`; `ingest` has no container-level healthcheck defined in `docker-compose.yml` — confirmed `running`, consistent with the known gap noted in Appendix C).
+- [x] **0.2** Models provisioned: `make provision-models` (nomic-embed-text + Qwen2.5-3B-Instruct Q4_K_M downloaded into `./models/`). Ran 2026-07-26 — both files already present (`models/embed/nomic-embed-text-q4.gguf`, `models/generate/qwen2.5-3b-instruct-q4_k_m.gguf`), script reported "already present" for both.
+- [x] **0.3** Operator credential set: `make set-operator-credential USERNAME=operator` (interactive password prompt — **do not put the password in plain text in this file or in logged commands**). Ran 2026-07-26 via `docker compose run --rm -i backend cargo run --bin set-operator-credential -- --username operator --output /data/operator-credential.json` (password generated with `openssl rand -base64 24`, piped via stdin, kept only in a scratchpad file outside the repo, never logged). This overwrote a pre-existing `operator-credential.json` from an earlier, unrelated session (see 0.5) — its password was unknown, so a fresh credential was required to authenticate.
+- [x] **0.4** Login and save the session for later commands:
   ```bash
   curl -sS -c /tmp/spontini-session.txt -X POST http://localhost:8080/admin/api/auth/login \
     -H 'Content-Type: application/json' \
     -d '{"username":"operator","password":"<password chosen in step 0.3>"}'
   # every subsequent admin call: curl -sS -b /tmp/spontini-session.txt ...
   ```
-- [ ] **0.5** Verify `kb.db` is empty or in a known state before starting (avoid mixing prior test data with this campaign). If it isn't empty, record the starting state here.
+  Verified 2026-07-26: login returned `{"status":"logged_in"}` (HTTP 200), cookie saved to `/tmp/spontini-session.txt`, and an authenticated call (`GET /admin/api/persona?name=gaspare`) succeeded (HTTP 200).
+- [x] **0.5** Verify `kb.db` is empty or in a known state before starting (avoid mixing prior test data with this campaign). If it isn't empty, record the starting state here.
+
+  **Starting state recorded 2026-07-26** (`kb.db`, via `docker run --rm -v spontini-bot-2_kb-data:/data alpine sh -c 'sqlite3 ...'`) — **not empty**, contains leftover data from unrelated prior work, none of it belonging to this campaign:
+  - `documents`: 2 rows, `source='manual'` — office-hours content ("Lo sportello anagrafe è aperto dal..."), unrelated to storia/news/delibere.
+  - `persona`: 4 rows — id 1 `spontini` (inactive), id 2/3 `gaspare-e2e` (inactive, from the BDD e2e test suite), id 4 `gaspare` (**active**, `system_prompt: "Sei Gaspare Spontini, compositore."`, created 2026-07-25 11:35:59). None of these is the `spontini-bot` persona Phase 1 will create.
+  - `ingest_section`: 0 rows. `ingest_source`: 0 rows. `training_session`: 0 rows. — clean for this campaign's purposes.
+  - `audit_log`: 1 row (`create_persona` for persona id 4, by `operator`, 2026-07-25 11:35:59).
+  - **Risk flagged for Phase 2/3**: the 2 stray `manual` documents remain retrievable by `RagEngine` and were not cleared (out of this session's scope — Phase 0 only records state, it doesn't mandate cleanup). Whoever runs Phase 2/3 should decide whether to delete them first, since they could surface as an unexpected citation on an unrelated question (relevant to Category F/G scoring, §9).
 
 ## 4. Phase 1 — Bot Imprinting (persona derived from Gaspare Spontini)
 
