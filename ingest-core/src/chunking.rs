@@ -84,7 +84,8 @@ impl Chunker {
 
                 let overlap_text = if overlap_chars > 0 {
                     let joined = current_parts.join("\n\n");
-                    let start = joined.len().saturating_sub(overlap_chars);
+                    let start =
+                        floor_char_boundary(&joined, joined.len().saturating_sub(overlap_chars));
                     joined[start..].to_string()
                 } else {
                     String::new()
@@ -119,6 +120,21 @@ impl Chunker {
     }
 }
 
+/// Largest byte index <= `index` that lies on a UTF-8 char boundary of `s`.
+/// Real-world source text (e.g. PDF-extracted curly quotes "“"/"”") is
+/// multi-byte, so raw byte-offset slicing can otherwise land mid-character
+/// and panic (ingest-core chunking.rs, found live ingesting a real determina).
+fn floor_char_boundary(s: &str, index: usize) -> usize {
+    if index >= s.len() {
+        return s.len();
+    }
+    let mut i = index;
+    while i > 0 && !s.is_char_boundary(i) {
+        i -= 1;
+    }
+    i
+}
+
 pub fn naive_token_count(text: &str) -> usize {
     if text.is_empty() {
         return 0;
@@ -140,8 +156,9 @@ fn split_long_paragraph(
         let end = if start + chunk_chars >= paragraph.len() {
             paragraph.len()
         } else {
-            let slice = &paragraph[start..start + chunk_chars];
-            let last_space = slice.rfind(' ').unwrap_or(chunk_chars);
+            let boundary_end = floor_char_boundary(paragraph, start + chunk_chars);
+            let slice = &paragraph[start..boundary_end];
+            let last_space = slice.rfind(' ').unwrap_or(slice.len());
             start + last_space
         };
 
@@ -296,6 +313,51 @@ mod tests {
         for chunk in &chunks {
             assert!(!chunk.content.is_empty(), "no empty chunks");
         }
+    }
+
+    #[test]
+    fn should_clamp_to_string_length_when_index_out_of_bounds() {
+        assert_eq!(floor_char_boundary("hello", 100), 5);
+        assert_eq!(floor_char_boundary("hello", 5), 5);
+    }
+
+    #[test]
+    fn should_walk_back_to_nearest_char_boundary_when_index_is_mid_character() {
+        let s = "a“b";
+        // '“' is a 3-byte UTF-8 sequence starting at byte 1; byte 2 and 3
+        // are inside it and must floor back to 1, the char boundary.
+        assert_eq!(floor_char_boundary(s, 2), 1);
+        assert_eq!(floor_char_boundary(s, 3), 1);
+        assert_eq!(floor_char_boundary(s, 4), 4);
+    }
+
+    #[test]
+    fn should_not_panic_when_overlap_boundary_falls_inside_multi_byte_char() {
+        let chunker = Chunker::new(50, 10).unwrap();
+        // Curly quotes ("“", "”") are 3-byte UTF-8 sequences; placed so the
+        // byte-offset overlap window lands mid-character (real PDF text
+        // extracted from a determina triggered this live, ingest-core
+        // chunking.rs panic: "start byte index is not a char boundary").
+        let text = (0..10)
+            .map(|i| format!("Paragrafo numero {} con testo “citato” di prova.", i))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        let chunks = chunker.chunk(&text, "delibere", "https://example.com");
+        assert!(
+            chunks.is_ok(),
+            "chunking must not panic on multi-byte UTF-8 overlap boundaries"
+        );
+    }
+
+    #[test]
+    fn should_not_panic_when_long_paragraph_split_boundary_falls_inside_multi_byte_char() {
+        let chunker = Chunker::new(50, 10).unwrap();
+        let long_para = "parola “citata” ".repeat(200);
+        let chunks = chunker.chunk(&long_para, "delibere", "https://example.com");
+        assert!(
+            chunks.is_ok(),
+            "long-paragraph split must not panic on multi-byte UTF-8 boundaries"
+        );
     }
 
     #[test]
