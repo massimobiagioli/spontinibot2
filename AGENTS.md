@@ -134,6 +134,6 @@ Architecture decisions live in [.adr/](./.adr/), indexed in [.adr/README.md](./.
 2. **English only.** Every artifact you produce is in English, except runtime Italian strings for citizens.
 3. **Index everything.** When you add a Markdown file, a prompt, a skill, or an agent, update this file in the same change.
 4. **Test what you ship.** No code lands without tests. Coverage gates are enforced.
-5. **Cite the source.** Every Spontini answer must trace to a document. No hallucination.
+5. **Cite the source.** Every Spontini answer must trace to a document. No hallucination — including the categorical refusal rules (no predictions, no weather, no personal/sensitive data) and the standard fallback text in [Constitution §5](./docs/CONSTITUTION.md#5-knowledge-base-rule) / [ADR 0012](./.adr/0012-categorical-refusal-rules-and-standard-fallback-text.md).
 6. **Keep it simple.** When two approaches satisfy the Constitution, choose the simpler one.
 7. **Leave the campsite cleaner.** Every touch improves the file you worked on — names, structure, tests. But never refactor beyond the task at hand.
