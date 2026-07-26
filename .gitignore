@@ -95,3 +95,7 @@ out/
 
 # -- OhMyOpencode / Sisyphus artifacts (local LLM stack) ─────────────
 .sisyphus/
+
+# TEST
+.project/test-ingestion-results
+.project/test-reports
