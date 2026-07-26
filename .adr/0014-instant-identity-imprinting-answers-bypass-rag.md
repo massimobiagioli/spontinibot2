@@ -1,6 +1,6 @@
 # ADR 0014: Instant Identity/Imprinting Answers Bypass RAG Retrieval and Generation
 
-- **Status**: proposed
+- **Status**: accepted
 - **Date**: 2026-07-26
 - **Deciders**: massimobiagioli, Claude Code
 - **Related**: none

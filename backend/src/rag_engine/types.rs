@@ -60,6 +60,7 @@ pub struct PromptParts {
 /// `RagError::NoActivePersona` is returned before a snapshot is created.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PersonaSnapshot {
+    pub name: String,
     pub system_prompt: String,
     pub fallback_message: Option<String>,
 }
@@ -202,9 +203,11 @@ mod tests {
     #[test]
     fn should_construct_persona_snapshot() {
         let snapshot = PersonaSnapshot {
+            name: "gaspare".into(),
             system_prompt: "Sei utile.".into(),
             fallback_message: Some("Non lo so.".into()),
         };
+        assert_eq!(snapshot.name, "gaspare");
         assert_eq!(snapshot.system_prompt, "Sei utile.");
         assert_eq!(snapshot.fallback_message.as_deref(), Some("Non lo so."));
     }
