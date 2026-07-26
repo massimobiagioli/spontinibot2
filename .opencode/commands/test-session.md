@@ -55,11 +55,31 @@ If a step's success condition isn't met, or a command errors, or the plan's own 
 - Do not check off the failed item or any item after it, even if they look independent — leave the plan's checkbox state exactly reflecting reality.
 - Report the failure with enough detail to act on it (which item, what was expected per the plan, what actually happened, any diagnostic the plan itself suggests — e.g. `TEST-INGESTION.md`'s tuning-lever table).
 
-## Step 5 — Check off progress and commit
+## Step 5 — Write the session report file
+
+Before committing, write the durable, file-based record of this session — separate from Step 7's chat summary, which is ephemeral to this conversation.
+
+Create `.project/test-reports/` if it doesn't exist. The report file is `.project/test-reports/<FILE>-rep.md` (same bare `<FILE>` resolved in Step 0/1, suffixed `-rep.md`) — one persistent, accumulating file per plan, not per session.
+
+- If the file doesn't exist yet, create it with a `# <FILE> — Test Session Report` heading.
+- Append a new dated section for this session: `## Session <date> — <phase/wave name>`, covering the same ground Step 7 reports to the user — scope, items completed vs. failed/skipped and why, real values/logs actually recorded (their real content, not a restatement of placeholder text), and what the next session would pick up.
+- **If this session asked the bot any questions** (a smoke test, a wave, a training-session batch — anything that called `/chat` or `POST .../training/sessions/:id/messages`), include a per-question table with exactly these columns, one row per question actually asked:
+
+  | Domanda | Risposta attesa | Risposta bot | Tempo di risposta | Feedback |
+  |---|---|---|---|---|
+
+  - **Domanda**: the exact text sent.
+  - **Risposta attesa**: the expected answer or behavior, grounded in what the plan itself already establishes — a verified anchor fact (e.g. Appendix B), an explicit success criterion the item states (e.g. "must answer 1851 and cite the storia source"), or a category-level rule (e.g. Category F's "exactly the fallback_message, zero citations, fell_back=true"). For open questions with no single correct string (e.g. identity/tone questions), state the expected *behavior* instead of inventing a canonical answer. Never fabricate a fact-shaped expected answer that isn't actually grounded this way.
+  - **Risposta bot**: the real returned `answer` text, verbatim.
+  - **Tempo di risposta**: the real measured latency (same number logged in the CSV, if this session also produces one).
+  - **Feedback**: your own honest assessment of this specific exchange — free text, using terms like *imprecisa*, *troppo lenta*, *incompleta*, *troppo prolissa*, *allucinazione importante* where they actually apply, or noting it's correct/on-target when it is. Base this only on what you actually observed (the real answer vs. the real KB content), never a guess.
+- Same binding principle as everywhere else in this command: never invent content to fill this file out. A session that found nothing beyond "still blocked" gets a report section that says exactly that.
+
+## Step 6 — Check off progress and commit
 
 For every item that genuinely completed successfully, flip `- [ ]` to `- [x]` in the plan file (and only those — leave everything outside this session's scope untouched, including later phases/waves).
 
-Stage the plan file plus any artifacts created in Step 3.5, and commit locally:
+Stage the plan file, any artifacts created in Step 3.5, and the report file from Step 5, and commit locally:
 
 ```
 test(<FILE>): session — <phase/wave name> <complete|partial>
@@ -67,7 +87,7 @@ test(<FILE>): session — <phase/wave name> <complete|partial>
 
 Do not push. This command only commits locally — pushing a shared plan/log file is a separate, explicit decision for the user to make.
 
-## Step 6 — Report
+## Step 7 — Report
 
 Report, concisely:
 
