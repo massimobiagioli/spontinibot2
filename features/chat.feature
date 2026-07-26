@@ -17,3 +17,8 @@ Feature: Answering citizen questions from the knowledge base
     And Spontini does not cite any document
     And Spontini does not invent any detail
     And the final prompt keeps the persona, retrieved context, and question as three separate parts
+
+  Scenario: A citizen asks who Spontini is
+    Given an active persona is configured with a system prompt and a fallback message
+    When the citizen asks "Chi sei?"
+    Then Spontini answers instantly from its own persona, without retrieval or generation

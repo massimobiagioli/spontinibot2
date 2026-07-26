@@ -175,6 +175,7 @@ mod tests {
 
     fn sample_persona() -> PersonaSnapshot {
         PersonaSnapshot {
+            name: "gaspare".into(),
             system_prompt: "Sei Gaspare Spontini.".into(),
             fallback_message: None,
         }

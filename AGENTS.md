@@ -64,6 +64,10 @@ All code and design work must comply with [docs/PRINCIPLES.md](./docs/PRINCIPLES
 
 **Every accepted Architecture Decision Record (ADR) in `.adr/` is binding and permanent.** No change — code, configuration, documentation, or design — may contradict a decision recorded in an accepted ADR. If a future need conflicts with an existing ADR, the correct path is: write a new ADR that explicitly supersedes the old one, then update the old ADR's status to `superseded`. Never silently overwrite or ignore an ADR.
 
+### 3.6 Identity/Imprinting Questions Never Touch the Database or the Generation Model
+
+**A question about the bot's own identity/imprinting (e.g. "Chi sei?", "Come ti chiami?") must be answered directly from the active persona's own configuration (`system_prompt`), never via `EmbeddingPort`/`RetrievalPort`/`GenerationPort`.** The answer already exists in memory; a full RAG round trip (embed → retrieve → generate, ~20-30s per [ADR 0013](./.adr/0013-generation-model-1-5b-and-reduced-rag-top-k-for-latency.md)) is both unnecessary and too slow to count as the "ultra-immediate" response this class of question requires. See [ADR 0014](./.adr/0014-instant-identity-imprinting-answers-bypass-rag.md) for the full design and rationale — this is a narrow, closed-set literal-match short-circuit, not a general-purpose question classifier (which ADR 0012 explicitly rejected for the harder categorical-refusal cases).
+
 ---
 
 ## 4. Root-Level and Other Documentation
@@ -106,6 +110,8 @@ The following custom commands are registered for this repository. They live unde
 | fix-review | [`.opencode/commands/fix-review.md`](./.opencode/commands/fix-review.md) | Implement the fixes required by a review. Transitions status to `closed`. | After `/review-plan` returns `changes-requested`. |
 | create-adr | [`.opencode/commands/create-adr.md`](./.opencode/commands/create-adr.md) | Create an Architecture Decision Record at `.adr/<ID>.md`, update the ADR registry, and ensure the `AGENTS.md` pointer exists. | When recording a binding architectural decision. |
 | next-steps | [`.opencode/commands/next-steps.md`](./.opencode/commands/next-steps.md) | Run the full plan lifecycle (create → approve → implement → review → fix → ADR) for the next N unchecked roadmap features, merging each to main. Default: 1 feature. Pass an integer N or `all`. | When implementing one or more roadmap features end-to-end without manual orchestration. |
+| new-test-session | [`.opencode/commands/new-test-session.md`](./.opencode/commands/new-test-session.md) | Run a full 100-question test session: generate mixed questions, invoke the bot, create reports, run training based on feedback, re-test, and synthesize feedback. | When running a comprehensive test session against the live bot. |
+| analyze-feedback | [`.opencode/commands/analyze-feedback.md`](./.opencode/commands/analyze-feedback.md) | Analyze all unresolved feedback from test sessions and run a training session to address them. | When processing feedback from test sessions to improve bot performance. |
 
 ### ADR Registry
 

@@ -599,6 +599,7 @@ fn given_no_document(_world: &mut BotWorld, _topic: String) {}
 #[given("an active persona is configured with a system prompt and a fallback message")]
 fn given_persona(world: &mut BotWorld) {
     world.persona = Some(PersonaSnapshot {
+        name: "gaspare".into(),
         system_prompt: "Sei Gaspare Spontini, sindaco di Maiolati Spontini.".into(),
         fallback_message: Some(
             "Non ho trovato informazioni nei documenti comunali su questo argomento.".into(),
@@ -606,7 +607,7 @@ fn given_persona(world: &mut BotWorld) {
     });
 }
 
-#[when(regex = r"^the citizen asks (.+)$")]
+#[when(regex = r#"^the citizen asks "(.+)"$"#)]
 async fn when_citizen_asks(world: &mut BotWorld, question: String) {
     let counter = Arc::new(RecordingGeneration {
         call_count: AtomicUsize::new(0),
@@ -769,6 +770,30 @@ async fn then_no_hallucination(world: &mut BotWorld) {
         counter.call_count.load(Ordering::SeqCst),
         0,
         "Generation should not be called in the honest-unknown path"
+    );
+}
+
+#[then("Spontini answers instantly from its own persona, without retrieval or generation")]
+async fn then_instant_identity_answer(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(200));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["fell_back"], false);
+    let sources = body["sources"].as_array().unwrap();
+    assert!(sources.is_empty(), "identity answers cite no KB document");
+
+    let persona = world.persona.as_ref().expect("persona must be configured");
+    assert_eq!(
+        body["answer"].as_str().unwrap(),
+        persona.system_prompt,
+        "identity answer must be the persona's own system_prompt verbatim"
+    );
+
+    let counter = world.generation.as_ref().unwrap();
+    assert_eq!(
+        counter.call_count.load(Ordering::SeqCst),
+        0,
+        "generation must not be called for an identity question (ADR 0014)"
     );
 }
 

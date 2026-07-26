@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use crate::rag_engine::identity::is_identity_question;
 use crate::rag_engine::ports::{EmbeddingPort, GenerationPort, PersonaPort, RetrievalPort};
 use crate::rag_engine::prompt;
 use crate::rag_engine::types::{Answer, CitedSource, RagError};
@@ -38,6 +39,18 @@ impl RagEngine {
             .active_persona()
             .await?
             .ok_or(RagError::NoActivePersona)?;
+
+        // ADR 0014: identity/imprinting questions ("Chi sei?") are answered
+        // directly from the persona's own configuration — never via
+        // embedding/retrieval/generation. The answer already exists; a full
+        // RAG round trip cannot be "ultra-immediate" under any tuning.
+        if is_identity_question(question, &persona.name) {
+            return Ok(Answer {
+                text: persona.system_prompt,
+                sources: vec![],
+                fell_back: false,
+            });
+        }
 
         let qe = self.embedding.embed(question).await?;
         let chunks = self
@@ -88,6 +101,35 @@ mod tests {
     impl EmbeddingPort for TestEmbedding {
         async fn embed(&self, _text: &str) -> Result<Vec<f32>, RagError> {
             Ok(vec![0.1; 768])
+        }
+    }
+
+    struct CountingEmbedding {
+        call_count: AtomicUsize,
+    }
+
+    #[async_trait]
+    impl EmbeddingPort for CountingEmbedding {
+        async fn embed(&self, _text: &str) -> Result<Vec<f32>, RagError> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            Ok(vec![0.1; 768])
+        }
+    }
+
+    struct CountingRetrieval {
+        call_count: AtomicUsize,
+    }
+
+    #[async_trait]
+    impl RetrievalPort for CountingRetrieval {
+        async fn retrieve(
+            &self,
+            _qe: &[f32],
+            _top_k: i64,
+            _min_score: f64,
+        ) -> Result<Vec<RetrievedChunk>, RagError> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            Ok(vec![])
         }
     }
 
@@ -147,6 +189,7 @@ mod tests {
 
     fn sample_persona() -> crate::rag_engine::types::PersonaSnapshot {
         crate::rag_engine::types::PersonaSnapshot {
+            name: "gaspare".into(),
             system_prompt: "Sei Gaspare Spontini.".into(),
             fallback_message: None,
         }
@@ -263,5 +306,66 @@ mod tests {
 
         let _ = engine.answer("test").await.unwrap();
         assert_eq!(gen_counter.call_count.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn should_answer_identity_question_directly_from_persona_without_calling_any_port() {
+        let embed_counter = Arc::new(CountingEmbedding {
+            call_count: AtomicUsize::new(0),
+        });
+        let retrieval_counter = Arc::new(CountingRetrieval {
+            call_count: AtomicUsize::new(0),
+        });
+        let gen_counter = Arc::new(TestGeneration {
+            call_count: AtomicUsize::new(0),
+        });
+
+        let engine = RagEngine::new(
+            embed_counter.clone(),
+            retrieval_counter.clone(),
+            Arc::new(TestPersona {
+                snapshot: Some(sample_persona()),
+            }),
+            gen_counter.clone(),
+            5,
+            0.35,
+        );
+
+        let answer = engine.answer("Chi sei?").await.unwrap();
+
+        assert_eq!(answer.text, "Sei Gaspare Spontini.");
+        assert!(answer.sources.is_empty());
+        assert!(!answer.fell_back);
+        assert_eq!(embed_counter.call_count.load(Ordering::SeqCst), 0);
+        assert_eq!(retrieval_counter.call_count.load(Ordering::SeqCst), 0);
+        assert_eq!(gen_counter.call_count.load(Ordering::SeqCst), 0);
+    }
+
+    #[tokio::test]
+    async fn should_answer_who_is_persona_name_question_directly_from_persona() {
+        // The question is derived from the mock persona's own `name` field
+        // (a real, operator-editable imprinting value) rather than a
+        // separately hardcoded literal, so this test can't silently drift
+        // out of sync if `sample_persona()` is ever renamed.
+        let persona = sample_persona();
+        let question = format!("Chi è {}?", persona.name);
+
+        let engine = RagEngine::new(
+            Arc::new(TestEmbedding),
+            Arc::new(TestRetrieval { chunks: vec![] }),
+            Arc::new(TestPersona {
+                snapshot: Some(persona.clone()),
+            }),
+            Arc::new(TestGeneration {
+                call_count: AtomicUsize::new(0),
+            }),
+            5,
+            0.35,
+        );
+
+        let answer = engine.answer(&question).await.unwrap();
+
+        assert_eq!(answer.text, persona.system_prompt);
+        assert!(!answer.fell_back);
     }
 }

@@ -7,6 +7,7 @@ import HomeView from '../views/HomeView.vue';
 import ImprintingView from '../views/ImprintingView.vue';
 import IngestView from '../views/IngestView.vue';
 import LoginView from '../views/LoginView.vue';
+import SectionDetailView from '../views/SectionDetailView.vue';
 import TrainingSessionView from '../views/TrainingSessionView.vue';
 import TrainingSessionsView from '../views/TrainingSessionsView.vue';
 
@@ -15,6 +16,11 @@ const routes: RouteRecordRaw[] = [
   { path: '/login', name: 'login', component: LoginView },
   { path: '/dev', name: 'dev-catalog', component: DevCatalog },
   { path: '/ingest', name: 'ingest', component: IngestView },
+  {
+    path: '/ingest/sections/:id',
+    name: 'ingest-section',
+    component: SectionDetailView,
+  },
   { path: '/imprinting', name: 'imprinting', component: ImprintingView },
   {
     path: '/training',

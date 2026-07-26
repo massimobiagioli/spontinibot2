@@ -38,6 +38,7 @@ impl PersonaPort for PersonaAdapter {
             .map_err(|e| RagError::Persona(e.to_string()))?;
 
         let snapshot = persona.map(|p| PersonaSnapshot {
+            name: p.name,
             system_prompt: p.system_prompt,
             fallback_message: p.fallback_message,
         });
@@ -91,6 +92,7 @@ mod tests {
         let snapshot = adapter.active_persona().await.unwrap();
 
         let s = snapshot.expect("should have active persona");
+        assert_eq!(s.name, "gaspare");
         assert_eq!(s.system_prompt, "Sei Gaspare Spontini.");
         assert_eq!(
             s.fallback_message.as_deref(),

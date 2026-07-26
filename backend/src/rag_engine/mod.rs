@@ -1,6 +1,7 @@
 pub mod embedding;
 pub mod engine;
 pub mod generation;
+pub mod identity;
 pub mod persona;
 pub mod persona_admin;
 pub mod ports;
