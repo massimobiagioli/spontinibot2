@@ -358,6 +358,8 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> (axum::Router, St
         top_k: 5,
         min_score: 0.35,
         operator_credential_path: credential_path,
+        operator_username: None,
+        operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
@@ -524,6 +526,8 @@ async fn when_check_health(world: &mut BotWorld) {
         top_k: 5,
         min_score: 0.35,
         operator_credential_path: "/nonexistent-bdd-credential.json".into(),
+        operator_username: None,
+        operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
@@ -623,6 +627,8 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
         top_k: 5,
         min_score: 0.35,
         operator_credential_path: "/nonexistent-bdd-credential.json".into(),
+        operator_username: None,
+        operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
@@ -1443,6 +1449,8 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> (axum::Router, S
         top_k: 5,
         min_score: 0.35,
         operator_credential_path: credential_path,
+        operator_username: None,
+        operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
@@ -1786,6 +1794,8 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
         top_k: 5,
         min_score: 0.35,
         operator_credential_path: "/nonexistent-bdd-credential.json".into(),
+        operator_username: None,
+        operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
@@ -2339,6 +2349,8 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
         top_k: 5,
         min_score: 0.35,
         operator_credential_path: "/nonexistent-bdd-credential.json".into(),
+        operator_username: None,
+        operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
@@ -2555,6 +2567,8 @@ async fn given_training_sessions_api_available(world: &mut BotWorld) {
         top_k: 5,
         min_score: 0.35,
         operator_credential_path: "/nonexistent-bdd-credential.json".into(),
+        operator_username: None,
+        operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };
@@ -2878,6 +2892,8 @@ async fn given_training_messages_api_available(world: &mut BotWorld) {
         top_k: 5,
         min_score: 0.35,
         operator_credential_path: "/nonexistent-bdd-credential.json".into(),
+        operator_username: None,
+        operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
     };

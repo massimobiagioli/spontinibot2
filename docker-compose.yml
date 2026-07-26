@@ -21,6 +21,12 @@ services:
       # why this needs a different technique (re-ranking / hybrid search),
       # not further threshold tuning.
       - RAG_MIN_SCORE=0.6
+      # Operator credentials: .env (gitignored) overrides these defaults.
+      # If both OPERATOR_USERNAME and OPERATOR_PASSWORD are set, the backend
+      # auto-creates the credential file on startup (idempotent — existing
+      # files are never overwritten).
+      - OPERATOR_USERNAME=${OPERATOR_USERNAME:-operator}
+      - OPERATOR_PASSWORD=${OPERATOR_PASSWORD:-QEZdZaoRdQBOVUMNpZQ03n4R/I4qgAzn}
     volumes:
       - kb-data:/data
     depends_on:

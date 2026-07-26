@@ -6,6 +6,8 @@ pub struct Config {
     pub top_k: i64,
     pub min_score: f64,
     pub operator_credential_path: String,
+    pub operator_username: Option<String>,
+    pub operator_password: Option<String>,
     pub session_ttl_secs: i64,
     pub upload_max_bytes: usize,
 }
@@ -28,6 +30,8 @@ impl Config {
                 .unwrap_or(0.35),
             operator_credential_path: std::env::var("OPERATOR_CREDENTIAL_PATH")
                 .unwrap_or_else(|_| "/data/operator-credential.json".into()),
+            operator_username: std::env::var("OPERATOR_USERNAME").ok(),
+            operator_password: std::env::var("OPERATOR_PASSWORD").ok(),
             session_ttl_secs: std::env::var("SESSION_TTL_SECS")
                 .ok()
                 .and_then(|v| v.parse().ok())

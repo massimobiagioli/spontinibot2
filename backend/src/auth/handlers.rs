@@ -133,6 +133,8 @@ mod tests {
                 top_k: 5,
                 min_score: 0.35,
                 operator_credential_path: credential_path,
+                operator_username: None,
+                operator_password: None,
                 session_ttl_secs: 1800,
                 upload_max_bytes: 10_485_760,
             },
