@@ -17,9 +17,9 @@ const activeVersion: adminApi.PersonaResponse = {
 };
 
 describe('PersonaEditor', () => {
-  it('prefills the form from the active version', () => {
+  it('prefills the form from the active version, name still editable', () => {
     const wrapper = mount(PersonaEditor, {
-      props: { personaName: 'gaspare', activeVersion, hasAnyVersion: true },
+      props: { personaName: 'gaspare', activeVersion },
     });
 
     expect(
@@ -28,7 +28,7 @@ describe('PersonaEditor', () => {
     const nameInput = wrapper.find('input[type="text"]')
       .element as HTMLInputElement;
     expect(nameInput.value).toBe('gaspare');
-    expect(nameInput.disabled).toBe(true);
+    expect(nameInput.disabled).toBe(false);
   });
 
   it('renders blank editable fields when there is no version yet', () => {
@@ -36,7 +36,6 @@ describe('PersonaEditor', () => {
       props: {
         personaName: 'gaspare',
         activeVersion: null,
-        hasAnyVersion: false,
       },
     });
 
@@ -55,7 +54,7 @@ describe('PersonaEditor', () => {
       .mockResolvedValue({ ...activeVersion, id: 2, version: 2 });
 
     const wrapper = mount(PersonaEditor, {
-      props: { personaName: 'gaspare', activeVersion, hasAnyVersion: true },
+      props: { personaName: 'gaspare', activeVersion },
     });
 
     await wrapper.findAll('textarea')[0]?.setValue('Nuovo prompt.');
@@ -79,7 +78,7 @@ describe('PersonaEditor', () => {
     );
 
     const wrapper = mount(PersonaEditor, {
-      props: { personaName: 'gaspare', activeVersion, hasAnyVersion: true },
+      props: { personaName: 'gaspare', activeVersion },
     });
 
     await wrapper.find('form').trigger('submit');

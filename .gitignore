@@ -36,6 +36,7 @@ frontend/.env.*
 *.key
 *.p12
 secrets/
+secrets.txt
 
 # ── Local data & databases ─────────────────────────────────
 # kb.db is a runtime artifact mounted on a Docker volume — never commit

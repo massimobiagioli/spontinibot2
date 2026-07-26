@@ -11,7 +11,7 @@ import {
   type PersonaResponse,
 } from '../services/adminApi';
 
-const personaName = import.meta.env.VITE_PERSONA_NAME ?? 'gaspare';
+const personaName = ref(import.meta.env.VITE_PERSONA_NAME ?? 'Gaspare');
 
 const versions = ref<PersonaResponse[] | null>(null);
 const loading = ref(true);
@@ -25,7 +25,7 @@ async function loadVersions(): Promise<void> {
   loading.value = true;
   error.value = null;
   try {
-    versions.value = await getPersonaVersions(personaName);
+    versions.value = await getPersonaVersions(personaName.value);
   } catch (e) {
     error.value =
       e instanceof AdminApiError
@@ -38,7 +38,14 @@ async function loadVersions(): Promise<void> {
 
 onMounted(loadVersions);
 
-function onSaved(): void {
+function onPersonaSaved(persona: PersonaResponse): void {
+  // The name field is editable, so a save can rename the persona — track
+  // the new name so the next fetch (and VersionHistory) follow it.
+  personaName.value = persona.name;
+  void loadVersions();
+}
+
+function onVersionsChanged(): void {
   void loadVersions();
 }
 </script>
@@ -78,14 +85,13 @@ function onSaved(): void {
     <PersonaEditor
       :persona-name="personaName"
       :active-version="activeVersion"
-      :has-any-version="versions.length > 0"
-      @saved="onSaved"
+      @saved="onPersonaSaved"
     />
 
     <VersionHistory
       v-if="versions.length > 0"
       :versions="versions"
-      @changed="onSaved"
+      @changed="onVersionsChanged"
     />
   </template>
 </template>

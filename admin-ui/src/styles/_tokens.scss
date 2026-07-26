@@ -1,0 +1,23 @@
+// Spontini brand tokens — mirrors frontend/src/styles/_tokens.scss so the
+// admin UI shares the same visual identity (Comune di Maiolati Spontini
+// municipal blue + gold accent) as the public-facing frontend. Consumed
+// exclusively via var(--spontini-...) elsewhere, per STACK.md §4.3 (no
+// hard-coded hex/px scattered through component styles). DSI's own form
+// controls (DsButton/DsInput/DsCallout) keep using DSI's own --it-.../--bs-...
+// tokens untouched — this layer only styles the project-specific BEM chrome
+// (app shell header/footer).
+:root {
+  --spontini-color-primary: #1565c0;
+  --spontini-color-primary-light: #1e88e5;
+  --spontini-color-accent: #d4a017;
+  --spontini-color-bg: #f4f6f9;
+  --spontini-color-white: #ffffff;
+  --spontini-color-text: #1f2a37;
+  --spontini-color-text-muted: #5b6b7c;
+
+  --spontini-font-serif: 'Merriweather', Georgia, serif;
+  --spontini-font-sans:
+    'Open Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+
+  --spontini-radius-panel: 16px;
+}

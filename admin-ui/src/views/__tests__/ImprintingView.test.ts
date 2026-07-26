@@ -28,7 +28,7 @@ describe('ImprintingView', () => {
 
     await flushPromises();
 
-    expect(getPersonaVersionsSpy).toHaveBeenCalledWith('gaspare');
+    expect(getPersonaVersionsSpy).toHaveBeenCalledWith('Gaspare');
     expect(wrapper.text()).not.toContain('Caricamento della persona');
     expect(wrapper.text()).toContain('v1');
   });

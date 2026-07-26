@@ -11,7 +11,6 @@ import {
 const props = defineProps<{
   personaName: string;
   activeVersion: PersonaResponse | null;
-  hasAnyVersion: boolean;
 }>();
 
 const emit = defineEmits<{ saved: [persona: PersonaResponse] }>();
@@ -70,12 +69,7 @@ async function save(): Promise<void> {
   <form @submit.prevent="save">
     <h2>Persona</h2>
 
-    <DsInput
-      v-model="name"
-      label="Nome persona"
-      :disabled="hasAnyVersion"
-      required
-    />
+    <DsInput v-model="name" label="Nome persona" required />
 
     <div class="form-group">
       <label :for="systemPromptId">Prompt di sistema</label>

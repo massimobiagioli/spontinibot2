@@ -3,6 +3,11 @@
 // pulls in the full DSI base + component stylesheet plus its CSS variables.
 @use 'bootstrap-italia/src/scss/bootstrap-italia';
 
+// Spontini brand tokens (--spontini-...), shared with the public frontend so
+// the admin UI carries the same visual identity.
+@use 'tokens';
+
 // Project-wide, non-DSI custom styles (BEM naming, tokens sourced via
-// `var(--it-...)` / `var(--bs-...)`, never hard-coded hex/px — STACK.md §4.3).
+// `var(--it-...)` / `var(--bs-...)` / `var(--spontini-...)`, never
+// hard-coded hex/px — STACK.md §4.3).
 @use 'app';
