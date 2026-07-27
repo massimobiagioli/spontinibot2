@@ -20,23 +20,17 @@ pub struct IngestManualState {
 }
 
 fn map_manual_error(e: IngestManualError) -> (StatusCode, Json<ErrorResponse>) {
-    match e {
-        IngestManualError::InvalidWindow(err) => (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse {
-                error: err.to_string(),
-            }),
-        ),
-        IngestManualError::RobotsTxt(msg) => (
-            StatusCode::FORBIDDEN,
-            Json(ErrorResponse {
-                error: format!("robots.txt: {msg}"),
-            }),
-        ),
-        IngestManualError::Ingest(msg) => {
-            (StatusCode::BAD_GATEWAY, Json(ErrorResponse { error: msg }))
-        }
-    }
+    let status = match &e {
+        IngestManualError::InvalidWindow(_) => StatusCode::BAD_REQUEST,
+        IngestManualError::RobotsTxt(_) => StatusCode::FORBIDDEN,
+        IngestManualError::Ingest(_) => StatusCode::BAD_GATEWAY,
+    };
+    (
+        status,
+        Json(ErrorResponse {
+            error: e.to_string(),
+        }),
+    )
 }
 
 pub async fn ingest_manual(
@@ -92,8 +86,15 @@ mod tests {
         }
     }
 
+    #[derive(Clone, Copy)]
+    enum StubOutcome {
+        Success,
+        RobotsTxt,
+        UpstreamIngestFailure,
+    }
+
     struct StubIngestManualAdmin {
-        fail_robots: bool,
+        outcome: StubOutcome,
     }
 
     #[async_trait]
@@ -104,30 +105,33 @@ mod tests {
             src: &str,
             window: RecencyWindow,
         ) -> Result<IngestManualResponse, IngestManualError> {
-            if self.fail_robots {
-                return Err(IngestManualError::RobotsTxt(
+            match self.outcome {
+                StubOutcome::RobotsTxt => Err(IngestManualError::RobotsTxt(
                     "disallowed for testing".into(),
-                ));
+                )),
+                StubOutcome::UpstreamIngestFailure => Err(IngestManualError::Ingest(
+                    "embedding server unreachable".into(),
+                )),
+                StubOutcome::Success => Ok(IngestManualResponse {
+                    section: section.to_string(),
+                    src: src.to_string(),
+                    window: window.to_string(),
+                    status: "ingested".to_string(),
+                }),
             }
-            Ok(IngestManualResponse {
-                section: section.to_string(),
-                src: src.to_string(),
-                window: window.to_string(),
-                status: "ingested".to_string(),
-            })
         }
     }
 
-    fn test_state(fail_robots: bool) -> IngestManualState {
+    fn test_state(outcome: StubOutcome) -> IngestManualState {
         IngestManualState {
-            ingest_manual: Arc::new(StubIngestManualAdmin { fail_robots }),
+            ingest_manual: Arc::new(StubIngestManualAdmin { outcome }),
             audit: Arc::new(NoopAudit),
         }
     }
 
     #[tokio::test]
     async fn should_ingest_and_return_200_for_valid_request() {
-        let state = test_state(false);
+        let state = test_state(StubOutcome::Success);
         let req = IngestManualRequest {
             section: "storia".into(),
             src: "https://it.wikipedia.org/wiki/Maiolati_Spontini".into(),
@@ -142,7 +146,7 @@ mod tests {
 
     #[tokio::test]
     async fn should_return_400_for_invalid_window() {
-        let state = test_state(false);
+        let state = test_state(StubOutcome::Success);
         let req = IngestManualRequest {
             section: "storia".into(),
             src: "https://it.wikipedia.org/wiki/Maiolati_Spontini".into(),
@@ -150,13 +154,14 @@ mod tests {
         };
         let result = ingest_manual(State(state), session(), Json(req)).await;
         assert!(result.is_err());
-        let (status, _) = result.unwrap_err();
+        let (status, Json(body)) = result.unwrap_err();
         assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert!(body.error.contains("invalid window 'banana'"));
     }
 
     #[tokio::test]
     async fn should_return_403_for_robots_disallowed_source() {
-        let state = test_state(true);
+        let state = test_state(StubOutcome::RobotsTxt);
         let req = IngestManualRequest {
             section: "delibere".into(),
             src: "https://www.halleyweb.com/c042023/zf/index.php/atti-amministrativi/delibere"
@@ -165,7 +170,23 @@ mod tests {
         };
         let result = ingest_manual(State(state), session(), Json(req)).await;
         assert!(result.is_err());
-        let (status, _) = result.unwrap_err();
+        let (status, Json(body)) = result.unwrap_err();
         assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(body.error, "robots.txt: disallowed for testing");
+    }
+
+    #[tokio::test]
+    async fn should_return_502_for_upstream_ingest_failure() {
+        let state = test_state(StubOutcome::UpstreamIngestFailure);
+        let req = IngestManualRequest {
+            section: "storia".into(),
+            src: "https://it.wikipedia.org/wiki/Maiolati_Spontini".into(),
+            window: "30d".into(),
+        };
+        let result = ingest_manual(State(state), session(), Json(req)).await;
+        assert!(result.is_err());
+        let (status, Json(body)) = result.unwrap_err();
+        assert_eq!(status, StatusCode::BAD_GATEWAY);
+        assert_eq!(body.error, "ingest error: embedding server unreachable");
     }
 }
