@@ -120,4 +120,120 @@ describe('IngestedDocumentsList', () => {
     await flushPromises();
     expect(listSectionDocumentsSpy).toHaveBeenCalledTimes(2);
   });
+
+  it('shows a summary with the total count and a breakdown by source type', async () => {
+    vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue([
+      {
+        source_ref: 'a.pdf',
+        source: 'scrape',
+        chunk_count: 2,
+        created_at: '2026-07-24 00:00:00',
+      },
+      {
+        source_ref: 'b.pdf',
+        source: 'manual',
+        chunk_count: 1,
+        created_at: '2026-07-25 00:00:00',
+      },
+      {
+        source_ref: 'c.pdf',
+        source: 'manual',
+        chunk_count: 1,
+        created_at: '2026-07-26 00:00:00',
+      },
+    ]);
+
+    const wrapper = mount(IngestedDocumentsList, { props: { sectionId: 1 } });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('3 documenti');
+    expect(wrapper.text()).toContain('1 da scraping');
+    expect(wrapper.text()).toContain('2 da caricamento manuale');
+  });
+
+  it('paginates the list 20 items per page', async () => {
+    const docs = Array.from({ length: 45 }, (_, i) => ({
+      source_ref: `doc-${i}.pdf`,
+      source: 'manual',
+      chunk_count: 1,
+      created_at: '2026-07-24 00:00:00',
+    }));
+    vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue(docs);
+
+    const wrapper = mount(IngestedDocumentsList, { props: { sectionId: 1 } });
+    await flushPromises();
+
+    expect(wrapper.findAll('.ingested-documents__card')).toHaveLength(20);
+    expect(wrapper.text()).toContain('Pagina 1 di 3');
+    expect(
+      wrapper
+        .find('[data-testid="ingested-documents-prev-page"]')
+        .attributes('disabled'),
+    ).toBeDefined();
+
+    await wrapper
+      .find('[data-testid="ingested-documents-next-page"]')
+      .trigger('click');
+    expect(wrapper.findAll('.ingested-documents__card')).toHaveLength(20);
+    expect(wrapper.text()).toContain('Pagina 2 di 3');
+
+    await wrapper
+      .find('[data-testid="ingested-documents-next-page"]')
+      .trigger('click');
+    expect(wrapper.findAll('.ingested-documents__card')).toHaveLength(5);
+    expect(wrapper.text()).toContain('Pagina 3 di 3');
+    expect(
+      wrapper
+        .find('[data-testid="ingested-documents-next-page"]')
+        .attributes('disabled'),
+    ).toBeDefined();
+
+    await wrapper
+      .find('[data-testid="ingested-documents-prev-page"]')
+      .trigger('click');
+    expect(wrapper.text()).toContain('Pagina 2 di 3');
+  });
+
+  it('does not show pagination controls when there are 20 or fewer documents', async () => {
+    vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue([
+      {
+        source_ref: 'a.pdf',
+        source: 'manual',
+        chunk_count: 1,
+        created_at: '2026-07-24 00:00:00',
+      },
+    ]);
+
+    const wrapper = mount(IngestedDocumentsList, { props: { sectionId: 1 } });
+    await flushPromises();
+
+    expect(
+      wrapper.find('[data-testid="ingested-documents-next-page"]').exists(),
+    ).toBe(false);
+  });
+
+  it('resets to page 1 when the list is refreshed', async () => {
+    const docs = Array.from({ length: 25 }, (_, i) => ({
+      source_ref: `doc-${i}.pdf`,
+      source: 'manual',
+      chunk_count: 1,
+      created_at: '2026-07-24 00:00:00',
+    }));
+    vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue(docs);
+
+    const wrapper = mount(IngestedDocumentsList, { props: { sectionId: 1 } });
+    await flushPromises();
+    await wrapper
+      .find('[data-testid="ingested-documents-next-page"]')
+      .trigger('click');
+    expect(wrapper.text()).toContain('Pagina 2 di 2');
+
+    const refreshButton = wrapper
+      .findAll('button')
+      .find((b) => b.text() === 'Aggiorna');
+    await refreshButton?.trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Pagina 1 di 2');
+  });
 });
