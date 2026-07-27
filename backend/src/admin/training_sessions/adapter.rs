@@ -42,9 +42,18 @@ impl TrainingSessionAdminPort for KbStoreTrainingSessionAdapter {
         Ok(session.map(TrainingSessionResponse::from))
     }
 
-    async fn close_session(&self, id: i64) -> Result<bool, TrainingSessionError> {
-        let closed = self.store.close_training_session(id).await?;
+    async fn close_session(
+        &self,
+        id: i64,
+        notes: Option<String>,
+    ) -> Result<bool, TrainingSessionError> {
+        let closed = self.store.close_training_session(id, notes).await?;
         Ok(closed)
+    }
+
+    async fn delete_session(&self, id: i64) -> Result<bool, TrainingSessionError> {
+        let deleted = self.store.delete_training_session(id).await?;
+        Ok(deleted)
     }
 }
 
@@ -124,7 +133,7 @@ mod tests {
             .unwrap();
 
         let closed = adapter
-            .close_session(created.id)
+            .close_session(created.id, None)
             .await
             .expect("close_session failed");
         assert!(closed);
@@ -146,12 +155,47 @@ mod tests {
             .create_session(sample_session("Sessione"))
             .await
             .unwrap();
-        adapter.close_session(created.id).await.unwrap();
+        adapter.close_session(created.id, None).await.unwrap();
 
         let second_close = adapter
-            .close_session(created.id)
+            .close_session(created.id, None)
             .await
             .expect("close_session failed");
         assert!(!second_close);
+    }
+
+    #[tokio::test]
+    async fn should_delete_session_and_return_true() {
+        let store = Arc::new(temp_store().await);
+        let adapter = KbStoreTrainingSessionAdapter::new(store);
+
+        let created = adapter
+            .create_session(sample_session("Sessione"))
+            .await
+            .unwrap();
+
+        let deleted = adapter
+            .delete_session(created.id)
+            .await
+            .expect("delete_session failed");
+        assert!(deleted);
+
+        let fetched = adapter
+            .get_session(created.id)
+            .await
+            .expect("get_session failed");
+        assert!(fetched.is_none());
+    }
+
+    #[tokio::test]
+    async fn should_return_false_when_deleting_unknown_session() {
+        let store = Arc::new(temp_store().await);
+        let adapter = KbStoreTrainingSessionAdapter::new(store);
+
+        let deleted = adapter
+            .delete_session(999)
+            .await
+            .expect("delete_session failed");
+        assert!(!deleted);
     }
 }

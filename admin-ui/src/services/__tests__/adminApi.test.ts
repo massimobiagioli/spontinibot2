@@ -11,13 +11,16 @@ import {
   createSession,
   createSource,
   createTrainingFeedback,
+  deletePersonaVersion,
   deleteSection,
+  deleteSession,
   deleteSource,
   getIngestConfig,
   getIngestRun,
   getPersonaVersions,
   getSession,
   getUploadPreview,
+  listSectionDocuments,
   listSessions,
   listTrainingFeedback,
   listTrainingMessages,
@@ -108,6 +111,30 @@ describe('adminApi', () => {
     const [url, init] = lastCall(fetchMock);
     expect(url).toBe('/admin/api/ingest/config/sections/1');
     expect(init.method).toBe('DELETE');
+  });
+
+  it('listSectionDocuments fetches the ingested documents for a section', async () => {
+    const documents = [
+      { source_ref: 'https://example.com/news/1', source: 'scrape', chunk_count: 2 },
+    ];
+    fetchMock.mockResolvedValueOnce(jsonResponse(documents));
+
+    const result = await listSectionDocuments(1);
+
+    expect(result).toEqual(documents);
+    const [url] = lastCall(fetchMock);
+    expect(url).toBe('/admin/api/ingest/config/sections/1/documents');
+  });
+
+  it('listSectionDocuments throws AdminApiError on a non-2xx response', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'section 999 not found' }, 404),
+    );
+
+    const error = await listSectionDocuments(999).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AdminApiError);
+    expect((error as AdminApiError).status).toBe(404);
   });
 
   it('createSource POSTs to the section-scoped sources endpoint', async () => {
@@ -295,6 +322,28 @@ describe('adminApi', () => {
     expect(init.method).toBe('POST');
   });
 
+  it('deletePersonaVersion DELETEs the version by id', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ status: 'deleted' }));
+
+    const result = await deletePersonaVersion(2);
+
+    expect(result).toEqual({ status: 'deleted' });
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/admin/api/persona/2');
+    expect(init.method).toBe('DELETE');
+  });
+
+  it('deletePersonaVersion throws AdminApiError on a non-2xx response', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'cannot delete the active persona version' }, 409),
+    );
+
+    const error = await deletePersonaVersion(1).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AdminApiError);
+    expect((error as AdminApiError).status).toBe(409);
+  });
+
   it('reloadPersona POSTs to the reload endpoint', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({ status: 'reloaded' }));
 
@@ -437,6 +486,37 @@ describe('adminApi', () => {
     expect((error as AdminApiError).status).toBe(500);
   });
 
+  it('closeSession appends the notes as a query parameter when given', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ closed: true }));
+
+    await closeSession(1, 'tutto ok');
+
+    const [url] = lastCall(fetchMock);
+    expect(url).toBe('/admin/api/training/sessions/1/close?notes=tutto%20ok');
+  });
+
+  it('deleteSession DELETEs the session by id', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ deleted: true }));
+
+    const result = await deleteSession(1);
+
+    expect(result).toEqual({ deleted: true });
+    const [url, init] = lastCall(fetchMock);
+    expect(url).toBe('/admin/api/training/sessions/1');
+    expect(init.method).toBe('DELETE');
+  });
+
+  it('deleteSession throws AdminApiError on a non-2xx response', async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ error: 'server error' }, 500),
+    );
+
+    const error = await deleteSession(1).catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(AdminApiError);
+    expect((error as AdminApiError).status).toBe(500);
+  });
+
   it('askTrainingMessage POSTs the question to the session messages endpoint', async () => {
     const message = {
       id: 1,
@@ -449,7 +529,9 @@ describe('adminApi', () => {
     };
     fetchMock.mockResolvedValueOnce(jsonResponse(message, 201));
 
-    const result = await askTrainingMessage(1, "A che ora apre l'anagrafe?");
+    const result = await askTrainingMessage(1, {
+      question: "A che ora apre l'anagrafe?",
+    });
 
     expect(result).toEqual(message);
     const [url, init] = lastCall(fetchMock);
@@ -465,12 +547,41 @@ describe('adminApi', () => {
       jsonResponse({ error: 'generation service error: timeout' }, 502),
     );
 
-    const error = await askTrainingMessage(1, 'domanda').catch(
+    const error = await askTrainingMessage(1, { question: 'domanda' }).catch(
       (e: unknown) => e,
     );
 
     expect(error).toBeInstanceOf(AdminApiError);
     expect((error as AdminApiError).status).toBe(502);
+  });
+
+  it('askTrainingMessage sends a manual answer and expected answer when provided', async () => {
+    const message = {
+      id: 2,
+      session_id: 1,
+      question: 'domanda manuale',
+      answer: 'risposta manuale',
+      sources: [],
+      fell_back: false,
+      created_at: 'now',
+      expected_answer: 'atteso',
+      execution_time_ms: null,
+      source: 'manual',
+    };
+    fetchMock.mockResolvedValueOnce(jsonResponse(message, 201));
+
+    await askTrainingMessage(1, {
+      question: 'domanda manuale',
+      expected_answer: 'atteso',
+      answer: 'risposta manuale',
+    });
+
+    const [, init] = lastCall(fetchMock);
+    expect(JSON.parse(init.body as string)).toEqual({
+      question: 'domanda manuale',
+      expected_answer: 'atteso',
+      answer: 'risposta manuale',
+    });
   });
 
   it('listTrainingMessages fetches messages for a session', async () => {

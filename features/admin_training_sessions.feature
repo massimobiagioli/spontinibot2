@@ -49,3 +49,16 @@ Feature: Training session lifecycle via admin API
     Given the training sessions API is available
     When the operator closes training session 1 without admin key
     Then the request is rejected with 401
+
+  Scenario: Operator closes a session with closing notes
+    Given the training sessions API is available
+    And the operator has created a training session titled "Sessione di prova"
+    When the operator closes that training session with notes "Buona sessione, nessun problema"
+    Then the training session is closed
+    And the retrieved training session has notes "Buona sessione, nessun problema"
+
+  Scenario: Operator deletes a training session
+    Given the training sessions API is available
+    And the operator has created a training session titled "Sessione di prova"
+    When the operator deletes that training session
+    Then the training session is deleted

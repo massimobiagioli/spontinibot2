@@ -15,6 +15,7 @@ pub struct TrainingSessionResponse {
     pub created_at: String,
     pub created_by: Option<String>,
     pub closed_at: Option<String>,
+    pub notes: Option<String>,
 }
 
 impl From<TrainingSession> for TrainingSessionResponse {
@@ -25,6 +26,7 @@ impl From<TrainingSession> for TrainingSessionResponse {
             created_at: s.created_at,
             created_by: s.created_by,
             closed_at: s.closed_at,
+            notes: s.notes,
         }
     }
 }
@@ -61,7 +63,12 @@ pub trait TrainingSessionAdminPort: Send + Sync {
         &self,
         id: i64,
     ) -> Result<Option<TrainingSessionResponse>, TrainingSessionError>;
-    async fn close_session(&self, id: i64) -> Result<bool, TrainingSessionError>;
+    async fn close_session(
+        &self,
+        id: i64,
+        notes: Option<String>,
+    ) -> Result<bool, TrainingSessionError>;
+    async fn delete_session(&self, id: i64) -> Result<bool, TrainingSessionError>;
 }
 
 #[cfg(test)]
@@ -82,12 +89,14 @@ mod tests {
             created_at: "2026-07-24T00:00:00Z".into(),
             created_by: Some("operator1".into()),
             closed_at: Some("2026-07-24T01:00:00Z".into()),
+            notes: Some("tutto ok".into()),
         };
         let response = TrainingSessionResponse::from(session);
         assert_eq!(response.id, 3);
         assert_eq!(response.title, "Sessione");
         assert_eq!(response.created_by.as_deref(), Some("operator1"));
         assert_eq!(response.closed_at.as_deref(), Some("2026-07-24T01:00:00Z"));
+        assert_eq!(response.notes.as_deref(), Some("tutto ok"));
     }
 
     #[test]
@@ -98,9 +107,11 @@ mod tests {
             created_at: "2026-07-24T00:00:00Z".into(),
             created_by: None,
             closed_at: None,
+            notes: None,
         };
         let response = TrainingSessionResponse::from(session);
         assert!(response.created_by.is_none());
         assert!(response.closed_at.is_none());
+        assert!(response.notes.is_none());
     }
 }

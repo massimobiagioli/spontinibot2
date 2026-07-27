@@ -5,7 +5,8 @@ use async_trait::async_trait;
 use kb_store::{KbStore, NewTrainingMessage};
 
 use super::{
-    TrainingMessageAdminPort, TrainingMessageError, TrainingMessageResponse, TrainingMessageSource,
+    AskTrainingMessageRequest, TrainingMessageAdminPort, TrainingMessageError,
+    TrainingMessageResponse, TrainingMessageSource,
 };
 use crate::rag_engine::engine::RagEngine;
 use crate::rag_engine::types::RagError;
@@ -26,40 +27,63 @@ impl TrainingMessageAdminPort for RagTrainingMessageAdapter {
     async fn ask(
         &self,
         session_id: i64,
-        question: String,
+        req: AskTrainingMessageRequest,
     ) -> Result<TrainingMessageResponse, TrainingMessageError> {
         self.store
             .get_training_session(session_id)
             .await?
             .ok_or(TrainingMessageError::SessionNotFound(session_id))?;
 
-        let answer = self
-            .rag_engine
-            .answer(&question)
-            .await
-            .map_err(|e: RagError| TrainingMessageError::Rag(e.to_string()))?;
+        let AskTrainingMessageRequest {
+            question,
+            expected_answer,
+            answer,
+        } = req;
 
-        let sources: Vec<TrainingMessageSource> = answer
-            .sources
-            .iter()
-            .map(|s| TrainingMessageSource {
-                document_id: s.document_id,
-                source_ref: s.source_ref.clone(),
-            })
-            .collect();
-        let sources_json = serde_json::to_string(&sources)
-            .expect("Vec<TrainingMessageSource> of plain fields is always serializable");
+        let new_message = if let Some(manual_answer) = answer {
+            NewTrainingMessage {
+                session_id,
+                question,
+                answer: manual_answer,
+                sources: "[]".into(),
+                fell_back: false,
+                expected_answer,
+                execution_time_ms: None,
+                source: "manual".into(),
+            }
+        } else {
+            let started_at = std::time::Instant::now();
+            let answer = self
+                .rag_engine
+                .answer(&question)
+                .await
+                .map_err(|e: RagError| TrainingMessageError::Rag(e.to_string()))?;
+            let execution_time_ms = started_at.elapsed().as_millis() as i64;
 
-        let message = self
-            .store
-            .create_training_message(NewTrainingMessage {
+            let sources: Vec<TrainingMessageSource> = answer
+                .sources
+                .iter()
+                .map(|s| TrainingMessageSource {
+                    document_id: s.document_id,
+                    source_ref: s.source_ref.clone(),
+                })
+                .collect();
+            let sources_json = serde_json::to_string(&sources)
+                .expect("Vec<TrainingMessageSource> of plain fields is always serializable");
+
+            NewTrainingMessage {
                 session_id,
                 question,
                 answer: answer.text,
                 sources: sources_json,
                 fell_back: answer.fell_back,
-            })
-            .await?;
+                expected_answer,
+                execution_time_ms: Some(execution_time_ms),
+                source: "chat".into(),
+            }
+        };
+
+        let message = self.store.create_training_message(new_message).await?;
 
         message_to_response(message)
     }
@@ -86,6 +110,9 @@ fn message_to_response(
         sources,
         fell_back: message.fell_back,
         created_at: message.created_at,
+        expected_answer: message.expected_answer,
+        execution_time_ms: message.execution_time_ms,
+        source: message.source,
     })
 }
 
@@ -98,7 +125,9 @@ mod tests {
     use kb_store::KbStore;
 
     use crate::admin::training_messages::adapter::RagTrainingMessageAdapter;
-    use crate::admin::training_messages::{TrainingMessageAdminPort, TrainingMessageError};
+    use crate::admin::training_messages::{
+        AskTrainingMessageRequest, TrainingMessageAdminPort, TrainingMessageError,
+    };
     use crate::rag_engine::engine::RagEngine;
     use crate::rag_engine::ports::{EmbeddingPort, GenerationPort, PersonaPort, RetrievalPort};
     use crate::rag_engine::types::{PersonaSnapshot, PromptParts, RagError, RetrievedChunk};
@@ -203,6 +232,14 @@ mod tests {
         ))
     }
 
+    fn ask_req(question: &str) -> AskTrainingMessageRequest {
+        AskTrainingMessageRequest {
+            question: question.into(),
+            expected_answer: None,
+            answer: None,
+        }
+    }
+
     #[test]
     fn should_map_malformed_sources_json_to_serialization_error() {
         let message = kb_store::TrainingMessage {
@@ -213,6 +250,9 @@ mod tests {
             sources: "not valid json".into(),
             fell_back: false,
             created_at: "2026-07-24T00:00:00Z".into(),
+            expected_answer: None,
+            execution_time_ms: Some(10),
+            source: "chat".into(),
         };
 
         let result = super::message_to_response(message);
@@ -246,7 +286,7 @@ mod tests {
         ));
         let adapter = RagTrainingMessageAdapter::new(store, rag_engine);
 
-        let result = adapter.ask(session.id, "domanda".into()).await;
+        let result = adapter.ask(session.id, ask_req("domanda")).await;
         assert!(matches!(result, Err(TrainingMessageError::Rag(_))));
     }
 
@@ -256,7 +296,7 @@ mod tests {
         let rag_engine = engine_with_chunks(sample_chunks());
         let adapter = RagTrainingMessageAdapter::new(store, rag_engine);
 
-        let result = adapter.ask(999, "domanda".into()).await;
+        let result = adapter.ask(999, ask_req("domanda")).await;
         assert!(matches!(
             result,
             Err(TrainingMessageError::SessionNotFound(999))
@@ -277,7 +317,7 @@ mod tests {
         let adapter = RagTrainingMessageAdapter::new(store, rag_engine);
 
         let response = adapter
-            .ask(session.id, "A che ora apre l'anagrafe?".into())
+            .ask(session.id, ask_req("A che ora apre l'anagrafe?"))
             .await
             .expect("ask failed");
 
@@ -285,8 +325,59 @@ mod tests {
         assert_eq!(response.question, "A che ora apre l'anagrafe?");
         assert_eq!(response.answer, "Lo sportello apre alle 9:00.");
         assert!(!response.fell_back);
+        assert_eq!(response.source, "chat");
+        assert!(response.execution_time_ms.is_some());
         assert_eq!(response.sources.len(), 1);
         assert_eq!(response.sources[0].source_ref, "orari.md");
+    }
+
+    #[tokio::test]
+    async fn should_record_manual_answer_without_invoking_rag_engine() {
+        let store = Arc::new(temp_store().await);
+        let session = store
+            .create_training_session(kb_store::NewTrainingSession {
+                title: "Sessione".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create_training_session failed");
+        // FailingEmbedding would error out any live RAG call, proving the
+        // manual path never invokes the rag engine.
+        let rag_engine = Arc::new(RagEngine::new(
+            Arc::new(FailingEmbedding),
+            Arc::new(TestRetrieval {
+                chunks: sample_chunks(),
+            }),
+            Arc::new(TestPersona {
+                snapshot: Some(sample_persona()),
+            }),
+            Arc::new(TestGeneration),
+            5,
+            0.35,
+        ));
+        let adapter = RagTrainingMessageAdapter::new(store, rag_engine);
+
+        let response = adapter
+            .ask(
+                session.id,
+                AskTrainingMessageRequest {
+                    question: "A che ora apre l'anagrafe?".into(),
+                    expected_answer: Some("Dalle 9:00 alle 12:30".into()),
+                    answer: Some("Lo sportello apre alle 9:00.".into()),
+                },
+            )
+            .await
+            .expect("ask failed");
+
+        assert_eq!(response.answer, "Lo sportello apre alle 9:00.");
+        assert_eq!(
+            response.expected_answer.as_deref(),
+            Some("Dalle 9:00 alle 12:30")
+        );
+        assert_eq!(response.source, "manual");
+        assert!(response.execution_time_ms.is_none());
+        assert!(response.sources.is_empty());
+        assert!(!response.fell_back);
     }
 
     #[tokio::test]
@@ -303,7 +394,7 @@ mod tests {
         let adapter = RagTrainingMessageAdapter::new(store, rag_engine);
 
         let response = adapter
-            .ask(session.id, "domanda senza risposta".into())
+            .ask(session.id, ask_req("domanda senza risposta"))
             .await
             .expect("ask failed");
 
@@ -325,11 +416,11 @@ mod tests {
         let adapter = RagTrainingMessageAdapter::new(store, rag_engine);
 
         adapter
-            .ask(session.id, "prima domanda".into())
+            .ask(session.id, ask_req("prima domanda"))
             .await
             .expect("ask failed");
         adapter
-            .ask(session.id, "seconda domanda".into())
+            .ask(session.id, ask_req("seconda domanda"))
             .await
             .expect("ask failed");
 

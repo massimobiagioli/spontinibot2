@@ -16,6 +16,7 @@
 //!         content: "Document content".into(),
 //!         metadata: None,
 //!         embedding: vec![0.0; 768],
+//!         section: None,
 //!     }).await?;
 //! #   Ok(())
 //! # }
@@ -28,10 +29,10 @@ pub mod types;
 pub use error::{KbStoreError, Result};
 pub use types::{
     AuditLogEntry, Document, DocumentSource, EMBEDDING_DIM, IngestRunRequest, IngestSchedule,
-    IngestSection, IngestSource, NewAuditLogEntry, NewDocument, NewIngestSchedule,
-    NewIngestSection, NewIngestSource, NewPersona, NewTrainingFeedback, NewTrainingMessage,
-    NewTrainingSession, Persona, RunRequestStatus, ScoredDocument, Sentiment, SourceType,
-    TrainingFeedback, TrainingMessage, TrainingSession,
+    IngestSection, IngestSource, IngestedDocument, NewAuditLogEntry, NewDocument,
+    NewIngestSchedule, NewIngestSection, NewIngestSource, NewPersona, NewTrainingFeedback,
+    NewTrainingMessage, NewTrainingSession, Persona, RunRequestStatus, ScoredDocument, Sentiment,
+    SourceType, TrainingFeedback, TrainingMessage, TrainingSession,
 };
 
 use libsql::{Builder, Database, Row};
@@ -62,15 +63,17 @@ impl KbStore {
         let source_ref = doc.source_ref.clone();
         let content = doc.content.clone();
         let metadata = doc.metadata.clone();
+        let section = doc.section.clone();
 
         conn.execute(
-            "INSERT INTO documents (source, source_ref, content, metadata, embedding) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO documents (source, source_ref, content, metadata, embedding, section) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             libsql::params![
                 source_str,
                 source_ref,
                 content,
                 metadata,
                 libsql::Value::Blob(blob),
+                section,
             ],
         )
         .await?;
@@ -84,13 +87,14 @@ impl KbStore {
             content: doc.content,
             metadata: doc.metadata,
             embedding: Some(doc.embedding),
+            section: doc.section,
         })
     }
 
     pub async fn get_document(&self, id: i64) -> Result<Option<Document>> {
         let conn = self.db.connect()?;
         let mut rows = conn
-            .query("SELECT id, source, source_ref, content, metadata, embedding FROM documents WHERE id = ?1", libsql::params![id])
+            .query("SELECT id, source, source_ref, content, metadata, embedding, section FROM documents WHERE id = ?1", libsql::params![id])
             .await?;
         match rows.next().await? {
             Some(row) => Ok(Some(row_to_document(&row)?)),
@@ -108,7 +112,7 @@ impl KbStore {
         let source_str = source.to_string();
         let mut rows = conn
             .query(
-                "SELECT id, source, source_ref, content, metadata, embedding FROM documents WHERE source = ?1 ORDER BY id DESC LIMIT ?2 OFFSET ?3",
+                "SELECT id, source, source_ref, content, metadata, embedding, section FROM documents WHERE source = ?1 ORDER BY id DESC LIMIT ?2 OFFSET ?3",
                 libsql::params![source_str, limit, offset],
             )
             .await?;
@@ -117,6 +121,50 @@ impl KbStore {
             docs.push(row_to_document(&row)?);
         }
         Ok(docs)
+    }
+
+    pub async fn get_section(&self, id: i64) -> Result<Option<IngestSection>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, name, ordering, created_at FROM ingest_section WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => Ok(Some(IngestSection {
+                id: row.get::<i64>(0)?,
+                name: row.get::<String>(1)?,
+                ordering: row.get::<i32>(2)?,
+                created_at: row.get::<String>(3)?,
+            })),
+            None => Ok(None),
+        }
+    }
+
+    pub async fn list_ingested_documents(&self, section: &str) -> Result<Vec<IngestedDocument>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT source_ref, source, COUNT(*) AS chunk_count \
+                 FROM documents WHERE section = ?1 \
+                 GROUP BY source_ref, source ORDER BY source_ref ASC",
+                libsql::params![section],
+            )
+            .await?;
+        let mut summaries = Vec::new();
+        while let Some(row) = rows.next().await? {
+            let source_str: String = row.get::<String>(1)?;
+            let source = source_str
+                .parse::<DocumentSource>()
+                .map_err(|e| KbStoreError::Migration(format!("invalid source in db: {e}")))?;
+            summaries.push(IngestedDocument {
+                source_ref: row.get::<String>(0)?,
+                source,
+                chunk_count: row.get::<i64>(2)?,
+            });
+        }
+        Ok(summaries)
     }
 
     pub async fn search_similar(
@@ -134,7 +182,7 @@ impl KbStore {
 
         let conn = self.db.connect()?;
         let blob = f32_slice_to_blob(query_embedding);
-        let query = "SELECT id, source, source_ref, content, metadata, embedding, \
+        let query = "SELECT id, source, source_ref, content, metadata, embedding, section, \
                           1 - vector_distance_cos(embedding, vector32(?1)) AS similarity \
                      FROM documents \
                      WHERE embedding IS NOT NULL \
@@ -152,7 +200,7 @@ impl KbStore {
         let mut results = Vec::new();
         while let Some(row) = rows.next().await? {
             let document = row_to_document(&row)?;
-            let similarity = row.get::<f64>(6)?;
+            let similarity = row.get::<f64>(7)?;
             results.push(ScoredDocument {
                 document,
                 similarity,
@@ -279,6 +327,28 @@ impl KbStore {
             results.push(row_to_persona(&row)?);
         }
         Ok(results)
+    }
+
+    pub async fn delete_persona(&self, id: i64) -> Result<()> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT is_active FROM persona WHERE id = ?1",
+                libsql::params![id],
+            )
+            .await?;
+        let is_active = match rows.next().await? {
+            Some(row) => row.get::<i32>(0)? != 0,
+            None => return Err(KbStoreError::NotFound(format!("persona {id}"))),
+        };
+        if is_active {
+            return Err(KbStoreError::Conflict(format!(
+                "persona {id} is the active version"
+            )));
+        }
+        conn.execute("DELETE FROM persona WHERE id = ?1", libsql::params![id])
+            .await?;
+        Ok(())
     }
 
     pub async fn activate_persona(&self, id: i64) -> Result<()> {
@@ -570,7 +640,7 @@ impl KbStore {
         let id = conn.last_insert_rowid();
         let mut rows = conn
             .query(
-                "SELECT id, title, created_at, created_by, closed_at FROM training_session WHERE id = ?1",
+                "SELECT id, title, created_at, created_by, closed_at, notes FROM training_session WHERE id = ?1",
                 libsql::params![id],
             )
             .await?;
@@ -581,6 +651,7 @@ impl KbStore {
                 created_at: row.get::<String>(2)?,
                 created_by: row.get::<Option<String>>(3)?,
                 closed_at: row.get::<Option<String>>(4)?,
+                notes: row.get::<Option<String>>(5)?,
             }),
             None => Err(KbStoreError::Migration(
                 "training session not found after insert".into(),
@@ -592,7 +663,7 @@ impl KbStore {
         let conn = self.db.connect()?;
         let mut rows = conn
             .query(
-                "SELECT id, title, created_at, created_by, closed_at FROM training_session ORDER BY created_at DESC, id DESC",
+                "SELECT id, title, created_at, created_by, closed_at, notes FROM training_session ORDER BY created_at DESC, id DESC",
                 libsql::params![],
             )
             .await?;
@@ -604,6 +675,7 @@ impl KbStore {
                 created_at: row.get::<String>(2)?,
                 created_by: row.get::<Option<String>>(3)?,
                 closed_at: row.get::<Option<String>>(4)?,
+                notes: row.get::<Option<String>>(5)?,
             });
         }
         Ok(sessions)
@@ -613,7 +685,7 @@ impl KbStore {
         let conn = self.db.connect()?;
         let mut rows = conn
             .query(
-                "SELECT id, title, created_at, created_by, closed_at FROM training_session WHERE id = ?1",
+                "SELECT id, title, created_at, created_by, closed_at, notes FROM training_session WHERE id = ?1",
                 libsql::params![id],
             )
             .await?;
@@ -624,19 +696,43 @@ impl KbStore {
                 created_at: row.get::<String>(2)?,
                 created_by: row.get::<Option<String>>(3)?,
                 closed_at: row.get::<Option<String>>(4)?,
+                notes: row.get::<Option<String>>(5)?,
             })),
             None => Ok(None),
         }
     }
 
-    pub async fn close_training_session(&self, id: i64) -> Result<bool> {
+    pub async fn close_training_session(&self, id: i64, notes: Option<String>) -> Result<bool> {
         let conn = self.db.connect()?;
         let rows_affected = conn
             .execute(
-                "UPDATE training_session SET closed_at = datetime('now') WHERE id = ?1 AND closed_at IS NULL",
+                "UPDATE training_session SET closed_at = datetime('now'), notes = ?2 WHERE id = ?1 AND closed_at IS NULL",
+                libsql::params![id, notes],
+            )
+            .await?;
+        Ok(rows_affected > 0)
+    }
+
+    pub async fn delete_training_session(&self, id: i64) -> Result<bool> {
+        let conn = self.db.connect()?;
+        let tx = conn.transaction().await?;
+        tx.execute(
+            "DELETE FROM training_feedback WHERE message_id IN (SELECT id FROM training_message WHERE session_id = ?1)",
+            libsql::params![id],
+        )
+        .await?;
+        tx.execute(
+            "DELETE FROM training_message WHERE session_id = ?1",
+            libsql::params![id],
+        )
+        .await?;
+        let rows_affected = tx
+            .execute(
+                "DELETE FROM training_session WHERE id = ?1",
                 libsql::params![id],
             )
             .await?;
+        tx.commit().await?;
         Ok(rows_affected > 0)
     }
 
@@ -646,33 +742,30 @@ impl KbStore {
     ) -> Result<TrainingMessage> {
         let conn = self.db.connect()?;
         conn.execute(
-            "INSERT INTO training_message (session_id, question, answer, sources, fell_back) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO training_message (session_id, question, answer, sources, fell_back, expected_answer, execution_time_ms, source) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
             libsql::params![
                 message.session_id,
                 message.question,
                 message.answer,
                 message.sources,
                 message.fell_back as i32,
+                message.expected_answer,
+                message.execution_time_ms,
+                message.source,
             ],
         )
         .await?;
         let id = conn.last_insert_rowid();
         let mut rows = conn
             .query(
-                "SELECT id, session_id, question, answer, sources, fell_back, created_at FROM training_message WHERE id = ?1",
+                "SELECT id, session_id, question, answer, sources, fell_back, created_at, expected_answer, execution_time_ms, source \
+                 FROM training_message WHERE id = ?1",
                 libsql::params![id],
             )
             .await?;
         match rows.next().await? {
-            Some(row) => Ok(TrainingMessage {
-                id: row.get::<i64>(0)?,
-                session_id: row.get::<i64>(1)?,
-                question: row.get::<String>(2)?,
-                answer: row.get::<String>(3)?,
-                sources: row.get::<String>(4)?,
-                fell_back: row.get::<i64>(5)? != 0,
-                created_at: row.get::<String>(6)?,
-            }),
+            Some(row) => Ok(row_to_training_message(&row)?),
             None => Err(KbStoreError::Migration(
                 "training message not found after insert".into(),
             )),
@@ -683,20 +776,13 @@ impl KbStore {
         let conn = self.db.connect()?;
         let mut rows = conn
             .query(
-                "SELECT id, session_id, question, answer, sources, fell_back, created_at FROM training_message WHERE id = ?1",
+                "SELECT id, session_id, question, answer, sources, fell_back, created_at, expected_answer, execution_time_ms, source \
+                 FROM training_message WHERE id = ?1",
                 libsql::params![id],
             )
             .await?;
         match rows.next().await? {
-            Some(row) => Ok(Some(TrainingMessage {
-                id: row.get::<i64>(0)?,
-                session_id: row.get::<i64>(1)?,
-                question: row.get::<String>(2)?,
-                answer: row.get::<String>(3)?,
-                sources: row.get::<String>(4)?,
-                fell_back: row.get::<i64>(5)? != 0,
-                created_at: row.get::<String>(6)?,
-            })),
+            Some(row) => Ok(Some(row_to_training_message(&row)?)),
             None => Ok(None),
         }
     }
@@ -705,21 +791,14 @@ impl KbStore {
         let conn = self.db.connect()?;
         let mut rows = conn
             .query(
-                "SELECT id, session_id, question, answer, sources, fell_back, created_at FROM training_message WHERE session_id = ?1 ORDER BY created_at ASC, id ASC",
+                "SELECT id, session_id, question, answer, sources, fell_back, created_at, expected_answer, execution_time_ms, source \
+                 FROM training_message WHERE session_id = ?1 ORDER BY created_at ASC, id ASC",
                 libsql::params![session_id],
             )
             .await?;
         let mut messages = Vec::new();
         while let Some(row) = rows.next().await? {
-            messages.push(TrainingMessage {
-                id: row.get::<i64>(0)?,
-                session_id: row.get::<i64>(1)?,
-                question: row.get::<String>(2)?,
-                answer: row.get::<String>(3)?,
-                sources: row.get::<String>(4)?,
-                fell_back: row.get::<i64>(5)? != 0,
-                created_at: row.get::<String>(6)?,
-            });
+            messages.push(row_to_training_message(&row)?);
         }
         Ok(messages)
     }
@@ -898,6 +977,22 @@ pub(crate) fn row_to_document(row: &Row) -> Result<Document> {
             .get::<Option<Vec<u8>>>(5)?
             .map(blob_to_f32_vec)
             .transpose()?,
+        section: row.get::<Option<String>>(6)?,
+    })
+}
+
+pub(crate) fn row_to_training_message(row: &Row) -> Result<TrainingMessage> {
+    Ok(TrainingMessage {
+        id: row.get::<i64>(0)?,
+        session_id: row.get::<i64>(1)?,
+        question: row.get::<String>(2)?,
+        answer: row.get::<String>(3)?,
+        sources: row.get::<String>(4)?,
+        fell_back: row.get::<i64>(5)? != 0,
+        created_at: row.get::<String>(6)?,
+        expected_answer: row.get::<Option<String>>(7)?,
+        execution_time_ms: row.get::<Option<i64>>(8)?,
+        source: row.get::<String>(9)?,
     })
 }
 
@@ -937,6 +1032,7 @@ mod tests {
             content: "Test content".into(),
             metadata: Some(r#"{"tags":["test"]}"#.into()),
             embedding,
+            section: None,
         }
     }
 
@@ -1325,6 +1421,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn should_delete_inactive_persona_version() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let p1 = store
+            .insert_persona(sample_new_persona("gaspare"), true)
+            .await
+            .expect("insert failed");
+        let p2 = store
+            .insert_persona(sample_new_persona("gaspare"), false)
+            .await
+            .expect("insert failed");
+
+        store.delete_persona(p2.id).await.expect("delete failed");
+
+        let remaining = store
+            .get_persona_versions("gaspare")
+            .await
+            .expect("query failed");
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].id, p1.id);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_refuse_to_delete_active_persona_version() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let p1 = store
+            .insert_persona(sample_new_persona("gaspare"), true)
+            .await
+            .expect("insert failed");
+
+        let result = store.delete_persona(p1.id).await;
+        assert!(matches!(result, Err(KbStoreError::Conflict(_))));
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_not_found_when_deleting_unknown_persona() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let result = store.delete_persona(999).await;
+        assert!(matches!(result, Err(KbStoreError::NotFound(_))));
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
     async fn should_return_none_when_no_schedule() {
         let path = temp_db_path();
         let store = KbStore::open(&path).await.expect("failed to open db");
@@ -1547,6 +1694,128 @@ mod tests {
             .expect("query failed");
         assert!(sources.is_empty());
 
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_get_section_by_id() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let created = store
+            .upsert_section(NewIngestSection {
+                name: "sport".into(),
+                ordering: 0,
+            })
+            .await
+            .expect("insert failed");
+
+        let fetched = store
+            .get_section(created.id)
+            .await
+            .expect("get_section failed")
+            .expect("should find the section");
+        assert_eq!(fetched.name, "sport");
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_none_when_getting_unknown_section() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let result = store.get_section(999).await.expect("get_section failed");
+        assert!(result.is_none());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_list_ingested_documents_grouped_by_source_ref() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        // Two chunks from the same scraped page count as one ingested entry.
+        store
+            .insert_document(NewDocument {
+                source: DocumentSource::Scrape,
+                source_ref: "https://example.com/news/1".into(),
+                content: "chunk one".into(),
+                metadata: None,
+                embedding: vec![0.0; EMBEDDING_DIM],
+                section: Some("news".into()),
+            })
+            .await
+            .expect("insert failed");
+        store
+            .insert_document(NewDocument {
+                source: DocumentSource::Scrape,
+                source_ref: "https://example.com/news/1".into(),
+                content: "chunk two".into(),
+                metadata: None,
+                embedding: vec![0.0; EMBEDDING_DIM],
+                section: Some("news".into()),
+            })
+            .await
+            .expect("insert failed");
+        store
+            .insert_document(NewDocument {
+                source: DocumentSource::Manual,
+                source_ref: "comunicato.pdf".into(),
+                content: "chunk three".into(),
+                metadata: None,
+                embedding: vec![0.0; EMBEDDING_DIM],
+                section: Some("news".into()),
+            })
+            .await
+            .expect("insert failed");
+        // A document in a different section must not appear.
+        store
+            .insert_document(NewDocument {
+                source: DocumentSource::Scrape,
+                source_ref: "https://example.com/sport/1".into(),
+                content: "chunk four".into(),
+                metadata: None,
+                embedding: vec![0.0; EMBEDDING_DIM],
+                section: Some("sport".into()),
+            })
+            .await
+            .expect("insert failed");
+
+        let summaries = store
+            .list_ingested_documents("news")
+            .await
+            .expect("list_ingested_documents failed");
+
+        assert_eq!(summaries.len(), 2);
+        let page = summaries
+            .iter()
+            .find(|s| s.source_ref == "https://example.com/news/1")
+            .expect("scraped page summary missing");
+        assert_eq!(page.chunk_count, 2);
+        assert_eq!(page.source, DocumentSource::Scrape);
+        let upload = summaries
+            .iter()
+            .find(|s| s.source_ref == "comunicato.pdf")
+            .expect("manual upload summary missing");
+        assert_eq!(upload.chunk_count, 1);
+        assert_eq!(upload.source, DocumentSource::Manual);
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_empty_vec_when_no_documents_ingested_for_section() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let summaries = store
+            .list_ingested_documents("news")
+            .await
+            .expect("list_ingested_documents failed");
+        assert!(summaries.is_empty());
         drop(store);
         let _ = std::fs::remove_file(&path);
     }
@@ -1814,7 +2083,7 @@ mod tests {
             .expect("create failed");
 
         let closed = store
-            .close_training_session(created.id)
+            .close_training_session(created.id, None)
             .await
             .expect("close_training_session failed");
         assert!(closed);
@@ -1842,12 +2111,12 @@ mod tests {
             .await
             .expect("create failed");
         store
-            .close_training_session(created.id)
+            .close_training_session(created.id, None)
             .await
             .expect("first close failed");
 
         let second_close = store
-            .close_training_session(created.id)
+            .close_training_session(created.id, None)
             .await
             .expect("close_training_session failed");
         assert!(!second_close);
@@ -1861,10 +2130,111 @@ mod tests {
         let store = KbStore::open(&path).await.expect("failed to open db");
 
         let result = store
-            .close_training_session(999)
+            .close_training_session(999, None)
             .await
             .expect("close_training_session failed");
         assert!(!result);
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_close_training_session_with_notes() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let created = store
+            .create_training_session(NewTrainingSession {
+                title: "Sessione".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create failed");
+
+        store
+            .close_training_session(created.id, Some("tutto ok".into()))
+            .await
+            .expect("close_training_session failed");
+
+        let fetched = store
+            .get_training_session(created.id)
+            .await
+            .expect("get failed")
+            .expect("should find the session");
+        assert_eq!(fetched.notes.as_deref(), Some("tutto ok"));
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_delete_training_session_and_cascade_messages_and_feedback() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let session = store
+            .create_training_session(NewTrainingSession {
+                title: "Sessione".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create failed");
+        let message = store
+            .create_training_message(NewTrainingMessage {
+                session_id: session.id,
+                question: "domanda".into(),
+                answer: "risposta".into(),
+                sources: "[]".into(),
+                fell_back: false,
+                expected_answer: None,
+                execution_time_ms: None,
+                source: "chat".into(),
+            })
+            .await
+            .expect("create_training_message failed");
+        store
+            .create_training_feedback(NewTrainingFeedback {
+                message_id: message.id,
+                chunk_id: None,
+                answer_span: "risposta".into(),
+                sentiment: Sentiment::Positive,
+                comment: None,
+            })
+            .await
+            .expect("create_training_feedback failed");
+
+        let deleted = store
+            .delete_training_session(session.id)
+            .await
+            .expect("delete_training_session failed");
+        assert!(deleted);
+
+        let fetched_session = store
+            .get_training_session(session.id)
+            .await
+            .expect("get failed");
+        assert!(fetched_session.is_none());
+        let remaining_messages = store
+            .list_training_messages(session.id)
+            .await
+            .expect("list failed");
+        assert!(remaining_messages.is_empty());
+        let remaining_feedback = store
+            .list_training_feedback(message.id)
+            .await
+            .expect("list failed");
+        assert!(remaining_feedback.is_empty());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_false_when_deleting_unknown_training_session() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let deleted = store
+            .delete_training_session(999)
+            .await
+            .expect("delete_training_session failed");
+        assert!(!deleted);
         drop(store);
         let _ = std::fs::remove_file(&path);
     }
@@ -1888,6 +2258,9 @@ mod tests {
                 answer: "Lo sportello apre alle 9:00.".into(),
                 sources: r#"[{"document_id":1,"source_ref":"orari.md"}]"#.into(),
                 fell_back: false,
+                expected_answer: None,
+                execution_time_ms: None,
+                source: "chat".into(),
             })
             .await
             .expect("create_training_message failed");
@@ -1917,6 +2290,9 @@ mod tests {
                 answer: "test".into(),
                 sources: "[]".into(),
                 fell_back: true,
+                expected_answer: None,
+                execution_time_ms: None,
+                source: "chat".into(),
             })
             .await;
 
@@ -1947,6 +2323,9 @@ mod tests {
                 answer: "prima risposta".into(),
                 sources: "[]".into(),
                 fell_back: false,
+                expected_answer: None,
+                execution_time_ms: None,
+                source: "chat".into(),
             })
             .await
             .expect("create failed");
@@ -1957,6 +2336,9 @@ mod tests {
                 answer: "seconda risposta".into(),
                 sources: "[]".into(),
                 fell_back: false,
+                expected_answer: None,
+                execution_time_ms: None,
+                source: "chat".into(),
             })
             .await
             .expect("create failed");
@@ -2019,6 +2401,9 @@ mod tests {
                 answer: "risposta A".into(),
                 sources: "[]".into(),
                 fell_back: false,
+                expected_answer: None,
+                execution_time_ms: None,
+                source: "chat".into(),
             })
             .await
             .expect("create failed");
@@ -2029,6 +2414,9 @@ mod tests {
                 answer: "risposta B".into(),
                 sources: "[]".into(),
                 fell_back: false,
+                expected_answer: None,
+                execution_time_ms: None,
+                source: "chat".into(),
             })
             .await
             .expect("create failed");
@@ -2089,6 +2477,9 @@ mod tests {
                 answer: "risposta".into(),
                 sources: "[]".into(),
                 fell_back: false,
+                expected_answer: None,
+                execution_time_ms: None,
+                source: "chat".into(),
             })
             .await
             .expect("create_training_message failed")
@@ -2133,6 +2524,7 @@ mod tests {
                 content: "Lo sportello apre alle 9:00".into(),
                 metadata: None,
                 embedding: vec![0.0; EMBEDDING_DIM],
+                section: None,
             })
             .await
             .expect("insert_document failed");

@@ -29,6 +29,7 @@ const openSession: adminApi.TrainingSessionResponse = {
   created_at: '2026-07-24T00:00:00Z',
   created_by: 'operator1',
   closed_at: null,
+  notes: null,
 };
 
 const closedSession: adminApi.TrainingSessionResponse = {
@@ -37,6 +38,7 @@ const closedSession: adminApi.TrainingSessionResponse = {
   created_at: '2026-07-20T00:00:00Z',
   created_by: 'operator1',
   closed_at: '2026-07-21T00:00:00Z',
+  notes: 'tutto ok',
 };
 
 async function mountWithRouter(sessions: adminApi.TrainingSessionResponse[]) {
@@ -51,13 +53,15 @@ async function mountWithRouter(sessions: adminApi.TrainingSessionResponse[]) {
 }
 
 describe('SessionList', () => {
-  it('renders open sessions with a close button and closed sessions with a badge', async () => {
+  it('renders open sessions with an "Aperta" badge and closed sessions with a "Chiusa" badge', async () => {
     const wrapper = await mountWithRouter([openSession, closedSession]);
 
     expect(wrapper.text()).toContain('Sessione aperta');
     expect(wrapper.text()).toContain('Sessione chiusa');
+    expect(wrapper.text()).toContain('Aperta');
     expect(wrapper.text()).toContain('Chiusa');
-    expect(wrapper.findAll('li button').length).toBe(1);
+    // Every session (open or closed) offers a delete button.
+    expect(wrapper.findAll('li button').length).toBe(2);
   });
 
   it('links each session to its detail route', async () => {
@@ -97,42 +101,42 @@ describe('SessionList', () => {
     expect(wrapper.emitted('changed')).toBeFalsy();
   });
 
-  it('opens the confirm dialog before calling closeSession, and refreshes on confirm', async () => {
-    const closeSessionSpy = vi
-      .spyOn(adminApi, 'closeSession')
-      .mockResolvedValue({ closed: true });
+  it('opens the confirm dialog before calling deleteSession, and refreshes on confirm', async () => {
+    const deleteSessionSpy = vi
+      .spyOn(adminApi, 'deleteSession')
+      .mockResolvedValue({ deleted: true });
 
     const wrapper = await mountWithRouter([openSession]);
 
     await wrapper.find('li button').trigger('click');
-    expect(closeSessionSpy).not.toHaveBeenCalled();
+    expect(deleteSessionSpy).not.toHaveBeenCalled();
 
-    const dialog = wrapper.find('[data-testid="close-session-dialog"]');
+    const dialog = wrapper.find('[data-testid="delete-session-dialog"]');
     expect(dialog.attributes('open')).toBeDefined();
 
     await dialog.find('button.btn-danger').trigger('click');
     await flushPromises();
 
-    expect(closeSessionSpy).toHaveBeenCalledWith(1);
+    expect(deleteSessionSpy).toHaveBeenCalledWith(1);
     expect(wrapper.emitted('changed')).toBeTruthy();
   });
 
-  it('does not call closeSession when the dialog is cancelled', async () => {
-    const closeSessionSpy = vi.spyOn(adminApi, 'closeSession');
+  it('does not call deleteSession when the dialog is cancelled', async () => {
+    const deleteSessionSpy = vi.spyOn(adminApi, 'deleteSession');
 
     const wrapper = await mountWithRouter([openSession]);
 
     await wrapper.find('li button').trigger('click');
     await wrapper
-      .find('[data-testid="close-session-dialog"]')
+      .find('[data-testid="delete-session-dialog"]')
       .find('button.btn-outline-secondary')
       .trigger('click');
 
-    expect(closeSessionSpy).not.toHaveBeenCalled();
+    expect(deleteSessionSpy).not.toHaveBeenCalled();
   });
 
-  it('shows the honest error message from AdminApiError on close failure', async () => {
-    vi.spyOn(adminApi, 'closeSession').mockRejectedValue(
+  it('shows the honest error message from AdminApiError on delete failure', async () => {
+    vi.spyOn(adminApi, 'deleteSession').mockRejectedValue(
       new adminApi.AdminApiError(500, 'internal error'),
     );
 
@@ -140,7 +144,7 @@ describe('SessionList', () => {
 
     await wrapper.find('li button').trigger('click');
     await wrapper
-      .find('[data-testid="close-session-dialog"]')
+      .find('[data-testid="delete-session-dialog"]')
       .find('button.btn-danger')
       .trigger('click');
     await flushPromises();

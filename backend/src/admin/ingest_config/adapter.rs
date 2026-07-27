@@ -6,7 +6,7 @@ use kb_store::{KbStore, NewIngestSchedule, NewIngestSection, NewIngestSource};
 
 use super::{
     IngestConfigAdminPort, IngestConfigError, IngestScheduleResponse, IngestSectionResponse,
-    IngestSourceResponse,
+    IngestSourceResponse, IngestedDocumentResponse,
 };
 
 pub struct KbStoreIngestConfigAdapter {
@@ -78,6 +78,22 @@ impl IngestConfigAdminPort for KbStoreIngestConfigAdapter {
     async fn delete_source(&self, id: i64) -> Result<bool, IngestConfigError> {
         let deleted = self.store.delete_source(id).await?;
         Ok(deleted)
+    }
+
+    async fn list_section_documents(
+        &self,
+        section_id: i64,
+    ) -> Result<Vec<IngestedDocumentResponse>, IngestConfigError> {
+        let section = self
+            .store
+            .get_section(section_id)
+            .await?
+            .ok_or_else(|| IngestConfigError::NotFound(format!("section {section_id}")))?;
+        let documents = self.store.list_ingested_documents(&section.name).await?;
+        Ok(documents
+            .into_iter()
+            .map(IngestedDocumentResponse::from)
+            .collect())
     }
 }
 
@@ -320,5 +336,45 @@ mod tests {
             .await
             .expect("delete_source failed");
         assert!(!deleted);
+    }
+
+    #[tokio::test]
+    async fn should_list_documents_ingested_for_a_section() {
+        let store = Arc::new(temp_store().await);
+        let adapter = KbStoreIngestConfigAdapter::new(store.clone());
+
+        let section = adapter
+            .create_section(sample_section("news", 10))
+            .await
+            .unwrap();
+        store
+            .insert_document(kb_store::NewDocument {
+                source: kb_store::DocumentSource::Scrape,
+                source_ref: "https://example.com/news/1".into(),
+                content: "content".into(),
+                metadata: None,
+                embedding: vec![0.0; kb_store::EMBEDDING_DIM],
+                section: Some("news".into()),
+            })
+            .await
+            .expect("insert_document failed");
+
+        let documents = adapter
+            .list_section_documents(section.id)
+            .await
+            .expect("list_section_documents failed");
+        assert_eq!(documents.len(), 1);
+        assert_eq!(documents[0].source_ref, "https://example.com/news/1");
+        assert_eq!(documents[0].source, "scrape");
+        assert_eq!(documents[0].chunk_count, 1);
+    }
+
+    #[tokio::test]
+    async fn should_return_not_found_for_unknown_section_when_listing_documents() {
+        let store = Arc::new(temp_store().await);
+        let adapter = KbStoreIngestConfigAdapter::new(store);
+
+        let result = adapter.list_section_documents(999).await;
+        assert!(matches!(result, Err(IngestConfigError::NotFound(_))));
     }
 }

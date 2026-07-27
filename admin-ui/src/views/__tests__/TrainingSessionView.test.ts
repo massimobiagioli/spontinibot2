@@ -32,10 +32,11 @@ const session: adminApi.TrainingSessionResponse = {
   created_at: '2026-07-24T00:00:00Z',
   created_by: 'operator1',
   closed_at: null,
+  notes: null,
 };
 
 describe('TrainingSessionView', () => {
-  it('renders a loading state and then the session with the ask/answer box', async () => {
+  it('renders a loading state and then the session with the add-question form', async () => {
     const getSessionSpy = vi
       .spyOn(adminApi, 'getSession')
       .mockResolvedValue(session);
@@ -49,10 +50,11 @@ describe('TrainingSessionView', () => {
 
     expect(getSessionSpy).toHaveBeenCalledWith(1);
     expect(wrapper.text()).toContain("Sessione sull'anagrafe");
-    expect(wrapper.find('form').exists()).toBe(true);
+    expect(wrapper.text()).toContain('Aggiungi domanda');
+    expect(wrapper.text()).toContain('Termina sessione');
   });
 
-  it('does not render the ask/answer box for a closed session', async () => {
+  it('does not render the add-question or close-session forms for a closed session', async () => {
     vi.spyOn(adminApi, 'getSession').mockResolvedValue({
       ...session,
       closed_at: '2026-07-25T00:00:00Z',
@@ -62,27 +64,31 @@ describe('TrainingSessionView', () => {
     const wrapper = await mountAtSession('1');
     await flushPromises();
 
-    expect(wrapper.find('form').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Aggiungi domanda');
+    expect(wrapper.find('button.btn-danger').exists()).toBe(false);
   });
 
-  it('renders the closed-at date for a closed session', async () => {
+  it('renders the closed-at date and notes for a closed session', async () => {
     vi.spyOn(adminApi, 'getSession').mockResolvedValue({
       ...session,
       closed_at: '2026-07-25T00:00:00Z',
+      notes: 'Nessun problema riscontrato',
     });
     vi.spyOn(adminApi, 'listTrainingMessages').mockResolvedValue([]);
 
     const wrapper = await mountAtSession('1');
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Sessione chiusa il 2026-07-25T00:00:00Z');
+    expect(wrapper.text()).toContain('Chiusa il 2026-07-25T00:00:00Z');
+    expect(wrapper.text()).toContain('Nessun problema riscontrato');
   });
 
-  it('prepends a newly asked message to the message list without refetching', async () => {
+  it('adds a newly asked message to the question grid without refetching', async () => {
     vi.spyOn(adminApi, 'getSession').mockResolvedValue(session);
     const listTrainingMessagesSpy = vi
       .spyOn(adminApi, 'listTrainingMessages')
       .mockResolvedValue([]);
+    vi.spyOn(adminApi, 'listTrainingFeedback').mockResolvedValue([]);
     vi.spyOn(adminApi, 'askTrainingMessage').mockResolvedValue({
       id: 1,
       session_id: 1,
@@ -91,6 +97,9 @@ describe('TrainingSessionView', () => {
       sources: [{ document_id: 7, source_ref: 'orari.md' }],
       fell_back: false,
       created_at: '2026-07-24T00:00:00Z',
+      expected_answer: null,
+      execution_time_ms: 120,
+      source: 'chat',
     });
 
     const wrapper = await mountAtSession('1');
@@ -103,7 +112,6 @@ describe('TrainingSessionView', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain("A che ora apre l'anagrafe?");
-    expect(wrapper.text()).toContain('Lo sportello apre alle 9:00.');
     expect(listTrainingMessagesSpy).toHaveBeenCalledTimes(1);
   });
 

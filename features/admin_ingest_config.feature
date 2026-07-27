@@ -43,3 +43,15 @@ Feature: Ingest configuration management via admin API
     And a scrape source exists in section "news"
     When the operator deletes section "news"
     Then the ingest configuration has no sections
+
+  Scenario: Operator views the documents ingested into a section
+    Given the ingest config API is available
+    And an ingest section "news" exists
+    And a document has been ingested into section "news" with source ref "https://example.com/news/1"
+    When the operator lists the documents ingested into section "news"
+    Then the ingested documents list for "news" contains "https://example.com/news/1" with 1 chunk
+
+  Scenario: Operator looks up the ingested documents of an unknown section
+    Given the ingest config API is available
+    When the operator lists the documents ingested into unknown section 999999
+    Then the request is rejected with 404

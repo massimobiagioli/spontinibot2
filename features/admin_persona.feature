@@ -27,3 +27,18 @@ Feature: Bot imprinting management via admin API
     Given the backend service is running
     When the operator requests persona versions without admin key
     Then the request is rejected with 401
+
+  Scenario: Operator deletes an inactive persona version from the history
+    Given persona "gaspare" has version 1 active and version 2 inactive
+    When the operator deletes version 2 of persona "gaspare"
+    Then only 1 version of persona "gaspare" remains
+
+  Scenario: Operator cannot delete the active persona version
+    Given persona "gaspare" has version 1 active and version 2 inactive
+    When the operator deletes version 1 of persona "gaspare"
+    Then the request is rejected with 409
+
+  Scenario: Operator deletes an unknown persona version
+    Given the knowledge base contains persona "gaspare" with version 1 active
+    When the operator deletes persona version 999999
+    Then the request is rejected with 404

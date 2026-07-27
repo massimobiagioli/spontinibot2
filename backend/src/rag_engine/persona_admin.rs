@@ -91,6 +91,14 @@ impl PersonaAdminPort for PersonaAdminAdapter {
         Ok(())
     }
 
+    async fn delete_persona(&self, id: i64) -> Result<(), RagError> {
+        self.store.delete_persona(id).await.map_err(|e| match e {
+            kb_store::KbStoreError::NotFound(_) => RagError::PersonaNotFound,
+            kb_store::KbStoreError::Conflict(_) => RagError::PersonaActive,
+            other => RagError::Persona(other.to_string()),
+        })
+    }
+
     async fn reload_persona(&self) -> Result<(), RagError> {
         self.persona_port.reload_persona().await
     }

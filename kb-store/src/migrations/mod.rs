@@ -7,6 +7,8 @@ const V3_SCHEMA: &str = include_str!("V3__training_sessions.sql");
 const V4_SCHEMA: &str = include_str!("V4__training_messages.sql");
 const V5_SCHEMA: &str = include_str!("V5__training_feedback.sql");
 const V6_SCHEMA: &str = include_str!("V6__audit_log.sql");
+const V7_SCHEMA: &str = include_str!("V7__training_redesign.sql");
+const V8_SCHEMA: &str = include_str!("V8__documents_section.sql");
 
 /// Run database migrations idempotently.
 ///
@@ -119,6 +121,40 @@ pub async fn run_migrations(conn: &Connection) -> Result<()> {
         tx.execute_batch(V6_SCHEMA).await?;
         tx.execute(
             "INSERT INTO _migrations (version, name) VALUES (6, 'audit_log_schema')",
+            libsql::params![],
+        )
+        .await?;
+        tx.commit().await?;
+    }
+
+    let mut rows = conn
+        .query(
+            "SELECT 1 FROM _migrations WHERE version = 7",
+            libsql::params![],
+        )
+        .await?;
+    if rows.next().await?.is_none() {
+        let tx = conn.transaction().await?;
+        tx.execute_batch(V7_SCHEMA).await?;
+        tx.execute(
+            "INSERT INTO _migrations (version, name) VALUES (7, 'training_redesign_schema')",
+            libsql::params![],
+        )
+        .await?;
+        tx.commit().await?;
+    }
+
+    let mut rows = conn
+        .query(
+            "SELECT 1 FROM _migrations WHERE version = 8",
+            libsql::params![],
+        )
+        .await?;
+    if rows.next().await?.is_none() {
+        let tx = conn.transaction().await?;
+        tx.execute_batch(V8_SCHEMA).await?;
+        tx.execute(
+            "INSERT INTO _migrations (version, name) VALUES (8, 'documents_section_schema')",
             libsql::params![],
         )
         .await?;
@@ -318,6 +354,58 @@ mod tests {
             rows.next().await.unwrap().is_some(),
             "audit_log table should exist"
         );
+
+        run_migrations(&conn)
+            .await
+            .expect("second migration run should also succeed");
+    }
+
+    #[tokio::test]
+    async fn should_add_training_redesign_columns_when_migrations_run() {
+        let db = Builder::new_local(":memory:")
+            .build()
+            .await
+            .expect("failed to create in-memory db");
+        let conn = db.connect().expect("failed to connect");
+
+        run_migrations(&conn).await.expect("migrations failed");
+
+        conn.execute(
+            "INSERT INTO training_session (title, notes) VALUES ('s', 'note')",
+            libsql::params![],
+        )
+        .await
+        .expect("training_session.notes column should exist");
+
+        conn.execute(
+            "INSERT INTO training_message (session_id, question, answer, sources, fell_back, expected_answer, execution_time_ms, source) \
+             VALUES (1, 'q', 'a', '[]', 0, 'expected', 42, 'manual')",
+            libsql::params![],
+        )
+        .await
+        .expect("training_message new columns should exist");
+
+        run_migrations(&conn)
+            .await
+            .expect("second migration run should also succeed");
+    }
+
+    #[tokio::test]
+    async fn should_add_documents_section_column_when_migrations_run() {
+        let db = Builder::new_local(":memory:")
+            .build()
+            .await
+            .expect("failed to create in-memory db");
+        let conn = db.connect().expect("failed to connect");
+
+        run_migrations(&conn).await.expect("migrations failed");
+
+        conn.execute(
+            "INSERT INTO documents (source, source_ref, content, section) VALUES ('scrape', 'https://example.com', 'x', 'news')",
+            libsql::params![],
+        )
+        .await
+        .expect("documents.section column should exist");
 
         run_migrations(&conn)
             .await

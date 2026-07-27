@@ -76,4 +76,33 @@ describe('ChatMessage', () => {
 
     expect(wrapper.findAll('li')).toHaveLength(0);
   });
+
+  it('renders a URL source_ref as a clickable link that opens in a new tab', () => {
+    const wrapper = mount(ChatMessage, {
+      props: {
+        question: 'domanda',
+        response: {
+          answer: 'risposta',
+          sources: [
+            { document_id: 1, source_ref: 'https://example.com/news/1' },
+          ],
+          fell_back: false,
+        },
+      },
+    });
+
+    const link = wrapper.find('a');
+    expect(link.exists()).toBe(true);
+    expect(link.attributes('href')).toBe('https://example.com/news/1');
+    expect(link.attributes('target')).toBe('_blank');
+    expect(link.attributes('rel')).toBe('noopener noreferrer');
+  });
+
+  it('renders a non-URL source_ref (e.g. a document title) as plain text, not a link', () => {
+    const wrapper = mount(ChatMessage, {
+      props: { question: 'domanda', response: answeredResponse },
+    });
+
+    expect(wrapper.find('a').exists()).toBe(false);
+  });
 });

@@ -64,6 +64,12 @@ export interface IngestConfigResponse {
   sections: IngestSectionWithSources[];
 }
 
+export interface IngestedDocumentResponse {
+  source_ref: string;
+  source: string;
+  chunk_count: number;
+}
+
 export interface IngestRunResponse {
   id: number;
   status: string;
@@ -132,6 +138,7 @@ export interface TrainingSessionResponse {
   created_at: string;
   created_by: string | null;
   closed_at: string | null;
+  notes: string | null;
 }
 
 export interface CreateSessionRequest {
@@ -141,6 +148,10 @@ export interface CreateSessionRequest {
 
 export interface ClosedResponse {
   closed: boolean;
+}
+
+export interface DeletedResponse {
+  deleted: boolean;
 }
 
 export interface TrainingMessageSource {
@@ -156,6 +167,16 @@ export interface TrainingMessageResponse {
   sources: TrainingMessageSource[];
   fell_back: boolean;
   created_at: string;
+  expected_answer: string | null;
+  execution_time_ms: number | null;
+  source: string;
+}
+
+export interface AskTrainingMessageRequest {
+  question: string;
+  expected_answer?: string;
+  /** A manually supplied answer; when set, the bot is not invoked. */
+  answer?: string;
 }
 
 export interface TrainingFeedbackResponse {
@@ -276,6 +297,14 @@ export async function deleteSection(id: number): Promise<boolean> {
   return result.deleted;
 }
 
+export function listSectionDocuments(
+  sectionId: number,
+): Promise<IngestedDocumentResponse[]> {
+  return request<IngestedDocumentResponse[]>(
+    `/admin/api/ingest/config/sections/${sectionId}/documents`,
+  );
+}
+
 export function createSource(
   sectionId: number,
   sourceType: string,
@@ -357,6 +386,12 @@ export function activatePersona(id: number): Promise<StatusResponse> {
   });
 }
 
+export function deletePersonaVersion(id: number): Promise<StatusResponse> {
+  return request<StatusResponse>(`/admin/api/persona/${id}`, {
+    method: 'DELETE',
+  });
+}
+
 export function reloadPersona(): Promise<StatusResponse> {
   return request<StatusResponse>('/admin/api/persona/reload', {
     method: 'POST',
@@ -385,20 +420,31 @@ export function getSession(id: number): Promise<TrainingSessionResponse> {
   return request<TrainingSessionResponse>(`/admin/api/training/sessions/${id}`);
 }
 
-export function closeSession(id: number): Promise<ClosedResponse> {
-  return request<ClosedResponse>(`/admin/api/training/sessions/${id}/close`, {
-    method: 'POST',
+export function closeSession(
+  id: number,
+  notes?: string,
+): Promise<ClosedResponse> {
+  const query = notes ? `?notes=${encodeURIComponent(notes)}` : '';
+  return request<ClosedResponse>(
+    `/admin/api/training/sessions/${id}/close${query}`,
+    { method: 'POST' },
+  );
+}
+
+export function deleteSession(id: number): Promise<DeletedResponse> {
+  return request<DeletedResponse>(`/admin/api/training/sessions/${id}`, {
+    method: 'DELETE',
   });
 }
 
 export function askTrainingMessage(
   sessionId: number,
-  question: string,
+  payload: AskTrainingMessageRequest,
 ): Promise<TrainingMessageResponse> {
   return jsonRequest<TrainingMessageResponse>(
     `/admin/api/training/sessions/${sessionId}/messages`,
     'POST',
-    { question },
+    payload,
   );
 }
 

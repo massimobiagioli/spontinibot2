@@ -39,6 +39,7 @@ pub struct Document {
     pub content: String,
     pub metadata: Option<String>,
     pub embedding: Option<Vec<f32>>,
+    pub section: Option<String>,
 }
 
 #[derive(Debug)]
@@ -48,12 +49,24 @@ pub struct NewDocument {
     pub content: String,
     pub metadata: Option<String>,
     pub embedding: Vec<f32>,
+    pub section: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ScoredDocument {
     pub document: Document,
     pub similarity: f64,
+}
+
+/// A synthetic, per-source summary of what has been ingested into a section
+/// — one row per distinct `source_ref` (link or filename) rather than one
+/// per chunk, so an operator can see what was ingested without wading
+/// through every embedding chunk.
+#[derive(Debug, Clone, PartialEq)]
+pub struct IngestedDocument {
+    pub source_ref: String,
+    pub source: DocumentSource,
+    pub chunk_count: i64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -199,6 +212,7 @@ pub struct TrainingSession {
     pub created_at: String,
     pub created_by: Option<String>,
     pub closed_at: Option<String>,
+    pub notes: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -216,6 +230,9 @@ pub struct TrainingMessage {
     pub sources: String,
     pub fell_back: bool,
     pub created_at: String,
+    pub expected_answer: Option<String>,
+    pub execution_time_ms: Option<i64>,
+    pub source: String,
 }
 
 #[derive(Debug, Clone)]
@@ -225,6 +242,9 @@ pub struct NewTrainingMessage {
     pub answer: String,
     pub sources: String,
     pub fell_back: bool,
+    pub expected_answer: Option<String>,
+    pub execution_time_ms: Option<i64>,
+    pub source: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -325,6 +345,7 @@ mod tests {
             content: "hello".into(),
             metadata: Some(r#"{"tags":["news"]}"#.into()),
             embedding: Some(vec![0.1; EMBEDDING_DIM]),
+            section: Some("news".into()),
         };
         assert_eq!(doc.id, 1);
         assert_eq!(doc.source, DocumentSource::Scrape);
@@ -344,6 +365,7 @@ mod tests {
             content: "some content".into(),
             metadata: None,
             embedding: None,
+            section: None,
         };
         let scored = ScoredDocument {
             document: doc.clone(),

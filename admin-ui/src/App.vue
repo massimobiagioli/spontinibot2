@@ -80,7 +80,7 @@ watch(
       <span class="app-shell__brand">
         <span class="app-shell__brand-icon" aria-hidden="true">🎼</span>
         <span class="app-shell__brand-text"
-          >Comune di Maiolati Spontini — Amministrazione</span
+          >Comune di Maiolati Spontini — Pannello di Controllo</span
         >
       </span>
     </header>

@@ -83,6 +83,9 @@ mod tests {
                 answer: "risposta".into(),
                 sources: "[]".into(),
                 fell_back: false,
+                expected_answer: None,
+                execution_time_ms: None,
+                source: "chat".into(),
             })
             .await
             .expect("create_training_message failed");
@@ -165,6 +168,7 @@ mod tests {
                 content: "Lo sportello apre alle 9:00".into(),
                 metadata: None,
                 embedding: vec![0.0; EMBEDDING_DIM],
+                section: None,
             })
             .await
             .expect("insert_document failed");

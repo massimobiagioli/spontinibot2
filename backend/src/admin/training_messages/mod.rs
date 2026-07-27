@@ -21,6 +21,19 @@ pub struct TrainingMessageResponse {
     pub sources: Vec<TrainingMessageSource>,
     pub fell_back: bool,
     pub created_at: String,
+    pub expected_answer: Option<String>,
+    pub execution_time_ms: Option<i64>,
+    pub source: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct AskTrainingMessageRequest {
+    pub question: String,
+    pub expected_answer: Option<String>,
+    /// A manually supplied answer. When present, the adapter records the
+    /// message as-is instead of invoking the RAG engine (used to backfill
+    /// historical Q&A pairs into a session without a live bot call).
+    pub answer: Option<String>,
 }
 
 #[derive(Debug)]
@@ -59,7 +72,7 @@ pub trait TrainingMessageAdminPort: Send + Sync {
     async fn ask(
         &self,
         session_id: i64,
-        question: String,
+        req: AskTrainingMessageRequest,
     ) -> Result<TrainingMessageResponse, TrainingMessageError>;
 
     async fn list_messages(
@@ -115,6 +128,9 @@ mod tests {
             }],
             fell_back: false,
             created_at: "2026-07-24T00:00:00Z".into(),
+            expected_answer: None,
+            execution_time_ms: Some(120),
+            source: "chat".into(),
         };
 
         let json = serde_json::to_value(&response).expect("serialization failed");

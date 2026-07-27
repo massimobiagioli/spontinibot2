@@ -75,6 +75,7 @@ mod tests {
                 content: "content_a".into(),
                 metadata: None,
                 embedding: vec_a.clone(),
+                section: None,
             })
             .await
             .unwrap();
@@ -86,6 +87,7 @@ mod tests {
                 content: "content_b".into(),
                 metadata: None,
                 embedding: vec_b.clone(),
+                section: None,
             })
             .await
             .unwrap();
@@ -114,6 +116,7 @@ mod tests {
                 content: "content".into(),
                 metadata: None,
                 embedding,
+                section: None,
             })
             .await
             .unwrap();
@@ -143,6 +146,7 @@ mod tests {
                 content: "Orari: 9-12:30".into(),
                 metadata: None,
                 embedding,
+                section: None,
             })
             .await
             .unwrap();

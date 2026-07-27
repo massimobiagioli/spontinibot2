@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use serde::{Deserialize, Serialize};
 
@@ -28,6 +28,16 @@ pub struct CreateSessionRequest {
 #[derive(Serialize)]
 pub struct ClosedResponse {
     pub closed: bool,
+}
+
+#[derive(Serialize)]
+pub struct DeletedResponse {
+    pub deleted: bool,
+}
+
+#[derive(Deserialize)]
+pub struct CloseSessionQuery {
+    pub notes: Option<String>,
 }
 
 fn map_session_error(e: TrainingSessionError) -> (StatusCode, Json<ErrorResponse>) {
@@ -100,10 +110,11 @@ pub async fn close_session(
     State(state): State<TrainingSessionState>,
     session: OperatorSession,
     Path(id): Path<i64>,
+    Query(query): Query<CloseSessionQuery>,
 ) -> Result<Json<ClosedResponse>, (StatusCode, Json<ErrorResponse>)> {
     let closed = state
         .training_sessions
-        .close_session(id)
+        .close_session(id, query.notes)
         .await
         .map_err(map_session_error)?;
     record_best_effort(
@@ -115,6 +126,27 @@ pub async fn close_session(
     )
     .await;
     Ok(Json(ClosedResponse { closed }))
+}
+
+pub async fn delete_session(
+    State(state): State<TrainingSessionState>,
+    session: OperatorSession,
+    Path(id): Path<i64>,
+) -> Result<Json<DeletedResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let deleted = state
+        .training_sessions
+        .delete_session(id)
+        .await
+        .map_err(map_session_error)?;
+    record_best_effort(
+        state.audit.as_ref(),
+        &session.actor,
+        "delete_session",
+        &format!("training_session:{id}"),
+        &serde_json::json!({"deleted": deleted}),
+    )
+    .await;
+    Ok(Json(DeletedResponse { deleted }))
 }
 
 #[cfg(test)]
@@ -164,6 +196,7 @@ mod tests {
                 created_at: "2026-07-24T00:00:00Z".into(),
                 created_by: req.created_by,
                 closed_at: None,
+                notes: None,
             })
         }
 
@@ -176,6 +209,7 @@ mod tests {
                 created_at: "2026-07-24T00:00:00Z".into(),
                 created_by: None,
                 closed_at: None,
+                notes: None,
             }])
         }
 
@@ -190,13 +224,22 @@ mod tests {
                     created_at: "2026-07-24T00:00:00Z".into(),
                     created_by: None,
                     closed_at: None,
+                    notes: None,
                 }))
             } else {
                 Ok(None)
             }
         }
 
-        async fn close_session(&self, id: i64) -> Result<bool, TrainingSessionError> {
+        async fn close_session(
+            &self,
+            id: i64,
+            _notes: Option<String>,
+        ) -> Result<bool, TrainingSessionError> {
+            Ok(id == 1)
+        }
+
+        async fn delete_session(&self, id: i64) -> Result<bool, TrainingSessionError> {
             Ok(id == 1)
         }
     }
@@ -243,7 +286,13 @@ mod tests {
     #[tokio::test]
     async fn should_close_known_session() {
         let state = test_state();
-        let result = close_session(State(state), session(), Path(1)).await;
+        let result = close_session(
+            State(state),
+            session(),
+            Path(1),
+            Query(CloseSessionQuery { notes: None }),
+        )
+        .await;
         assert!(result.is_ok());
         let Json(response) = result.unwrap();
         assert!(response.closed);
@@ -252,9 +301,33 @@ mod tests {
     #[tokio::test]
     async fn should_return_false_when_closing_unknown_session() {
         let state = test_state();
-        let result = close_session(State(state), session(), Path(999)).await;
+        let result = close_session(
+            State(state),
+            session(),
+            Path(999),
+            Query(CloseSessionQuery { notes: None }),
+        )
+        .await;
         assert!(result.is_ok());
         let Json(response) = result.unwrap();
         assert!(!response.closed);
+    }
+
+    #[tokio::test]
+    async fn should_delete_known_session() {
+        let state = test_state();
+        let result = delete_session(State(state), session(), Path(1)).await;
+        assert!(result.is_ok());
+        let Json(response) = result.unwrap();
+        assert!(response.deleted);
+    }
+
+    #[tokio::test]
+    async fn should_return_false_when_deleting_unknown_session() {
+        let state = test_state();
+        let result = delete_session(State(state), session(), Path(999)).await;
+        assert!(result.is_ok());
+        let Json(response) = result.unwrap();
+        assert!(!response.deleted);
     }
 }

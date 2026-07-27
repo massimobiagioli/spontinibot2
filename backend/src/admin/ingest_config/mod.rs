@@ -6,7 +6,9 @@ use std::fmt;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
-use kb_store::{IngestSchedule, IngestSection, IngestSource, NewIngestSchedule, SourceType};
+use kb_store::{
+    IngestSchedule, IngestSection, IngestSource, IngestedDocument, NewIngestSchedule, SourceType,
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct IngestScheduleResponse {
@@ -83,6 +85,23 @@ pub struct IngestConfigResponse {
     pub sections: Vec<IngestSectionWithSources>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct IngestedDocumentResponse {
+    pub source_ref: String,
+    pub source: String,
+    pub chunk_count: i64,
+}
+
+impl From<IngestedDocument> for IngestedDocumentResponse {
+    fn from(d: IngestedDocument) -> Self {
+        Self {
+            source_ref: d.source_ref,
+            source: d.source.to_string(),
+            chunk_count: d.chunk_count,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum IngestConfigError {
     NotFound(String),
@@ -129,6 +148,10 @@ pub trait IngestConfigAdminPort: Send + Sync {
         source: kb_store::NewIngestSource,
     ) -> Result<IngestSourceResponse, IngestConfigError>;
     async fn delete_source(&self, id: i64) -> Result<bool, IngestConfigError>;
+    async fn list_section_documents(
+        &self,
+        section_id: i64,
+    ) -> Result<Vec<IngestedDocumentResponse>, IngestConfigError>;
 }
 
 #[cfg(test)]
@@ -186,6 +209,19 @@ mod tests {
         let response = IngestScheduleResponse::from(schedule);
         assert_eq!(response.cron_expr, "0 */4 * * *");
         assert!(response.enabled);
+    }
+
+    #[test]
+    fn should_convert_ingested_document_to_response() {
+        let doc = IngestedDocument {
+            source_ref: "https://example.com/news/1".into(),
+            source: kb_store::DocumentSource::Scrape,
+            chunk_count: 3,
+        };
+        let response = IngestedDocumentResponse::from(doc);
+        assert_eq!(response.source_ref, "https://example.com/news/1");
+        assert_eq!(response.source, "scrape");
+        assert_eq!(response.chunk_count, 3);
     }
 
     #[test]

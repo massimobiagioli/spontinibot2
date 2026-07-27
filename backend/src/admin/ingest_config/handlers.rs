@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::admin::ErrorResponse;
 use crate::admin::ingest_config::{
     IngestConfigAdminPort, IngestConfigError, IngestConfigResponse, IngestScheduleResponse,
-    IngestSectionResponse, IngestSourceResponse,
+    IngestSectionResponse, IngestSourceResponse, IngestedDocumentResponse,
 };
 use crate::audit::AuditLogPort;
 use crate::audit::record_best_effort;
@@ -222,6 +222,19 @@ pub async fn delete_source(
     Ok(Json(DeletedResponse { deleted }))
 }
 
+pub async fn list_section_documents(
+    State(state): State<IngestConfigState>,
+    _session: OperatorSession,
+    Path(id): Path<i64>,
+) -> Result<Json<Vec<IngestedDocumentResponse>>, (StatusCode, Json<ErrorResponse>)> {
+    let documents = state
+        .ingest_config
+        .list_section_documents(id)
+        .await
+        .map_err(map_config_error)?;
+    Ok(Json(documents))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -318,6 +331,19 @@ mod tests {
         async fn delete_source(&self, _id: i64) -> Result<bool, IngestConfigError> {
             Ok(true)
         }
+        async fn list_section_documents(
+            &self,
+            section_id: i64,
+        ) -> Result<Vec<IngestedDocumentResponse>, IngestConfigError> {
+            if section_id == 999 {
+                return Err(IngestConfigError::NotFound(format!("section {section_id}")));
+            }
+            Ok(vec![IngestedDocumentResponse {
+                source_ref: "https://example.com/news/1".into(),
+                source: "scrape".into(),
+                chunk_count: 2,
+            }])
+        }
     }
 
     #[tokio::test]
@@ -370,5 +396,24 @@ mod tests {
         assert!(result.is_ok());
         let Json(resp) = result.unwrap();
         assert!(resp.deleted);
+    }
+
+    #[tokio::test]
+    async fn should_list_section_documents() {
+        let state = test_state();
+        let result = list_section_documents(State(state), session(), Path(1)).await;
+        assert!(result.is_ok());
+        let Json(documents) = result.unwrap();
+        assert_eq!(documents.len(), 1);
+        assert_eq!(documents[0].source_ref, "https://example.com/news/1");
+    }
+
+    #[tokio::test]
+    async fn should_return_404_for_unknown_section_when_listing_documents() {
+        let state = test_state();
+        let result = list_section_documents(State(state), session(), Path(999)).await;
+        assert!(result.is_err());
+        let (status, _) = result.unwrap_err();
+        assert_eq!(status, StatusCode::NOT_FOUND);
     }
 }

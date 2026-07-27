@@ -182,6 +182,7 @@ describe('accessibility', () => {
         created_at: '2026-07-24T00:00:00Z',
         created_by: 'operator1',
         closed_at: null,
+        notes: null,
       },
       {
         id: 2,
@@ -189,6 +190,7 @@ describe('accessibility', () => {
         created_at: '2026-07-20T00:00:00Z',
         created_by: 'operator1',
         closed_at: '2026-07-21T00:00:00Z',
+        notes: 'tutto ok',
       },
     ]);
 
@@ -216,6 +218,7 @@ describe('accessibility', () => {
       created_at: '2026-07-24T00:00:00Z',
       created_by: 'operator1',
       closed_at: null,
+      notes: null,
     });
     vi.spyOn(adminApi, 'listTrainingMessages').mockResolvedValue([
       {
@@ -226,6 +229,9 @@ describe('accessibility', () => {
         sources: [{ document_id: 7, source_ref: 'orari.md' }],
         fell_back: false,
         created_at: '2026-07-24T00:00:00Z',
+        expected_answer: null,
+        execution_time_ms: 84,
+        source: 'chat',
       },
       {
         id: 2,
@@ -235,6 +241,9 @@ describe('accessibility', () => {
         sources: [],
         fell_back: true,
         created_at: '2026-07-24T00:00:00Z',
+        expected_answer: null,
+        execution_time_ms: 120,
+        source: 'chat',
       },
     ]);
     vi.spyOn(adminApi, 'listTrainingFeedback').mockResolvedValue([

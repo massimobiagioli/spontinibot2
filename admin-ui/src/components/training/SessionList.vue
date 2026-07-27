@@ -4,8 +4,8 @@ import { ref } from 'vue';
 import { DsButton, DsConfirmDialog, DsInput } from '../ds';
 import {
   AdminApiError,
-  closeSession,
   createSession,
+  deleteSession,
   type TrainingSessionResponse,
 } from '../../services/adminApi';
 
@@ -36,31 +36,31 @@ async function addSession(): Promise<void> {
   }
 }
 
-const pendingCloseId = ref<number | null>(null);
-const closeError = ref<string | null>(null);
+const pendingDeleteId = ref<number | null>(null);
+const deleteError = ref<string | null>(null);
 
-function requestClose(id: number): void {
-  closeError.value = null;
-  pendingCloseId.value = id;
+function requestDelete(id: number): void {
+  deleteError.value = null;
+  pendingDeleteId.value = id;
 }
 
-function cancelClose(): void {
-  pendingCloseId.value = null;
+function cancelDelete(): void {
+  pendingDeleteId.value = null;
 }
 
-async function confirmClose(): Promise<void> {
-  const id = pendingCloseId.value;
+async function confirmDelete(): Promise<void> {
+  const id = pendingDeleteId.value;
   if (id === null) return;
   try {
-    await closeSession(id);
-    pendingCloseId.value = null;
+    await deleteSession(id);
+    pendingDeleteId.value = null;
     emit('changed');
   } catch (e) {
-    closeError.value =
+    deleteError.value =
       e instanceof AdminApiError
         ? e.message
-        : 'Impossibile chiudere la sessione. Riprova più tardi.';
-    pendingCloseId.value = null;
+        : 'Impossibile eliminare la sessione. Riprova più tardi.';
+    pendingDeleteId.value = null;
   }
 }
 </script>
@@ -69,7 +69,7 @@ async function confirmClose(): Promise<void> {
   <section>
     <h2>Sessioni</h2>
 
-    <p v-if="closeError" role="alert">{{ closeError }}</p>
+    <p v-if="deleteError" role="alert">{{ deleteError }}</p>
 
     <ul>
       <li v-for="session in sessions" :key="session.id">
@@ -80,13 +80,13 @@ async function confirmClose(): Promise<void> {
         <span v-if="session.closed_at" class="badge badge-secondary">
           Chiusa
         </span>
+        <span v-else class="badge badge-success">Aperta</span>
         <DsButton
-          v-else
           variant="danger"
           outline
-          @click="requestClose(session.id)"
+          @click="requestDelete(session.id)"
         >
-          Chiudi sessione
+          Elimina sessione
         </DsButton>
       </li>
     </ul>
@@ -101,12 +101,12 @@ async function confirmClose(): Promise<void> {
     </form>
 
     <DsConfirmDialog
-      data-testid="close-session-dialog"
-      :open="pendingCloseId !== null"
-      message="Chiudere questa sessione? Non potrà più essere riaperta."
-      confirm-label="Chiudi"
-      @confirm="confirmClose"
-      @cancel="cancelClose"
+      data-testid="delete-session-dialog"
+      :open="pendingDeleteId !== null"
+      message="Eliminare questa sessione e tutte le sue domande? L'operazione non può essere annullata."
+      confirm-label="Elimina"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
     />
   </section>
 </template>

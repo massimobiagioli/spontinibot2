@@ -100,6 +100,9 @@ impl PersonaAdminPort for StubPersonaAdmin {
     async fn activate_persona(&self, _id: i64) -> Result<(), RagError> {
         todo!()
     }
+    async fn delete_persona(&self, _id: i64) -> Result<(), RagError> {
+        todo!()
+    }
     async fn reload_persona(&self) -> Result<(), RagError> {
         todo!()
     }
@@ -176,6 +179,13 @@ impl IngestConfigAdminPort for StubIngestConfigAdmin {
     async fn delete_source(&self, _id: i64) -> Result<bool, IngestConfigError> {
         unimplemented!("stub")
     }
+    async fn list_section_documents(
+        &self,
+        _section_id: i64,
+    ) -> Result<Vec<backend::admin::ingest_config::IngestedDocumentResponse>, IngestConfigError>
+    {
+        unimplemented!("stub")
+    }
 }
 
 struct StubIngestRunAdmin;
@@ -209,7 +219,14 @@ impl TrainingSessionAdminPort for StubTrainingSessionAdmin {
     ) -> Result<Option<TrainingSessionResponse>, TrainingSessionError> {
         unimplemented!("stub")
     }
-    async fn close_session(&self, _id: i64) -> Result<bool, TrainingSessionError> {
+    async fn close_session(
+        &self,
+        _id: i64,
+        _notes: Option<String>,
+    ) -> Result<bool, TrainingSessionError> {
+        unimplemented!("stub")
+    }
+    async fn delete_session(&self, _id: i64) -> Result<bool, TrainingSessionError> {
         unimplemented!("stub")
     }
 }
@@ -221,7 +238,7 @@ impl TrainingMessageAdminPort for StubTrainingMessageAdmin {
     async fn ask(
         &self,
         _session_id: i64,
-        _question: String,
+        _req: backend::admin::training_messages::AskTrainingMessageRequest,
     ) -> Result<TrainingMessageResponse, TrainingMessageError> {
         unimplemented!("stub")
     }
@@ -1034,6 +1051,110 @@ async fn when_activate_version(world: &mut BotWorld, _version: u32, name: String
         .await
         .unwrap();
     world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when(regex = r#"^the operator deletes version (\d+) of persona "([^"]+)"$"#)]
+async fn when_delete_version(world: &mut BotWorld, version: i64, name: String) {
+    let path = world.admin_db_path.as_ref().expect("no db path set");
+    let (router, cookie) = build_admin_router(path, ADMIN_KEY).await;
+
+    let list_resp = router
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/admin/api/persona?name={name}"))
+                .header("cookie", &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let list_body_bytes = axum::body::to_bytes(list_resp.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let list_body: serde_json::Value = serde_json::from_slice(&list_body_bytes).unwrap();
+    let versions = list_body.as_array().unwrap();
+    let target = versions
+        .iter()
+        .find(|v| v["version"].as_i64() == Some(version))
+        .unwrap_or_else(|| panic!("version {version} not found for persona {name}"));
+    let id = target["id"].as_i64().unwrap();
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/admin/api/persona/{id}"))
+                .header("cookie", &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when(regex = r"^the operator deletes persona version (\d+)$")]
+async fn when_delete_unknown_persona_version(world: &mut BotWorld, id: i64) {
+    let path = world.admin_db_path.as_ref().expect("no db path set");
+    let (router, cookie) = build_admin_router(path, ADMIN_KEY).await;
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("DELETE")
+                .uri(format!("/admin/api/persona/{id}"))
+                .header("cookie", &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[then(regex = r#"^only (\d+) version of persona "([^"]+)" remains$"#)]
+async fn then_n_versions_remain(world: &mut BotWorld, expected: usize, name: String) {
+    let path = world.admin_db_path.as_ref().expect("no db path set");
+    let (router, cookie) = build_admin_router(path, ADMIN_KEY).await;
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!("/admin/api/persona?name={name}"))
+                .header("cookie", &cookie)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let versions: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
+    assert_eq!(versions.as_array().unwrap().len(), expected);
+}
+
+#[then("the request is rejected with 409")]
+async fn then_rejected_409(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(409));
+}
+
+#[then("the request is rejected with 404")]
+async fn then_rejected_404(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(404));
 }
 
 #[when("the operator reloads the persona cache")]
@@ -2195,6 +2316,111 @@ async fn when_delete_section(world: &mut BotWorld, section_name: String) {
     world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
 }
 
+#[given(
+    regex = r#"^a document has been ingested into section "([^"]+)" with source ref "([^"]+)"$"#
+)]
+async fn given_document_ingested_into_section(
+    world: &mut BotWorld,
+    section_name: String,
+    source_ref: String,
+) {
+    let path = world
+        .ingest_config_db_path
+        .clone()
+        .expect("ingest config API not initialized yet");
+    let store = kb_store::KbStore::open(&path)
+        .await
+        .expect("failed to reopen test kb.db");
+    store
+        .insert_document(kb_store::NewDocument {
+            source: kb_store::DocumentSource::Scrape,
+            source_ref,
+            content: "contenuto".into(),
+            metadata: None,
+            embedding: vec![0.0; kb_store::EMBEDDING_DIM],
+            section: Some(section_name),
+        })
+        .await
+        .expect("insert_document failed");
+}
+
+#[when(regex = r#"^the operator lists the documents ingested into section "([^"]+)"$"#)]
+async fn when_list_section_documents(world: &mut BotWorld, section_name: String) {
+    let router = world
+        .ingest_config_router
+        .as_ref()
+        .expect("ingest config router not initialized")
+        .clone();
+
+    let section_id = find_section_id(world, &section_name).await;
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(format!(
+                    "/admin/api/ingest/config/sections/{section_id}/documents"
+                ))
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when("the operator lists the documents ingested into unknown section 999999")]
+async fn when_list_unknown_section_documents(world: &mut BotWorld) {
+    let router = world
+        .ingest_config_router
+        .as_ref()
+        .expect("ingest config router not initialized")
+        .clone();
+
+    let response = router
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/admin/api/ingest/config/sections/999999/documents")
+                .header("cookie", world.admin_session_cookie.as_ref().unwrap())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[then(
+    regex = r#"^the ingested documents list for "([^"]+)" contains "([^"]+)" with (\d+) chunks?$"#
+)]
+async fn then_ingested_documents_list_contains(
+    world: &mut BotWorld,
+    _section_name: String,
+    source_ref: String,
+    chunk_count: i64,
+) {
+    assert_eq!(world.response_status, Some(200));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    let documents = body.as_array().expect("expected an array response");
+    let found = documents
+        .iter()
+        .find(|d| d["source_ref"].as_str() == Some(source_ref.as_str()))
+        .unwrap_or_else(|| panic!("expected an ingested document with source_ref {source_ref}"));
+    assert_eq!(found["chunk_count"].as_i64(), Some(chunk_count));
+}
+
 async fn fetch_ingest_config(world: &mut BotWorld) -> serde_json::Value {
     let router = world
         .ingest_config_router
@@ -2810,6 +3036,51 @@ async fn when_close_training_session_by_id_no_auth(world: &mut BotWorld, id: i64
     .await;
 }
 
+#[when(regex = r#"^the operator closes that training session with notes "([^"]+)"$"#)]
+async fn when_close_that_training_session_with_notes(world: &mut BotWorld, notes: String) {
+    let id = world
+        .training_session_id
+        .expect("no training session created yet");
+    training_session_request(
+        world,
+        "POST",
+        format!(
+            "/admin/api/training/sessions/{id}/close?notes={}",
+            urlencoding_encode(&notes)
+        ),
+        true,
+        None,
+    )
+    .await;
+}
+
+fn urlencoding_encode(value: &str) -> String {
+    value
+        .bytes()
+        .map(|b| match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
+            _ => format!("%{b:02X}"),
+        })
+        .collect()
+}
+
+#[when("the operator deletes that training session")]
+async fn when_delete_that_training_session(world: &mut BotWorld) {
+    let id = world
+        .training_session_id
+        .expect("no training session created yet");
+    training_session_request(
+        world,
+        "DELETE",
+        format!("/admin/api/training/sessions/{id}"),
+        true,
+        None,
+    )
+    .await;
+}
+
 #[then(regex = r#"^the training session list contains a session titled "([^"]+)"$"#)]
 async fn then_session_list_contains(world: &mut BotWorld, title: String) {
     training_session_request(
@@ -2851,6 +3122,45 @@ async fn then_session_closed(world: &mut BotWorld) {
     let body: serde_json::Value =
         serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
     assert_eq!(body["closed"].as_bool(), Some(true));
+}
+
+#[then(regex = r#"^the retrieved training session has notes "([^"]+)"$"#)]
+async fn then_retrieved_session_has_notes(world: &mut BotWorld, notes: String) {
+    let id = world
+        .training_session_id
+        .expect("no training session created yet");
+    training_session_request(
+        world,
+        "GET",
+        format!("/admin/api/training/sessions/{id}"),
+        true,
+        None,
+    )
+    .await;
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["notes"].as_str(), Some(notes.as_str()));
+}
+
+#[then("the training session is deleted")]
+async fn then_session_deleted(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(200));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["deleted"].as_bool(), Some(true));
+
+    let id = world
+        .training_session_id
+        .expect("no training session created yet");
+    training_session_request(
+        world,
+        "GET",
+        format!("/admin/api/training/sessions/{id}"),
+        true,
+        None,
+    )
+    .await;
+    assert_eq!(world.response_status, Some(404));
 }
 
 #[then("closing the training session has no effect")]
@@ -3038,6 +3348,59 @@ async fn when_ask_no_auth(world: &mut BotWorld) {
     .await;
 }
 
+#[when(
+    regex = r#"^the operator manually records the question "([^"]+)" with answer "([^"]+)" and expected answer "([^"]+)" in that training session$"#
+)]
+async fn when_manually_records_question(
+    world: &mut BotWorld,
+    question: String,
+    answer: String,
+    expected_answer: String,
+) {
+    let id = world
+        .training_session_id
+        .expect("no training session created yet");
+    let body = serde_json::json!({
+        "question": question,
+        "answer": answer,
+        "expected_answer": expected_answer,
+    });
+    training_session_request(
+        world,
+        "POST",
+        format!("/admin/api/training/sessions/{id}/messages"),
+        true,
+        Some(body),
+    )
+    .await;
+
+    let response: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    world.training_message_id = response["id"].as_i64();
+}
+
+#[then(regex = r#"^the training message answer is "([^"]+)"$"#)]
+async fn then_training_message_answer_is(world: &mut BotWorld, answer: String) {
+    assert_eq!(world.response_status, Some(201));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["answer"].as_str(), Some(answer.as_str()));
+}
+
+#[then(regex = r#"^the training message source is "([^"]+)"$"#)]
+async fn then_training_message_source_is(world: &mut BotWorld, source: String) {
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["source"].as_str(), Some(source.as_str()));
+}
+
+#[then(regex = r#"^the training message expected answer is "([^"]+)"$"#)]
+async fn then_training_message_expected_answer_is(world: &mut BotWorld, expected: String) {
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["expected_answer"].as_str(), Some(expected.as_str()));
+}
+
 #[when("the operator lists that training session's messages")]
 async fn when_list_that_training_session_messages(world: &mut BotWorld) {
     let id = world
@@ -3159,6 +3522,7 @@ async fn given_citable_document_exists(world: &mut BotWorld) {
             content: "Lo sportello anagrafe e' aperto dalle 9:00 alle 12:30".into(),
             metadata: None,
             embedding: vec![0.0; kb_store::EMBEDDING_DIM],
+            section: None,
         })
         .await
         .expect("insert_document failed");

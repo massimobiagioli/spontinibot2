@@ -5,6 +5,7 @@ import { DsConfirmDialog } from '../ds';
 import {
   AdminApiError,
   activatePersona,
+  deletePersonaVersion,
   type PersonaResponse,
 } from '../../services/adminApi';
 
@@ -41,6 +42,34 @@ async function confirmActivate(): Promise<void> {
     pendingActivateId.value = null;
   }
 }
+
+const pendingDeleteId = ref<number | null>(null);
+const deleteError = ref<string | null>(null);
+
+function requestDelete(id: number): void {
+  deleteError.value = null;
+  pendingDeleteId.value = id;
+}
+
+function cancelDelete(): void {
+  pendingDeleteId.value = null;
+}
+
+async function confirmDelete(): Promise<void> {
+  const id = pendingDeleteId.value;
+  if (id === null) return;
+  try {
+    await deletePersonaVersion(id);
+    pendingDeleteId.value = null;
+    emit('changed');
+  } catch (e) {
+    deleteError.value =
+      e instanceof AdminApiError
+        ? e.message
+        : 'Impossibile eliminare questa versione. Riprova più tardi.';
+    pendingDeleteId.value = null;
+  }
+}
 </script>
 
 <template>
@@ -48,6 +77,7 @@ async function confirmActivate(): Promise<void> {
     <h2>Cronologia versioni</h2>
 
     <p v-if="error" role="alert">{{ error }}</p>
+    <p v-if="deleteError" role="alert">{{ deleteError }}</p>
 
     <ul>
       <li v-for="version in versions" :key="version.id">
@@ -65,6 +95,14 @@ async function confirmActivate(): Promise<void> {
         >
           Attiva questa versione
         </button>
+        <button
+          v-if="!version.is_active"
+          type="button"
+          class="btn btn-outline-danger"
+          @click="requestDelete(version.id)"
+        >
+          Elimina versione
+        </button>
       </li>
     </ul>
 
@@ -75,6 +113,15 @@ async function confirmActivate(): Promise<void> {
       confirm-label="Attiva"
       @confirm="confirmActivate"
       @cancel="cancelActivate"
+    />
+
+    <DsConfirmDialog
+      data-testid="delete-dialog"
+      :open="pendingDeleteId !== null"
+      message="Eliminare questa versione dalla cronologia? L'operazione non può essere annullata."
+      confirm-label="Elimina"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
     />
   </section>
 </template>

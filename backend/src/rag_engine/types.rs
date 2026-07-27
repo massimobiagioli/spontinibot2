@@ -114,6 +114,9 @@ pub enum RagError {
     #[error("persona not found")]
     PersonaNotFound,
 
+    #[error("cannot delete the active persona version")]
+    PersonaActive,
+
     #[error("no active persona configured")]
     NoActivePersona,
 }

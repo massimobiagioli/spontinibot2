@@ -225,7 +225,11 @@ pub fn router_with(
         )
         .route(
             "/admin/api/persona/:id/activate",
-            post(admin::activate_persona).with_state(admin_state),
+            post(admin::activate_persona).with_state(admin_state.clone()),
+        )
+        .route(
+            "/admin/api/persona/:id",
+            delete(admin::delete_persona).with_state(admin_state),
         )
         .route(
             "/admin/api/upload",
@@ -259,6 +263,11 @@ pub fn router_with(
                 .with_state(ingest_config_state.clone()),
         )
         .route(
+            "/admin/api/ingest/config/sections/:id/documents",
+            get(admin::ingest_config::handlers::list_section_documents)
+                .with_state(ingest_config_state.clone()),
+        )
+        .route(
             "/admin/api/ingest/config/sources",
             post(admin::ingest_config::handlers::create_source)
                 .with_state(ingest_config_state.clone()),
@@ -284,6 +293,7 @@ pub fn router_with(
         .route(
             "/admin/api/training/sessions/:id",
             get(admin::training_sessions::handlers::get_session)
+                .delete(admin::training_sessions::handlers::delete_session)
                 .with_state(training_session_state.clone()),
         )
         .route(

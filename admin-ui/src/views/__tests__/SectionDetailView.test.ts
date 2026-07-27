@@ -45,6 +45,7 @@ describe('SectionDetailView', () => {
 
   it('loads the config and shows the matching section by route id', async () => {
     vi.spyOn(adminApi, 'getIngestConfig').mockResolvedValue(config());
+    vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue([]);
     const router = makeRouter();
     await router.push('/ingest/sections/1');
     await router.isReady();
@@ -59,6 +60,7 @@ describe('SectionDetailView', () => {
 
   it('shows an honest not-found state when the section id does not exist', async () => {
     vi.spyOn(adminApi, 'getIngestConfig').mockResolvedValue(config());
+    vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue([]);
     const router = makeRouter();
     await router.push('/ingest/sections/999');
     await router.isReady();
@@ -71,8 +73,35 @@ describe('SectionDetailView', () => {
     expect(wrapper.text().toLowerCase()).toContain('non trovata');
   });
 
+  it('shows the ingested documents for the section, with link-shaped source refs as anchors', async () => {
+    vi.spyOn(adminApi, 'getIngestConfig').mockResolvedValue(config());
+    vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue([
+      {
+        source_ref: 'https://example.com/news/1',
+        source: 'scrape',
+        chunk_count: 2,
+      },
+    ]);
+    const router = makeRouter();
+    await router.push('/ingest/sections/1');
+    await router.isReady();
+
+    const wrapper = mount(SectionDetailView, {
+      global: { plugins: [router] },
+    });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Contenuti ingeriti');
+    const link = wrapper
+      .findAll('a')
+      .find((a) => a.text() === 'https://example.com/news/1');
+    expect(link?.attributes('href')).toBe('https://example.com/news/1');
+    expect(wrapper.text()).toContain('2 blocchi');
+  });
+
   it('deleting the section requires confirmation, then navigates back to the sections list', async () => {
     vi.spyOn(adminApi, 'getIngestConfig').mockResolvedValue(config());
+    vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue([]);
     const deleteSpy = vi
       .spyOn(adminApi, 'deleteSection')
       .mockResolvedValue(true);

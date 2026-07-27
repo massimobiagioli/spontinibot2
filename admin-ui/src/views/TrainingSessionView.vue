@@ -3,8 +3,9 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 
 import { DsCallout } from '../components/ds';
-import AskAnswerBox from '../components/training/AskAnswerBox.vue';
-import MessageList from '../components/training/MessageList.vue';
+import AddQuestionForm from '../components/training/AddQuestionForm.vue';
+import CloseSessionForm from '../components/training/CloseSessionForm.vue';
+import QuestionGrid from '../components/training/QuestionGrid.vue';
 import {
   AdminApiError,
   getSession,
@@ -43,8 +44,12 @@ async function loadSession(): Promise<void> {
 
 onMounted(loadSession);
 
-function onAsked(message: TrainingMessageResponse): void {
-  messages.value = [message, ...messages.value];
+function onAdded(message: TrainingMessageResponse): void {
+  messages.value = [...messages.value, message];
+}
+
+function onClosed(): void {
+  void loadSession();
 }
 </script>
 
@@ -61,14 +66,17 @@ function onAsked(message: TrainingMessageResponse): void {
 
   <template v-else-if="session">
     <h1>{{ session.title }}</h1>
-    <p v-if="session.closed_at">Sessione chiusa il {{ session.closed_at }}</p>
 
-    <AskAnswerBox
-      v-if="!session.closed_at"
-      :session-id="sessionId"
-      @asked="onAsked"
-    />
+    <DsCallout v-if="session.closed_at" variant="primary" title="Sessione chiusa">
+      <p>Chiusa il {{ session.closed_at }}</p>
+      <p v-if="session.notes">Note: {{ session.notes }}</p>
+    </DsCallout>
 
-    <MessageList :messages="messages" />
+    <template v-if="!session.closed_at">
+      <AddQuestionForm :session-id="sessionId" @added="onAdded" />
+      <CloseSessionForm :session-id="sessionId" @closed="onClosed" />
+    </template>
+
+    <QuestionGrid :messages="messages" />
   </template>
 </template>

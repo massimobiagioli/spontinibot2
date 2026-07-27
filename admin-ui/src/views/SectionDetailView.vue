@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 import { DsButton, DsCallout, DsConfirmDialog } from '../components/ds';
+import IngestedDocumentsList from '../components/ingest/IngestedDocumentsList.vue';
 import SourceList from '../components/ingest/SourceList.vue';
 import UploadDropzone from '../components/ingest/UploadDropzone.vue';
 import {
@@ -116,6 +117,8 @@ async function confirmDelete(): Promise<void> {
     />
 
     <UploadDropzone :section-name="section.name" />
+
+    <IngestedDocumentsList :section-id="section.id" />
 
     <DsConfirmDialog
       data-testid="section-delete-dialog"

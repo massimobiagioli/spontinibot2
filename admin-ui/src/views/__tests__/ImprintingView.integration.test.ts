@@ -60,8 +60,9 @@ describe('ImprintingView integration scenario', () => {
     expect(wrapper.text()).toContain('Attiva');
 
     // When the operator activates version 1 (confirming the dialog)
-    const activateButtons = wrapper.findAll('li button');
-    const activateV1 = activateButtons[activateButtons.length - 1];
+    const activateV1 = wrapper
+      .findAll('li button')
+      .find((b) => b.text() === 'Attiva questa versione');
     if (!activateV1) throw new Error('activate button for v1 not found');
     await activateV1.trigger('click');
     await wrapper

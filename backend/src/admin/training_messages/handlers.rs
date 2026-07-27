@@ -7,7 +7,8 @@ use serde::Deserialize;
 
 use crate::admin::ErrorResponse;
 use crate::admin::training_messages::{
-    TrainingMessageAdminPort, TrainingMessageError, TrainingMessageResponse,
+    AskTrainingMessageRequest, TrainingMessageAdminPort, TrainingMessageError,
+    TrainingMessageResponse,
 };
 use crate::audit::AuditLogPort;
 use crate::audit::record_best_effort;
@@ -22,6 +23,11 @@ pub struct TrainingMessageState {
 #[derive(Deserialize)]
 pub struct AskRequest {
     pub question: String,
+    pub expected_answer: Option<String>,
+    /// A manually supplied answer. When present, the session records this
+    /// Q&A pair as-is instead of invoking the live bot (used to backfill
+    /// historical exchanges into a session).
+    pub answer: Option<String>,
 }
 
 fn map_message_error(e: TrainingMessageError) -> (StatusCode, Json<ErrorResponse>) {
@@ -54,7 +60,14 @@ pub async fn create_message(
 ) -> Result<(StatusCode, Json<TrainingMessageResponse>), (StatusCode, Json<ErrorResponse>)> {
     let response = state
         .training_messages
-        .ask(session_id, req.question)
+        .ask(
+            session_id,
+            AskTrainingMessageRequest {
+                question: req.question,
+                expected_answer: req.expected_answer,
+                answer: req.answer,
+            },
+        )
         .await
         .map_err(map_message_error)?;
     record_best_effort(
@@ -122,7 +135,7 @@ mod tests {
         async fn ask(
             &self,
             session_id: i64,
-            question: String,
+            req: AskTrainingMessageRequest,
         ) -> Result<TrainingMessageResponse, TrainingMessageError> {
             if session_id == 999 {
                 return Err(TrainingMessageError::SessionNotFound(session_id));
@@ -143,7 +156,7 @@ mod tests {
             Ok(TrainingMessageResponse {
                 id: 1,
                 session_id,
-                question,
+                question: req.question,
                 answer: "Lo sportello apre alle 9:00.".into(),
                 sources: vec![TrainingMessageSource {
                     document_id: 7,
@@ -151,6 +164,9 @@ mod tests {
                 }],
                 fell_back: false,
                 created_at: "2026-07-24T00:00:00Z".into(),
+                expected_answer: req.expected_answer,
+                execution_time_ms: Some(42),
+                source: "chat".into(),
             })
         }
 
@@ -166,6 +182,9 @@ mod tests {
                 sources: vec![],
                 fell_back: false,
                 created_at: "2026-07-24T00:00:00Z".into(),
+                expected_answer: None,
+                execution_time_ms: Some(42),
+                source: "chat".into(),
             }])
         }
     }
@@ -175,6 +194,8 @@ mod tests {
         let state = test_state();
         let req = AskRequest {
             question: "A che ora apre l'anagrafe?".into(),
+            expected_answer: None,
+            answer: None,
         };
         let result = create_message(State(state), session(), Path(1), Json(req)).await;
         assert!(result.is_ok());
@@ -189,6 +210,8 @@ mod tests {
         let state = test_state();
         let req = AskRequest {
             question: "domanda".into(),
+            expected_answer: None,
+            answer: None,
         };
         let result = create_message(State(state), session(), Path(999), Json(req)).await;
         assert!(result.is_err());
@@ -201,6 +224,8 @@ mod tests {
         let state = test_state();
         let req = AskRequest {
             question: "domanda".into(),
+            expected_answer: None,
+            answer: None,
         };
         let result = create_message(State(state), session(), Path(500), Json(req)).await;
         assert!(result.is_err());
@@ -213,6 +238,8 @@ mod tests {
         let state = test_state();
         let req = AskRequest {
             question: "domanda".into(),
+            expected_answer: None,
+            answer: None,
         };
         let result = create_message(State(state), session(), Path(502), Json(req)).await;
         assert!(result.is_err());
@@ -225,6 +252,8 @@ mod tests {
         let state = test_state();
         let req = AskRequest {
             question: "domanda".into(),
+            expected_answer: None,
+            answer: None,
         };
         let result = create_message(State(state), session(), Path(501), Json(req)).await;
         assert!(result.is_err());

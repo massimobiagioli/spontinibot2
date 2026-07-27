@@ -54,6 +54,7 @@ impl Pipeline for IngestPipeline {
                 content: chunk.content.clone(),
                 metadata: chunk.metadata.clone(),
                 embedding,
+                section: Some(section.to_string()),
             };
             self.kb.insert_document(doc).await?;
         }
@@ -85,6 +86,7 @@ impl IngestPipeline {
                 content: chunk.content.clone(),
                 metadata: metadata.clone().or_else(|| chunk.metadata.clone()),
                 embedding,
+                section: Some(section.to_string()),
             };
             let inserted = self.kb.insert_document(doc).await?;
             document_ids.push(inserted.id);
@@ -166,6 +168,11 @@ mod tests {
         assert!(
             docs.iter().any(|d| d.content.contains("Title")),
             "expected document content to contain Title"
+        );
+        assert!(
+            docs.iter()
+                .all(|d| d.section.as_deref() == Some("test-section")),
+            "expected every scraped document to carry its section name"
         );
 
         let _ = std::fs::remove_file(&path);
@@ -252,6 +259,7 @@ mod tests {
             .expect("get docs failed");
         assert!(!docs.is_empty(), "expected at least one manual document");
         assert_eq!(docs[0].source_ref, "test.pdf");
+        assert_eq!(docs[0].section.as_deref(), Some("news"));
         assert!(
             docs[0].content.contains("manual upload"),
             "expected document content to contain upload text"

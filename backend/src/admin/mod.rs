@@ -74,6 +74,12 @@ fn map_rag_error(e: RagError) -> (StatusCode, Json<ErrorResponse>) {
                 error: e.to_string(),
             }),
         ),
+        RagError::PersonaActive => (
+            StatusCode::CONFLICT,
+            Json(ErrorResponse {
+                error: e.to_string(),
+            }),
+        ),
         _ => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse {
@@ -153,6 +159,27 @@ pub async fn activate_persona(
     )
     .await;
     Ok(Json(serde_json::json!({"status": "activated"})))
+}
+
+pub async fn delete_persona(
+    State(state): State<AdminState>,
+    session: OperatorSession,
+    Path(id): Path<i64>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
+    state
+        .persona_admin
+        .delete_persona(id)
+        .await
+        .map_err(map_rag_error)?;
+    record_best_effort(
+        state.audit.as_ref(),
+        &session.actor,
+        "delete_persona",
+        &format!("persona:{id}"),
+        &serde_json::json!({"id": id}),
+    )
+    .await;
+    Ok(Json(serde_json::json!({"status": "deleted"})))
 }
 
 pub async fn reload_persona(

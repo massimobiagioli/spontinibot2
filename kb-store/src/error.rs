@@ -13,6 +13,9 @@ pub enum KbStoreError {
 
     #[error("migration error: {0}")]
     Migration(String),
+
+    #[error("conflict: {0}")]
+    Conflict(String),
 }
 
 pub type Result<T> = std::result::Result<T, KbStoreError>;

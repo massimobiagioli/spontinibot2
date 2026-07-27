@@ -51,7 +51,7 @@ function onVersionsChanged(): void {
 </script>
 
 <template>
-  <h1>Imprinting del bot</h1>
+  <h1>Imprinting</h1>
 
   <ReloadPersonaButton />
 

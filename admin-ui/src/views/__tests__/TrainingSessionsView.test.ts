@@ -42,6 +42,7 @@ describe('TrainingSessionsView', () => {
           created_at: 'now',
           created_by: null,
           closed_at: null,
+          notes: null,
         },
       ]);
 

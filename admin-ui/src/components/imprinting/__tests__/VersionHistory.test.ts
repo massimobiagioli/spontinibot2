@@ -36,8 +36,8 @@ describe('VersionHistory', () => {
     expect(wrapper.text()).toContain('v2');
     expect(wrapper.text()).toContain('v1');
     expect(wrapper.text()).toContain('Attiva');
-    // Only the non-active version offers an activate button.
-    expect(wrapper.findAll('li button').length).toBe(1);
+    // Only the non-active version offers activate/delete buttons.
+    expect(wrapper.findAll('li button').length).toBe(2);
   });
 
   it('opens the confirm dialog before calling activatePersona, and refreshes on confirm', async () => {
@@ -75,5 +75,42 @@ describe('VersionHistory', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('internal error');
+  });
+
+  it('opens the delete confirm dialog before calling deletePersonaVersion, and refreshes on confirm', async () => {
+    const deletePersonaVersionSpy = vi
+      .spyOn(adminApi, 'deletePersonaVersion')
+      .mockResolvedValue({ status: 'deleted' });
+
+    const wrapper = mount(VersionHistory, { props: { versions } });
+
+    await wrapper.findAll('li button')[1]!.trigger('click');
+    expect(deletePersonaVersionSpy).not.toHaveBeenCalled();
+
+    const dialog = wrapper.find('[data-testid="delete-dialog"]');
+    expect(dialog.attributes('open')).toBeDefined();
+
+    await dialog.find('button.btn-danger').trigger('click');
+    await flushPromises();
+
+    expect(deletePersonaVersionSpy).toHaveBeenCalledWith(1);
+    expect(wrapper.emitted('changed')).toBeTruthy();
+  });
+
+  it('shows the honest error message from AdminApiError on delete failure', async () => {
+    vi.spyOn(adminApi, 'deletePersonaVersion').mockRejectedValue(
+      new adminApi.AdminApiError(409, 'cannot delete the active persona version'),
+    );
+
+    const wrapper = mount(VersionHistory, { props: { versions } });
+
+    await wrapper.findAll('li button')[1]!.trigger('click');
+    await wrapper
+      .find('[data-testid="delete-dialog"]')
+      .find('button.btn-danger')
+      .trigger('click');
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('cannot delete the active persona version');
   });
 });

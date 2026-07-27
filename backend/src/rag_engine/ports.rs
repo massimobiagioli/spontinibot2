@@ -38,6 +38,7 @@ pub trait PersonaAdminPort: Send + Sync {
         req: NewPersonaRequest,
     ) -> Result<AdminPersonaSnapshot, RagError>;
     async fn activate_persona(&self, id: i64) -> Result<(), RagError>;
+    async fn delete_persona(&self, id: i64) -> Result<(), RagError>;
     async fn reload_persona(&self) -> Result<(), RagError>;
 }
 

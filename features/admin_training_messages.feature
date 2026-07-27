@@ -46,3 +46,11 @@ Feature: Ask/answer with recording in a training session
     And the operator has created a training session titled "Sessione"
     When the operator lists that training session's messages without admin key
     Then the request is rejected with 401
+
+  Scenario: Operator manually records a question and answer without invoking the bot
+    Given the training messages API is available
+    And the operator has created a training session titled "Sessione formazione manuale"
+    When the operator manually records the question "Quando e' nato Gaspare Spontini?" with answer "Il 14 novembre 1774" and expected answer "1774" in that training session
+    Then the training message answer is "Il 14 novembre 1774"
+    And the training message source is "manual"
+    And the training message expected answer is "1774"
