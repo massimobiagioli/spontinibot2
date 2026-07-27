@@ -22,9 +22,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 "operator credential created from env vars at {}",
                 config.operator_credential_path
             ),
-            Ok(false) => tracing::info!(
-                "operator credential file already exists, env vars ignored"
-            ),
+            Ok(false) => {
+                tracing::info!("operator credential file already exists, env vars ignored")
+            }
             Err(e) => tracing::warn!("failed to create operator credential from env vars: {e:?}"),
         }
     }

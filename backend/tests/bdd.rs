@@ -14,6 +14,10 @@ use backend::admin::ingest_config::{
     IngestConfigAdminPort, IngestConfigError, IngestScheduleResponse, IngestSectionResponse,
     IngestSourceResponse,
 };
+use backend::admin::ingest_manual::handlers::IngestManualState;
+use backend::admin::ingest_manual::{
+    IngestManualAdminPort, IngestManualError, IngestManualResponse, RecencyWindow,
+};
 use backend::admin::ingest_run::handlers::IngestRunState;
 use backend::admin::ingest_run::{IngestRunAdminPort, IngestRunError, IngestRunResponse};
 use backend::admin::training_feedback::handlers::TrainingFeedbackState;
@@ -188,6 +192,20 @@ impl IngestConfigAdminPort for StubIngestConfigAdmin {
     }
 }
 
+struct StubIngestManualAdmin;
+
+#[async_trait]
+impl IngestManualAdminPort for StubIngestManualAdmin {
+    async fn ingest(
+        &self,
+        _section: &str,
+        _src: &str,
+        _window: RecencyWindow,
+    ) -> Result<IngestManualResponse, IngestManualError> {
+        unimplemented!("stub")
+    }
+}
+
 struct StubIngestRunAdmin;
 
 #[async_trait]
@@ -303,6 +321,7 @@ struct BotWorld {
     ingest_run_db_path: Option<String>,
     ingest_run_router: Option<axum::Router>,
     ingest_run_id: Option<i64>,
+    ingest_manual_router: Option<axum::Router>,
     training_sessions_db_path: Option<String>,
     training_sessions_router: Option<axum::Router>,
     training_session_id: Option<i64>,
@@ -461,6 +480,7 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> (axum::Router, St
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
+            ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
@@ -494,6 +514,13 @@ fn stub_ingest_config_state() -> IngestConfigState {
 fn stub_ingest_run_state() -> IngestRunState {
     IngestRunState {
         ingest_run: Arc::new(StubIngestRunAdmin),
+        audit: Arc::new(NoopAudit),
+    }
+}
+
+fn stub_ingest_manual_state() -> IngestManualState {
+    IngestManualState {
+        ingest_manual: Arc::new(StubIngestManualAdmin),
         audit: Arc::new(NoopAudit),
     }
 }
@@ -570,6 +597,7 @@ async fn when_check_health(world: &mut BotWorld) {
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
+            ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
@@ -685,6 +713,7 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
+            ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
@@ -1656,6 +1685,7 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> (axum::Router, S
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
+            ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
@@ -2031,6 +2061,7 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
+            ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
@@ -2684,6 +2715,7 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
+            ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
@@ -2797,6 +2829,228 @@ async fn then_run_not_found(world: &mut BotWorld) {
 }
 
 // ---------------------------------------------------------------------------
+// Manual (scoped) ingest BDD step definitions — Plan 0029
+// ---------------------------------------------------------------------------
+
+/// Stands in for `PipelineIngestManualAdapter` (covered by wiremock-backed
+/// adapter tests in `backend/src/admin/ingest_manual/adapter.rs`). This
+/// step-definition scope tests the HTTP/auth/routing layer only, matching a
+/// real robots.txt-disallowed domain by name so the scenario reads like the
+/// real-world case it stands for.
+struct ConfigurableIngestManual;
+
+#[async_trait]
+impl IngestManualAdminPort for ConfigurableIngestManual {
+    async fn ingest(
+        &self,
+        section: &str,
+        src: &str,
+        window: RecencyWindow,
+    ) -> Result<IngestManualResponse, IngestManualError> {
+        if src.contains("halleyweb.com") {
+            return Err(IngestManualError::RobotsTxt(format!(
+                "{src} disallows scraping"
+            )));
+        }
+        Ok(IngestManualResponse {
+            section: section.to_string(),
+            src: src.to_string(),
+            window: window.to_string(),
+            status: "ingested".to_string(),
+        })
+    }
+}
+
+#[given("the manual ingest API is available")]
+async fn given_manual_ingest_api_available(world: &mut BotWorld) {
+    let path = temp_db();
+    let store = Arc::new(
+        kb_store::KbStore::open(&path)
+            .await
+            .expect("failed to open test kb.db for manual ingest"),
+    );
+    let persona: Arc<dyn PersonaPort> = Arc::new(
+        backend::rag_engine::persona::PersonaAdapter::new(store.clone()),
+    );
+    let persona_admin: Arc<dyn PersonaAdminPort> = Arc::new(
+        backend::rag_engine::persona_admin::PersonaAdminAdapter::new(store.clone(), persona),
+    );
+
+    let config = Config {
+        embed_url: "http://embed:8080".into(),
+        generate_url: "http://generate:8080".into(),
+        kb_path: path.clone(),
+        top_k: 5,
+        min_score: 0.35,
+        operator_credential_path: "/nonexistent-bdd-credential.json".into(),
+        operator_username: None,
+        operator_password: None,
+        session_ttl_secs: 1800,
+        upload_max_bytes: 10_485_760,
+    };
+
+    let rag_engine = Arc::new(RagEngine::new(
+        Arc::new(StubEmbedding),
+        Arc::new(ConfigurableRetrieval { chunks: vec![] }),
+        Arc::new(ConfigurablePersona { snapshot: None }),
+        Arc::new(RecordingGeneration {
+            call_count: AtomicUsize::new(0),
+            last_prompt: std::sync::Mutex::new(None),
+        }),
+        5,
+        0.35,
+    ));
+
+    let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
+    let preview_store = Arc::new(PreviewStore::new(15));
+    let upload_state = UploadState {
+        upload,
+        preview_store,
+        config: config.clone(),
+        audit: Arc::new(NoopAudit),
+    };
+    let ingest_config_state = stub_ingest_config_state();
+    let ingest_run_state = stub_ingest_run_state();
+
+    let ingest_manual_port: Arc<dyn IngestManualAdminPort> = Arc::new(ConfigurableIngestManual);
+    let audit_port: Arc<dyn AuditLogPort> = Arc::new(KbStoreAuditLogAdapter::new(store.clone()));
+    let ingest_manual_state = IngestManualState {
+        ingest_manual: ingest_manual_port,
+        audit: audit_port.clone(),
+    };
+
+    let training_session_port: Arc<dyn TrainingSessionAdminPort> = Arc::new(
+        backend::admin::training_sessions::adapter::KbStoreTrainingSessionAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_session_state = TrainingSessionState {
+        training_sessions: training_session_port,
+        audit: Arc::new(NoopAudit),
+    };
+
+    let training_message_port: Arc<dyn TrainingMessageAdminPort> = Arc::new(
+        backend::admin::training_messages::adapter::RagTrainingMessageAdapter::new(
+            store.clone(),
+            rag_engine.clone(),
+        ),
+    );
+    let training_message_state = TrainingMessageState {
+        training_messages: training_message_port,
+        audit: Arc::new(NoopAudit),
+    };
+
+    let training_feedback_port: Arc<dyn TrainingFeedbackAdminPort> = Arc::new(
+        backend::admin::training_feedback::adapter::KbStoreTrainingFeedbackAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_feedback_state = TrainingFeedbackState {
+        training_feedback: training_feedback_port,
+        audit: Arc::new(NoopAudit),
+    };
+
+    let session_store = Arc::new(SessionStore::new(config.session_ttl_secs));
+    let session_token = session_store.insert("operator".into());
+    world.admin_session_cookie = Some(format!("session={session_token}"));
+
+    let router = backend::router_with(
+        AppState { rag_engine },
+        persona_admin,
+        config,
+        session_store,
+        audit_port,
+        backend::AdminRouterState {
+            upload: upload_state,
+            ingest_config: ingest_config_state,
+            ingest_manual: ingest_manual_state,
+            ingest_run: ingest_run_state,
+            training_sessions: training_session_state,
+            training_messages: training_message_state,
+            training_feedback: training_feedback_state,
+        },
+    );
+
+    world.admin_db_path = Some(path);
+    world.ingest_manual_router = Some(router);
+}
+
+async fn manual_ingest_request(
+    world: &mut BotWorld,
+    section: &str,
+    src: &str,
+    window: &str,
+    with_auth: bool,
+) {
+    let router = world
+        .ingest_manual_router
+        .as_ref()
+        .expect("manual ingest router not initialized")
+        .clone();
+
+    let body = serde_json::json!({ "section": section, "src": src, "window": window }).to_string();
+    let mut builder = Request::builder()
+        .method("POST")
+        .uri("/admin/api/ingest/manual")
+        .header("content-type", "application/json");
+    if with_auth {
+        builder = builder.header("cookie", world.admin_session_cookie.as_ref().unwrap());
+    }
+    let response = router
+        .oneshot(builder.body(Body::from(body)).unwrap())
+        .await
+        .unwrap();
+
+    world.response_status = Some(response.status().as_u16());
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
+}
+
+#[when(
+    regex = r#"^the operator runs a manual ingest for section "([^"]+)", source "([^"]+)", window "([^"]+)"$"#
+)]
+async fn when_run_manual_ingest(
+    world: &mut BotWorld,
+    section: String,
+    src: String,
+    window: String,
+) {
+    manual_ingest_request(world, &section, &src, &window, true).await;
+}
+
+#[when("the operator runs a manual ingest without admin key")]
+async fn when_run_manual_ingest_no_auth(world: &mut BotWorld) {
+    manual_ingest_request(
+        world,
+        "storia",
+        "https://it.wikipedia.org/wiki/Maiolati_Spontini",
+        "30d",
+        false,
+    )
+    .await;
+}
+
+#[then("the manual ingest succeeds")]
+async fn then_manual_ingest_succeeds(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(200));
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["status"].as_str(), Some("ingested"));
+}
+
+#[then("the manual ingest is rejected as disallowed by robots.txt")]
+async fn then_manual_ingest_rejected_robots(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(403));
+}
+
+#[then("the manual ingest is rejected as an invalid window")]
+async fn then_manual_ingest_rejected_invalid_window(world: &mut BotWorld) {
+    assert_eq!(world.response_status, Some(400));
+}
+
+// ---------------------------------------------------------------------------
 // Training session BDD step definitions
 // ---------------------------------------------------------------------------
 
@@ -2896,6 +3150,7 @@ async fn given_training_sessions_api_available(world: &mut BotWorld) {
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
+            ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
@@ -3312,6 +3567,7 @@ async fn given_training_messages_api_available(world: &mut BotWorld) {
         backend::AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
+            ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,

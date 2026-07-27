@@ -43,8 +43,11 @@ impl OperatorCredential {
             "password_hash": password_hash,
         });
 
-        std::fs::write(path, serde_json::to_string_pretty(&json).expect("serialize failed"))
-            .map_err(|e| CredentialError::Invalid(e.to_string()))?;
+        std::fs::write(
+            path,
+            serde_json::to_string_pretty(&json).expect("serialize failed"),
+        )
+        .map_err(|e| CredentialError::Invalid(e.to_string()))?;
 
         Ok(true)
     }
@@ -171,17 +174,17 @@ mod tests {
         )
         .expect("write failed");
 
-        let created = OperatorCredential::ensure_from_env(
-            path.to_str().unwrap(),
-            "operator",
-            "new-password",
-        )
-        .expect("ensure_from_env failed");
+        let created =
+            OperatorCredential::ensure_from_env(path.to_str().unwrap(), "operator", "new-password")
+                .expect("ensure_from_env failed");
         assert!(!created);
 
         let credential =
             OperatorCredential::load_from_file(path.to_str().unwrap()).expect("load failed");
-        assert!(verify_password(&credential.password_hash, "original-password"));
+        assert!(verify_password(
+            &credential.password_hash,
+            "original-password"
+        ));
 
         let _ = std::fs::remove_file(&path);
     }

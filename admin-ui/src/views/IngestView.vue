@@ -2,6 +2,7 @@
 import { onMounted, ref } from 'vue';
 
 import { DsCallout } from '../components/ds';
+import ManualIngestForm from '../components/ingest/ManualIngestForm.vue';
 import RunTrigger from '../components/ingest/RunTrigger.vue';
 import ScheduleEditor from '../components/ingest/ScheduleEditor.vue';
 import SectionsGrid from '../components/ingest/SectionsGrid.vue';
@@ -52,7 +53,12 @@ function onScheduleSaved(schedule: IngestScheduleResponse): void {
   </DsCallout>
 
   <template v-else-if="config">
+    <h2>Esegui tutte le fonti configurate</h2>
     <RunTrigger />
+
+    <h2>Esegui ingest manuale mirato</h2>
+    <ManualIngestForm />
+
     <ScheduleEditor :schedule="config.schedule" @saved="onScheduleSaved" />
     <SectionsGrid :sections="config.sections" @changed="loadConfig" />
   </template>

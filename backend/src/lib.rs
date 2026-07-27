@@ -6,6 +6,8 @@ use axum::routing::{delete, get, post, put};
 
 use crate::admin::ingest_config::adapter::KbStoreIngestConfigAdapter;
 use crate::admin::ingest_config::handlers::IngestConfigState;
+use crate::admin::ingest_manual::adapter::PipelineIngestManualAdapter;
+use crate::admin::ingest_manual::handlers::IngestManualState;
 use crate::admin::ingest_run::adapter::KbStoreIngestRunAdapter;
 use crate::admin::ingest_run::handlers::IngestRunState;
 use crate::admin::training_feedback::adapter::KbStoreTrainingFeedbackAdapter;
@@ -48,6 +50,7 @@ pub struct AppState {
 pub struct AdminRouterState {
     pub upload: admin::upload::handlers::UploadState,
     pub ingest_config: IngestConfigState,
+    pub ingest_manual: IngestManualState,
     pub ingest_run: IngestRunState,
     pub training_sessions: TrainingSessionState,
     pub training_messages: TrainingMessageState,
@@ -87,7 +90,8 @@ pub async fn router() -> Router {
         )
         .expect("failed to create ingest pipeline"),
     );
-    let upload_port: Arc<dyn UploadPort> = Arc::new(IngestCoreUploadAdapter::new(ingest_pipeline));
+    let upload_port: Arc<dyn UploadPort> =
+        Arc::new(IngestCoreUploadAdapter::new(ingest_pipeline.clone()));
     let preview_store = Arc::new(PreviewStore::new(15));
     let audit_port: Arc<dyn AuditLogPort> = Arc::new(KbStoreAuditLogAdapter::new(store.clone()));
     let upload_state = admin::upload::handlers::UploadState {
@@ -131,6 +135,16 @@ pub async fn router() -> Router {
         audit: audit_port.clone(),
     };
 
+    // Same shared `ingest_pipeline` instance the upload port uses above — this
+    // is the "one shared service" both the admin-ui trigger and the `bin/ingest`
+    // CLI call (Plan 0029), not a second, divergent ingestion code path.
+    let ingest_manual_port: Arc<dyn crate::admin::ingest_manual::IngestManualAdminPort> =
+        Arc::new(PipelineIngestManualAdapter::new(ingest_pipeline));
+    let ingest_manual_state = IngestManualState {
+        ingest_manual: ingest_manual_port,
+        audit: audit_port.clone(),
+    };
+
     let training_session_port: Arc<dyn crate::admin::training_sessions::TrainingSessionAdminPort> =
         Arc::new(KbStoreTrainingSessionAdapter::new(store.clone()));
     let training_session_state = TrainingSessionState {
@@ -167,6 +181,7 @@ pub async fn router() -> Router {
         AdminRouterState {
             upload: upload_state,
             ingest_config: ingest_config_state,
+            ingest_manual: ingest_manual_state,
             ingest_run: ingest_run_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
@@ -186,6 +201,7 @@ pub fn router_with(
     let AdminRouterState {
         upload: upload_state,
         ingest_config: ingest_config_state,
+        ingest_manual: ingest_manual_state,
         ingest_run: ingest_run_state,
         training_sessions: training_session_state,
         training_messages: training_message_state,
@@ -283,6 +299,10 @@ pub fn router_with(
         .route(
             "/admin/api/ingest/run/:id",
             get(admin::ingest_run::handlers::get_run).with_state(ingest_run_state),
+        )
+        .route(
+            "/admin/api/ingest/manual",
+            post(admin::ingest_manual::handlers::ingest_manual).with_state(ingest_manual_state),
         )
         .route(
             "/admin/api/training/sessions",
