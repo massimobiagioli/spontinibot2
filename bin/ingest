@@ -1,0 +1,83 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Operator convenience CLI for a scoped, one-shot manual ingest run (Plan
+# 0029): a thin HTTP client over POST /admin/api/ingest/manual -- the SAME
+# backend endpoint the admin-ui's manual-ingest form calls (one shared
+# service, not a second ingestion code path). Logs in with
+# OPERATOR_USERNAME/OPERATOR_PASSWORD (the same operator credential env vars
+# docker-compose.yml already defines), scoped to a throwaway cookie jar.
+#
+# Shell logic beyond ~3 lines/with conditionals belongs in bin/, invoked from
+# the Makefile as a one-liner (docs/STACK.md §7.3 Rule 7) -- see the `ingest`
+# target in the Makefile.
+
+BACKEND_URL="${BACKEND_URL:-http://localhost:8080}"
+
+usage() {
+    cat <<'EOF'
+usage: bin/ingest <section> <src> <number-of-days-or-month>
+
+  <section>                   e.g. storia
+  <src>                       source URL to ingest (must allow scraping per robots.txt)
+  <number-of-days-or-month>   e.g. 30d or 2026-07
+
+Requires OPERATOR_USERNAME and OPERATOR_PASSWORD in the environment.
+EOF
+    exit 1
+}
+
+if [[ $# -ne 3 ]]; then
+    usage
+fi
+
+SECTION="$1"
+SRC="$2"
+WINDOW="$3"
+
+: "${OPERATOR_USERNAME:?OPERATOR_USERNAME must be set}"
+: "${OPERATOR_PASSWORD:?OPERATOR_PASSWORD must be set}"
+
+json_escape() {
+    local s="$1"
+    s="${s//\\/\\\\}"
+    s="${s//\"/\\\"}"
+    printf '%s' "$s"
+}
+
+COOKIE_JAR="$(mktemp)"
+trap 'rm -f "$COOKIE_JAR"' EXIT
+
+login_body=$(printf '{"username":"%s","password":"%s"}' \
+    "$(json_escape "$OPERATOR_USERNAME")" \
+    "$(json_escape "$OPERATOR_PASSWORD")")
+
+login_status=$(curl -sS -o /dev/null -w '%{http_code}' -c "$COOKIE_JAR" \
+    -X POST "$BACKEND_URL/admin/api/auth/login" \
+    -H 'Content-Type: application/json' \
+    -d "$login_body")
+
+if [[ "$login_status" != "200" ]]; then
+    echo "error: login failed (HTTP $login_status)" >&2
+    exit 1
+fi
+
+ingest_body=$(printf '{"section":"%s","src":"%s","window":"%s"}' \
+    "$(json_escape "$SECTION")" \
+    "$(json_escape "$SRC")" \
+    "$(json_escape "$WINDOW")")
+
+response=$(curl -sS -w '\n%{http_code}' -b "$COOKIE_JAR" \
+    -X POST "$BACKEND_URL/admin/api/ingest/manual" \
+    -H 'Content-Type: application/json' \
+    -d "$ingest_body")
+
+http_code=$(echo "$response" | tail -n1)
+body=$(echo "$response" | sed '$d')
+
+echo "$body"
+
+if (( http_code < 200 || http_code >= 300 )); then
+    echo "error: ingest failed (HTTP $http_code)" >&2
+    exit 1
+fi

@@ -76,6 +76,13 @@ export interface IngestRunResponse {
   requested_at: string;
 }
 
+export interface IngestManualResponse {
+  section: string;
+  src: string;
+  window: string;
+  status: string;
+}
+
 export interface UploadResponse {
   token: string;
   preview_url: string;
@@ -328,6 +335,18 @@ export function triggerIngestRun(): Promise<IngestRunResponse> {
 
 export function getIngestRun(id: number): Promise<IngestRunResponse> {
   return request<IngestRunResponse>(`/admin/api/ingest/run/${id}`);
+}
+
+export function triggerManualIngest(
+  section: string,
+  src: string,
+  window: string,
+): Promise<IngestManualResponse> {
+  return jsonRequest<IngestManualResponse>('/admin/api/ingest/manual', 'POST', {
+    section,
+    src,
+    window,
+  });
 }
 
 export async function uploadDocument(

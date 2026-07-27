@@ -159,6 +159,14 @@ migrate:
 ingest-run:
 	@curl -sS -X POST http://localhost:8080/admin/api/ingest/run
 
+.PHONY: ingest
+## ingest: scoped manual ingest via bin/ingest (SECTION=... SRC=... WINDOW=..., e.g. WINDOW=30d or WINDOW=2026-07)
+ingest:
+	@test -n "$(SECTION)" || { echo "usage: make ingest SECTION=... SRC=... WINDOW=..."; exit 1; }
+	@test -n "$(SRC)" || { echo "usage: make ingest SECTION=... SRC=... WINDOW=..."; exit 1; }
+	@test -n "$(WINDOW)" || { echo "usage: make ingest SECTION=... SRC=... WINDOW=..."; exit 1; }
+	./bin/ingest "$(SECTION)" "$(SRC)" "$(WINDOW)"
+
 .PHONY: set-operator-credential
 ## set-operator-credential: hash a password (prompted) and write the operator credential file (USERNAME=operator)
 set-operator-credential:
