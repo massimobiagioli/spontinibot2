@@ -1,4 +1,6 @@
 pub mod adapter;
+pub mod composite_adapter;
+pub mod halley;
 pub mod handlers;
 
 use std::fmt;
@@ -89,6 +91,18 @@ impl RecencyWindow {
         }
 
         Err(RecencyWindowError::InvalidFormat(input.to_string()))
+    }
+
+    /// The earliest date this window reaches back to, relative to `reference`.
+    /// Used by the Halley curation path (Plan 0030) to bound pagination — a
+    /// `Days(n)` window reaches back `n` days; a `Month{y,m}` window reaches
+    /// back to that month's 1st, through `reference`.
+    pub fn cutoff_date(&self, reference: NaiveDate) -> NaiveDate {
+        match self {
+            RecencyWindow::Days(days) => reference - chrono::Duration::days(i64::from(*days)),
+            RecencyWindow::Month { year, month } => NaiveDate::from_ymd_opt(*year, *month, 1)
+                .expect("RecencyWindow::Month always holds a valid year/month, checked at parse"),
+        }
     }
 }
 
@@ -196,6 +210,22 @@ mod tests {
     fn should_reject_month_with_invalid_month_number() {
         let result = RecencyWindow::parse_at("2026-13", reference());
         assert!(matches!(result, Err(RecencyWindowError::InvalidFormat(_))));
+    }
+
+    #[test]
+    fn should_compute_cutoff_date_for_days_window() {
+        let cutoff = RecencyWindow::Days(30).cutoff_date(reference());
+        assert_eq!(cutoff, NaiveDate::from_ymd_opt(2026, 6, 27).unwrap());
+    }
+
+    #[test]
+    fn should_compute_cutoff_date_for_month_window_as_first_of_that_month() {
+        let cutoff = RecencyWindow::Month {
+            year: 2026,
+            month: 3,
+        }
+        .cutoff_date(reference());
+        assert_eq!(cutoff, NaiveDate::from_ymd_opt(2026, 3, 1).unwrap());
     }
 
     #[test]

@@ -68,6 +68,7 @@ export interface IngestedDocumentResponse {
   source_ref: string;
   source: string;
   chunk_count: number;
+  created_at: string;
 }
 
 export interface IngestRunResponse {

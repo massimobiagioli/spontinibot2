@@ -90,6 +90,7 @@ pub struct IngestedDocumentResponse {
     pub source_ref: String,
     pub source: String,
     pub chunk_count: i64,
+    pub created_at: String,
 }
 
 impl From<IngestedDocument> for IngestedDocumentResponse {
@@ -98,6 +99,7 @@ impl From<IngestedDocument> for IngestedDocumentResponse {
             source_ref: d.source_ref,
             source: d.source.to_string(),
             chunk_count: d.chunk_count,
+            created_at: d.created_at,
         }
     }
 }
@@ -217,10 +219,12 @@ mod tests {
             source_ref: "https://example.com/news/1".into(),
             source: kb_store::DocumentSource::Scrape,
             chunk_count: 3,
+            created_at: "2026-07-24 00:00:00".into(),
         };
         let response = IngestedDocumentResponse::from(doc);
         assert_eq!(response.source_ref, "https://example.com/news/1");
         assert_eq!(response.source, "scrape");
+        assert_eq!(response.created_at, "2026-07-24 00:00:00");
         assert_eq!(response.chunk_count, 3);
     }
 

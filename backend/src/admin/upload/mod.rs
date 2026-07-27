@@ -19,6 +19,7 @@ use std::fmt;
 pub enum DocumentFormat {
     Pdf,
     Docx,
+    Rtf,
     Markdown,
     PlainText,
 }
@@ -28,6 +29,7 @@ impl fmt::Display for DocumentFormat {
         match self {
             DocumentFormat::Pdf => write!(f, "pdf"),
             DocumentFormat::Docx => write!(f, "docx"),
+            DocumentFormat::Rtf => write!(f, "rtf"),
             DocumentFormat::Markdown => write!(f, "markdown"),
             DocumentFormat::PlainText => write!(f, "plain_text"),
         }

@@ -68,6 +68,36 @@ impl DocxExtractor {
     }
 }
 
+/// Extract text from RTF bytes using the `rtf-parser` crate.
+pub struct RtfExtractor;
+
+impl RtfExtractor {
+    pub fn extract(file_bytes: &[u8]) -> Result<ExtractedText, UploadError> {
+        if file_bytes.len() < 5 || &file_bytes[..5] != b"{\\rtf" {
+            return Err(UploadError::ExtractionFailed(
+                "invalid RTF: missing '{\\rtf' signature".into(),
+            ));
+        }
+
+        let rtf_str = std::str::from_utf8(file_bytes)
+            .map_err(|e| UploadError::ExtractionFailed(format!("invalid UTF-8 in RTF: {e}")))?;
+
+        let tokens = rtf_parser::lexer::Lexer::scan(rtf_str)
+            .map_err(|e| UploadError::ExtractionFailed(format!("RTF lexing failed: {e}")))?;
+        let mut parser = rtf_parser::parser::Parser::new(tokens);
+        let document = parser
+            .parse()
+            .map_err(|e| UploadError::ExtractionFailed(format!("RTF parsing failed: {e}")))?;
+        let content = document.get_text();
+
+        Ok(ExtractedText {
+            content,
+            format: DocumentFormat::Rtf,
+            byte_size: file_bytes.len(),
+        })
+    }
+}
+
 /// Extract text from Markdown bytes (UTF-8 read, strip optional frontmatter).
 pub struct MarkdownExtractor;
 
@@ -123,6 +153,7 @@ impl CompositeExtractor {
         match ext.as_str() {
             "pdf" => PdfExtractor::extract(file_bytes),
             "docx" => DocxExtractor::extract(file_bytes),
+            "rtf" => RtfExtractor::extract(file_bytes),
             "md" | "markdown" => MarkdownExtractor::extract(file_bytes),
             "txt" | "text" => PlainTextExtractor::extract(file_bytes),
             _ => Err(UploadError::UnsupportedFormat(ext)),
@@ -181,6 +212,21 @@ mod tests {
     }
 
     #[test]
+    fn should_extract_plain_text_from_rtf() {
+        let rtf = br#"{\rtf1\ansi{\fonttbl\f0\fswiss Helvetica;}\f0\pard Voici du texte en {\b gras}.\par}"#;
+        let result = RtfExtractor::extract(rtf).unwrap();
+        assert_eq!(result.content, "Voici du texte en gras.");
+        assert_eq!(result.format, DocumentFormat::Rtf);
+    }
+
+    #[test]
+    fn should_reject_invalid_rtf_magic_bytes() {
+        let bytes = b"not an rtf document";
+        let result = RtfExtractor::extract(bytes);
+        assert!(matches!(result, Err(UploadError::ExtractionFailed(_))));
+    }
+
+    #[test]
     fn should_dispatch_by_extension() {
         let txt_bytes = b"plain text";
         let result = CompositeExtractor::extract(txt_bytes, "file.txt").unwrap();
@@ -189,6 +235,10 @@ mod tests {
         let md_bytes = b"# Markdown";
         let result = CompositeExtractor::extract(md_bytes, "file.md").unwrap();
         assert_eq!(result.format, DocumentFormat::Markdown);
+
+        let rtf_bytes = br#"{\rtf1\ansi Hello.\par}"#;
+        let result = CompositeExtractor::extract(rtf_bytes, "file.rtf").unwrap();
+        assert_eq!(result.format, DocumentFormat::Rtf);
     }
 
     #[test]

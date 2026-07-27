@@ -27,6 +27,12 @@ services:
       # files are never overwritten).
       - OPERATOR_USERNAME=${OPERATOR_USERNAME:-operator}
       - OPERATOR_PASSWORD=${OPERATOR_PASSWORD:-QEZdZaoRdQBOVUMNpZQ03n4R/I4qgAzn}
+      # Plan 0030: the only place any curation-eligible domain is named for
+      # this deployment. No domain is hardcoded in the backend binary itself
+      # (see Config::from_env) — comma-separated, empty/unset means the
+      # non-interactive curation path is off and every source goes through
+      # the normal robots.txt-honoring scrape pipeline.
+      - CURATION_ALLOWED_HOSTS=${CURATION_ALLOWED_HOSTS:-halleyweb.com}
     volumes:
       - kb-data:/data
     depends_on:

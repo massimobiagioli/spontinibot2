@@ -28,8 +28,8 @@ pub mod types;
 
 pub use error::{KbStoreError, Result};
 pub use types::{
-    AuditLogEntry, Document, DocumentSource, EMBEDDING_DIM, IngestRunRequest, IngestSchedule,
-    IngestSection, IngestSource, IngestedDocument, NewAuditLogEntry, NewDocument,
+    AuditLogEntry, Document, DocumentSource, EMBEDDING_DIM, IngestBookmark, IngestRunRequest,
+    IngestSchedule, IngestSection, IngestSource, IngestedDocument, NewAuditLogEntry, NewDocument,
     NewIngestSchedule, NewIngestSection, NewIngestSource, NewPersona, NewTrainingFeedback,
     NewTrainingMessage, NewTrainingSession, Persona, RunRequestStatus, ScoredDocument, Sentiment,
     SourceType, TrainingFeedback, TrainingMessage, TrainingSession,
@@ -66,7 +66,8 @@ impl KbStore {
         let section = doc.section.clone();
 
         conn.execute(
-            "INSERT INTO documents (source, source_ref, content, metadata, embedding, section) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO documents (source, source_ref, content, metadata, embedding, section, created_at) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, datetime('now'))",
             libsql::params![
                 source_str,
                 source_ref,
@@ -146,9 +147,9 @@ impl KbStore {
         let conn = self.db.connect()?;
         let mut rows = conn
             .query(
-                "SELECT source_ref, source, COUNT(*) AS chunk_count \
+                "SELECT source_ref, source, COUNT(*) AS chunk_count, MAX(created_at) AS created_at \
                  FROM documents WHERE section = ?1 \
-                 GROUP BY source_ref, source ORDER BY source_ref ASC",
+                 GROUP BY source_ref, source ORDER BY created_at DESC",
                 libsql::params![section],
             )
             .await?;
@@ -162,6 +163,7 @@ impl KbStore {
                 source_ref: row.get::<String>(0)?,
                 source,
                 chunk_count: row.get::<i64>(2)?,
+                created_at: row.get::<String>(3)?,
             });
         }
         Ok(summaries)
@@ -465,6 +467,55 @@ impl KbStore {
             )
             .await?;
         Ok(rows_affected > 0)
+    }
+
+    pub async fn get_bookmark(
+        &self,
+        section_id: i64,
+        source_url: &str,
+    ) -> Result<Option<IngestBookmark>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, section_id, source_url, last_item_ref, last_item_date, updated_at \
+                 FROM ingest_bookmark WHERE section_id = ?1 AND source_url = ?2",
+                libsql::params![section_id, source_url],
+            )
+            .await?;
+        match rows.next().await? {
+            Some(row) => Ok(Some(IngestBookmark {
+                id: row.get::<i64>(0)?,
+                section_id: row.get::<i64>(1)?,
+                source_url: row.get::<String>(2)?,
+                last_item_ref: row.get::<String>(3)?,
+                last_item_date: row.get::<String>(4)?,
+                updated_at: row.get::<String>(5)?,
+            })),
+            None => Ok(None),
+        }
+    }
+
+    pub async fn upsert_bookmark(
+        &self,
+        section_id: i64,
+        source_url: &str,
+        last_item_ref: &str,
+        last_item_date: &str,
+    ) -> Result<IngestBookmark> {
+        let conn = self.db.connect()?;
+        conn.execute(
+            "INSERT INTO ingest_bookmark (section_id, source_url, last_item_ref, last_item_date, updated_at) \
+             VALUES (?1, ?2, ?3, ?4, datetime('now')) \
+             ON CONFLICT(section_id, source_url) DO UPDATE SET \
+                 last_item_ref = excluded.last_item_ref, \
+                 last_item_date = excluded.last_item_date, \
+                 updated_at = excluded.updated_at",
+            libsql::params![section_id, source_url, last_item_ref, last_item_date],
+        )
+        .await?;
+        self.get_bookmark(section_id, source_url)
+            .await?
+            .ok_or_else(|| KbStoreError::Migration("bookmark not found after upsert".into()))
     }
 
     pub async fn list_sources_by_section(&self, section_id: i64) -> Result<Vec<IngestSource>> {
@@ -1553,6 +1604,103 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn should_return_none_when_no_bookmark_exists() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let section = store
+            .upsert_section(NewIngestSection {
+                name: "delibere".into(),
+                ordering: 0,
+            })
+            .await
+            .expect("insert section failed");
+
+        let result = store
+            .get_bookmark(section.id, "https://example.com/delibere")
+            .await
+            .expect("query failed");
+        assert!(result.is_none());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_upsert_bookmark_and_get_it_back() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let section = store
+            .upsert_section(NewIngestSection {
+                name: "delibere".into(),
+                ordering: 0,
+            })
+            .await
+            .expect("insert section failed");
+
+        let bookmark = store
+            .upsert_bookmark(
+                section.id,
+                "https://example.com/delibere",
+                "74",
+                "2026-07-13",
+            )
+            .await
+            .expect("upsert failed");
+        assert_eq!(bookmark.section_id, section.id);
+        assert_eq!(bookmark.last_item_ref, "74");
+        assert_eq!(bookmark.last_item_date, "2026-07-13");
+
+        let fetched = store
+            .get_bookmark(section.id, "https://example.com/delibere")
+            .await
+            .expect("query failed")
+            .expect("bookmark should exist");
+        assert_eq!(fetched.last_item_ref, "74");
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_update_bookmark_in_place_on_repeated_upsert() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let section = store
+            .upsert_section(NewIngestSection {
+                name: "delibere".into(),
+                ordering: 0,
+            })
+            .await
+            .expect("insert section failed");
+
+        let first = store
+            .upsert_bookmark(
+                section.id,
+                "https://example.com/delibere",
+                "74",
+                "2026-07-13",
+            )
+            .await
+            .expect("first upsert failed");
+        let second = store
+            .upsert_bookmark(
+                section.id,
+                "https://example.com/delibere",
+                "75",
+                "2026-07-20",
+            )
+            .await
+            .expect("second upsert failed");
+
+        assert_eq!(
+            first.id, second.id,
+            "same (section_id, source_url) should update the same row, not insert a duplicate"
+        );
+        assert_eq!(second.last_item_ref, "75");
+        assert_eq!(second.last_item_date, "2026-07-20");
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
     async fn should_list_sources_for_section() {
         let path = temp_db_path();
         let store = KbStore::open(&path).await.expect("failed to open db");
@@ -1801,6 +1949,66 @@ mod tests {
             .expect("manual upload summary missing");
         assert_eq!(upload.chunk_count, 1);
         assert_eq!(upload.source, DocumentSource::Manual);
+        assert!(!page.created_at.is_empty());
+        assert!(!upload.created_at.is_empty());
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_list_ingested_documents_newest_first() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        store
+            .insert_document(NewDocument {
+                source: DocumentSource::Manual,
+                source_ref: "older.pdf".into(),
+                content: "chunk".into(),
+                metadata: None,
+                embedding: vec![0.0; EMBEDDING_DIM],
+                section: Some("news".into()),
+            })
+            .await
+            .expect("insert failed");
+        store
+            .insert_document(NewDocument {
+                source: DocumentSource::Manual,
+                source_ref: "newer.pdf".into(),
+                content: "chunk".into(),
+                metadata: None,
+                embedding: vec![0.0; EMBEDDING_DIM],
+                section: Some("news".into()),
+            })
+            .await
+            .expect("insert failed");
+
+        // Force distinct, ordered timestamps (both real inserts above could
+        // otherwise land in the same second, which datetime('now') can't
+        // distinguish) to deterministically prove the ORDER BY clause.
+        let conn = store.db.connect().expect("connect failed");
+        conn.execute(
+            "UPDATE documents SET created_at = '2026-01-01 00:00:00' WHERE source_ref = 'older.pdf'",
+            libsql::params![],
+        )
+        .await
+        .expect("backdate failed");
+        conn.execute(
+            "UPDATE documents SET created_at = '2026-06-01 00:00:00' WHERE source_ref = 'newer.pdf'",
+            libsql::params![],
+        )
+        .await
+        .expect("update failed");
+
+        let summaries = store
+            .list_ingested_documents("news")
+            .await
+            .expect("list_ingested_documents failed");
+
+        assert_eq!(summaries.len(), 2);
+        assert_eq!(summaries[0].source_ref, "newer.pdf");
+        assert_eq!(summaries[1].source_ref, "older.pdf");
 
         drop(store);
         let _ = std::fs::remove_file(&path);

@@ -5,37 +5,84 @@ import * as adminApi from '../../../services/adminApi';
 import IngestedDocumentsList from '../IngestedDocumentsList.vue';
 
 describe('IngestedDocumentsList', () => {
-  it('renders a clickable link for a scraped URL and a chunk count', async () => {
+  it('renders a card with source label, chunk count, and ingestion date', async () => {
     vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue([
       {
         source_ref: 'https://example.com/news/1',
         source: 'scrape',
         chunk_count: 3,
+        created_at: '2026-07-24 00:00:00',
       },
     ]);
 
     const wrapper = mount(IngestedDocumentsList, { props: { sectionId: 1 } });
     await flushPromises();
 
-    const link = wrapper.find('a');
-    expect(link.attributes('href')).toBe('https://example.com/news/1');
-    expect(link.text()).toBe('https://example.com/news/1');
+    expect(wrapper.text()).toContain('https://example.com/news/1');
     expect(wrapper.text()).toContain('Scraping');
     expect(wrapper.text()).toContain('3 blocchi');
+    expect(wrapper.text()).toContain('2026-07-24 00:00:00');
   });
 
-  it('renders a non-URL source ref as plain text, not a link', async () => {
+  it('renders a manual upload label and singular chunk count', async () => {
     vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue([
-      { source_ref: 'comunicato.pdf', source: 'manual', chunk_count: 1 },
+      {
+        source_ref: 'comunicato.pdf',
+        source: 'manual',
+        chunk_count: 1,
+        created_at: '2026-07-24 00:00:00',
+      },
     ]);
 
     const wrapper = mount(IngestedDocumentsList, { props: { sectionId: 1 } });
     await flushPromises();
 
-    expect(wrapper.find('a').exists()).toBe(false);
     expect(wrapper.text()).toContain('comunicato.pdf');
     expect(wrapper.text()).toContain('Caricamento manuale');
     expect(wrapper.text()).toContain('1 blocco');
+  });
+
+  it('opens a detail dialog with a clickable link when a card is clicked', async () => {
+    vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue([
+      {
+        source_ref: 'https://example.com/news/1',
+        source: 'scrape',
+        chunk_count: 3,
+        created_at: '2026-07-24 00:00:00',
+      },
+    ]);
+
+    const wrapper = mount(IngestedDocumentsList, { props: { sectionId: 1 } });
+    await flushPromises();
+
+    expect(wrapper.find('dialog').exists()).toBe(false);
+
+    await wrapper.find('.ingested-documents__card').trigger('click');
+
+    const dialog = wrapper.find('dialog');
+    expect(dialog.exists()).toBe(true);
+    const link = dialog.find('a');
+    expect(link.attributes('href')).toBe('https://example.com/news/1');
+  });
+
+  it('opens a detail dialog rendering a non-URL source ref as plain text', async () => {
+    vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue([
+      {
+        source_ref: 'comunicato.pdf',
+        source: 'manual',
+        chunk_count: 1,
+        created_at: '2026-07-24 00:00:00',
+      },
+    ]);
+
+    const wrapper = mount(IngestedDocumentsList, { props: { sectionId: 1 } });
+    await flushPromises();
+
+    await wrapper.find('.ingested-documents__card').trigger('click');
+
+    const dialog = wrapper.find('dialog');
+    expect(dialog.find('a').exists()).toBe(false);
+    expect(dialog.text()).toContain('comunicato.pdf');
   });
 
   it('renders an honest empty state when nothing has been ingested', async () => {

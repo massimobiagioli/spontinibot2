@@ -342,6 +342,7 @@ mod tests {
                 source_ref: "https://example.com/news/1".into(),
                 source: "scrape".into(),
                 chunk_count: 2,
+                created_at: "2026-07-24 00:00:00".into(),
             }])
         }
     }

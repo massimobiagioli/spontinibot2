@@ -26,10 +26,13 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 pdf-extract = "0.7"
 docx-rs = "0.4"
+rtf-parser = { version = "0.4", default-features = false }
 dashmap = "6"
 rand = "0.8"
 chrono = { version = "0.4", features = ["serde"] }
 argon2 = "0.5"
+scraper = "0.22"
+url = "2"
 
 [dev-dependencies]
 cucumber = "0.21"
