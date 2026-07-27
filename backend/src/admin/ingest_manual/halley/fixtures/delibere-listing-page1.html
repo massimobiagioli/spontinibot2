@@ -1,0 +1,2041 @@
+<!DOCTYPE html>
+<!--[if IE 8]><html class="no-js ie89 ie8" lang="it"><![endif]-->
+<!--[if IE 9]><html class="no-js ie89 ie9" lang="it"><![endif]-->
+<!--[if (gte IE 9)|!(IE)]><!-->
+<html class="no-js" lang="it">
+<!--<![endif]-->
+
+<head>
+	<title>Città di Maiolati Spontini | Sito istituzionale </title>
+	<meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+	<meta name="Author" content="Città di Maiolati Spontini | Sito istituzionale ">
+	<meta http-equiv="x-ua-compatible" content="ie=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<!-- include HTML5shim per Explorer 8 -->
+	<script src="/km/design-web-toolkit/build/vendor/modernizr.js"></script>
+
+	<link media="all" rel="stylesheet" href="/km/design-web-toolkit/build/build.css">
+
+	<link as="style" rel="preload" href="/km/design-web-toolkit/build/font-titillium-web.css">
+	<link rel="stylesheet" href="/km/design-web-toolkit/build/font-titillium-web.css">
+
+	<script src="/km/design-web-toolkit/build/vendor/jquery.min.js"></script>
+
+		
+				<meta name="Description" content="Il Sito Istituzionale del Comune di Maiolati Spontini (Ancona). Le informazioni del Comune con Albo Pretorio, Amministrazione Trasparente e i Servizi e-Gov.">
+		<meta property="og:description" content="Il Sito Istituzionale del Comune di Maiolati Spontini (Ancona). Le informazioni del Comune con Albo Pretorio, Amministrazione Trasparente e i Servizi e-Gov.">
+	
+	
+	
+	<script>
+		var x = "";
+		var baseUrl = '/c042023/';
+		var fullBaseUrl = 'https://www.halleyweb.com/c042023/';
+		var ente = "c042023";
+	</script>
+
+
+					<script src="/c042023/km/scripts.js?041440&tm=1731971341" type="text/javascript"></script>
+	
+		<script>
+		$(document).ready(function() {
+			var maxSizeLimit = 83886080;
+			if (maxSizeLimit < window.fineUploaderConf.validation.sizeLimit) {
+				window.fineUploaderConf.validation.sizeLimit = maxSizeLimit;
+			}
+
+					});
+	</script>
+
+			<script src="/c042023/km/bootstrap/js/bootstrap.min.js" type="text/javascript"></script>
+		<script src="/c042023/km/bootstrap/bootstrap.halley.js" type="text/javascript"></script>
+		<link rel="stylesheet" type="text/css" href="/c042023/km/bootstrap/css/bootstrap.min.css" media="screen">
+		<link rel="stylesheet" type="text/css" href="/c042023/km/bootstrap/bootstrap-override.css" media="screen">
+		<!--[if lt IE 9]>
+		  <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+		  <script src="https://oss.maxcdn.com/libs/respond.js/1.3.0/respond.min.js"></script>
+		<![endif]-->
+	
+
+									<link rel="stylesheet" type="text/css" href="/c042023/km/style.css?041440&tm=1752675150" media="screen">
+			
+	
+		
+		
+	<link rel="stylesheet" type="text/css" href="/c042023/km/css-static/print.css" media="print">
+
+	
+	
+	
+
+	<script src="/c042023/editor/CKeditor/ckeditor.js" type="text/javascript"></script>
+	<!--[if IE 7]>
+	  <link rel="stylesheet"  type="text/css" href="/c042023/km/css-static/ie7.css">
+	<![endif]-->
+
+	
+	
+	
+			<link rel="icon" href="/favicon.png" type="image/png">
+	
+	<link rel="stylesheet" type="text/css" href="/c042023/km/css/accessibilita.php?nocache=1785159178" media="screen">
+
+	<style>
+		#main {
+			min-height: 350px
+		}
+
+		;
+	</style>
+
+	<script>
+		/* IE8 Cross Browser masonry */
+		var masonryAddEventListener = function(element, eventName, funz, arg) {
+			if (element.addEventListener) {
+				element.addEventListener(eventName, funz, arg);
+			} else {
+				element.attachEvent(eventName, funz);
+			}
+		};
+
+		if (!Object.create) {
+			Object.create = function(proto, props) {
+				if (typeof props !== "undefined") {
+					throw "The multiple-argument version of Object.create is not provided by this browser and cannot be shimmed.";
+				}
+
+				function ctor() {}
+				ctor.prototype = proto;
+				return new ctor();
+			};
+		}
+		/*!
+		 * Masonry PACKAGED v4.0.0
+		 * Cascading grid layout library
+		 * http://masonry.desandro.com
+		 * MIT License
+		 * by David DeSandro
+		 */
+
+		! function(t, e) {
+			"use strict";
+			"function" == typeof define && define.amd ? define("jquery-bridget/jquery-bridget", ["jquery"], function(i) {
+				e(t, i)
+			}) : "object" == typeof module && module.exports ? module.exports = e(t, require("jquery")) : t.jQueryBridget = e(t, t.jQuery)
+		}(window, function(t, e) {
+			"use strict";
+
+			function i(i, r, a) {
+				function h(t, e, n) {
+					var o, r = "$()." + i + '("' + e + '")';
+					return t.each(function(t, h) {
+						var u = a.data(h, i);
+						if (!u) return void s(i + " not initialized. Cannot call methods, i.e. " + r);
+						var d = u[e];
+						if (!d || "_" == e.charAt(0)) return void s(r + " is not a valid method");
+						var c = d.apply(u, n);
+						o = void 0 === o ? c : o
+					}), void 0 !== o ? o : t
+				}
+
+				function u(t, e) {
+					t.each(function(t, n) {
+						var o = a.data(n, i);
+						o ? (o.option(e), o._init()) : (o = new r(n, e), a.data(n, i, o))
+					})
+				}
+				a = a || e || t.jQuery, a && (r.prototype.option || (r.prototype.option = function(t) {
+					a.isPlainObject(t) && (this.options = a.extend(!0, this.options, t))
+				}), a.fn[i] = function(t) {
+					if ("string" == typeof t) {
+						var e = o.call(arguments, 1);
+						return h(this, t, e)
+					}
+					return u(this, t), this
+				}, n(a))
+			}
+
+			function n(t) {
+				!t || t && t.bridget || (t.bridget = i)
+			}
+			var o = Array.prototype.slice,
+				r = t.console,
+				s = "undefined" == typeof r ? function() {} : function(t) {
+					r.error(t)
+				};
+			return n(e || t.jQuery), i
+		}),
+		function(t, e) {
+			"function" == typeof define && define.amd ? define("ev-emitter/ev-emitter", e) : "object" == typeof module && module.exports ? module.exports = e() : t.EvEmitter = e()
+		}(this, function() {
+			function t() {}
+			var e = t.prototype;
+			return e.on = function(t, e) {
+				if (t && e) {
+					var i = this._events = this._events || {},
+						n = i[t] = i[t] || [];
+					return -1 == n.indexOf(e) && n.push(e), this
+				}
+			}, e.once = function(t, e) {
+				if (t && e) {
+					this.on(t, e);
+					var i = this._onceEvents = this._onceEvents || {},
+						n = i[t] = i[t] || [];
+					return n[e] = !0, this
+				}
+			}, e.off = function(t, e) {
+				var i = this._events && this._events[t];
+				if (i && i.length) {
+					var n = i.indexOf(e);
+					return -1 != n && i.splice(n, 1), this
+				}
+			}, e.emitEvent = function(t, e) {
+				var i = this._events && this._events[t];
+				if (i && i.length) {
+					var n = 0,
+						o = i[n];
+					e = e || [];
+					for (var r = this._onceEvents && this._onceEvents[t]; o;) {
+						var s = r && r[o];
+						s && (this.off(t, o), delete r[o]), o.apply(this, e), n += s ? 0 : 1, o = i[n]
+					}
+					return this
+				}
+			}, t
+		}),
+		function(t, e) {
+			"use strict";
+			"function" == typeof define && define.amd ? define("get-size/get-size", [], function() {
+				return e()
+			}) : "object" == typeof module && module.exports ? module.exports = e() : t.getSize = e()
+		}(window, function() {
+			"use strict";
+
+			function t(t) {
+				var e = parseFloat(t),
+					i = -1 == t.indexOf("%") && !isNaN(e);
+				return i && e
+			}
+
+			function e() {}
+
+			function i() {
+				for (var t = {
+						width: 0,
+						height: 0,
+						innerWidth: 0,
+						innerHeight: 0,
+						outerWidth: 0,
+						outerHeight: 0
+					}, e = 0; u > e; e++) {
+					var i = h[e];
+					t[i] = 0
+				}
+				return t
+			}
+
+			function n(t) {
+				var e = getComputedStyle(t);
+				return e || a("Style returned " + e + ". Are you running this code in a hidden iframe on Firefox? See http://bit.ly/getsizebug1"), e
+			}
+
+			function o() {
+				if (!d) {
+					d = !0;
+					var e = document.createElement("div");
+					e.style.width = "200px", e.style.padding = "1px 2px 3px 4px", e.style.borderStyle = "solid", e.style.borderWidth = "1px 2px 3px 4px", e.style.boxSizing = "border-box";
+					var i = document.body || document.documentElement;
+					i.appendChild(e);
+					var o = n(e);
+					r.isBoxSizeOuter = s = 200 == t(o.width), i.removeChild(e)
+				}
+			}
+
+			function r(e) {
+				if (o(), "string" == typeof e && (e = document.querySelector(e)), e && "object" == typeof e && e.nodeType) {
+					var r = n(e);
+					if ("none" == r.display) return i();
+					var a = {};
+					a.width = e.offsetWidth, a.height = e.offsetHeight;
+					for (var d = a.isBorderBox = "border-box" == r.boxSizing, c = 0; u > c; c++) {
+						var l = h[c],
+							f = r[l],
+							m = parseFloat(f);
+						a[l] = isNaN(m) ? 0 : m
+					}
+					var p = a.paddingLeft + a.paddingRight,
+						g = a.paddingTop + a.paddingBottom,
+						y = a.marginLeft + a.marginRight,
+						v = a.marginTop + a.marginBottom,
+						_ = a.borderLeftWidth + a.borderRightWidth,
+						E = a.borderTopWidth + a.borderBottomWidth,
+						z = d && s,
+						b = t(r.width);
+					b !== !1 && (a.width = b + (z ? 0 : p + _));
+					var x = t(r.height);
+					return x !== !1 && (a.height = x + (z ? 0 : g + E)), a.innerWidth = a.width - (p + _), a.innerHeight = a.height - (g + E), a.outerWidth = a.width + y, a.outerHeight = a.height + v, a
+				}
+			}
+			var s, a = "undefined" == typeof console ? e : function(t) {
+					console.error(t)
+				},
+				h = ["paddingLeft", "paddingRight", "paddingTop", "paddingBottom", "marginLeft", "marginRight", "marginTop", "marginBottom", "borderLeftWidth", "borderRightWidth", "borderTopWidth", "borderBottomWidth"],
+				u = h.length,
+				d = !1;
+			return r
+		}),
+		function(t, e) {
+			"use strict";
+			"function" == typeof define && define.amd ? define("matches-selector/matches-selector", e) : "object" == typeof module && module.exports ? module.exports = e() : t.matchesSelector = e()
+		}(window, function() {
+			"use strict";
+			var t = function() {
+				var t = Element.prototype;
+				if (t.matches) return "matches";
+				if (t.matchesSelector) return "matchesSelector";
+				for (var e = ["webkit", "moz", "ms", "o"], i = 0; i < e.length; i++) {
+					var n = e[i],
+						o = n + "MatchesSelector";
+					if (t[o]) return o
+				}
+			}();
+			return function(e, i) {
+				return e[t](i)
+			}
+		}),
+		function(t, e) {
+			"use strict";
+			"function" == typeof define && define.amd ? define("fizzy-ui-utils/utils", ["matches-selector/matches-selector"], function(i) {
+				return e(t, i)
+			}) : "object" == typeof module && module.exports ? module.exports = e(t, require("desandro-matches-selector")) : t.fizzyUIUtils = e(t, t.matchesSelector)
+		}(window, function(t, e) {
+			var i = {};
+			i.extend = function(t, e) {
+				for (var i in e) t[i] = e[i];
+				return t
+			}, i.modulo = function(t, e) {
+				return (t % e + e) % e
+			}, i.makeArray = function(t) {
+				var e = [];
+				if (Array.isArray(t)) e = t;
+				else if (t && "number" == typeof t.length)
+					for (var i = 0; i < t.length; i++) e.push(t[i]);
+				else e.push(t);
+				return e
+			}, i.removeFrom = function(t, e) {
+				var i = t.indexOf(e); - 1 != i && t.splice(i, 1)
+			}, i.getParent = function(t, i) {
+				for (; t != document.body;)
+					if (t = t.parentNode, e(t, i)) return t
+			}, i.getQueryElement = function(t) {
+				return "string" == typeof t ? document.querySelector(t) : t
+			}, i.handleEvent = function(t) {
+				var e = "on" + t.type;
+				this[e] && this[e](t)
+			}, i.filterFindElements = function(t, n) {
+				t = i.makeArray(t);
+				var o = [];
+				return t.forEach(function(t) {
+					if (t instanceof HTMLElement) {
+						if (!n) return void o.push(t);
+						e(t, n) && o.push(t);
+						for (var i = t.querySelectorAll(n), r = 0; r < i.length; r++) o.push(i[r])
+					}
+				}), o
+			}, i.debounceMethod = function(t, e, i) {
+				var n = t.prototype[e],
+					o = e + "Timeout";
+				t.prototype[e] = function() {
+					var t = this[o];
+					t && clearTimeout(t);
+					var e = arguments,
+						r = this;
+					this[o] = setTimeout(function() {
+						n.apply(r, e), delete r[o]
+					}, i || 100)
+				}
+			}, i.docReady = function(t) {
+				"complete" == document.readyState ? t() : masonryAddEventListener(document, "DOMContentLoaded", t)
+			}, i.toDashed = function(t) {
+				return t.replace(/(.)([A-Z])/g, function(t, e, i) {
+					return e + "-" + i
+				}).toLowerCase()
+			};
+			var n = t.console;
+			return i.htmlInit = function(e, o) {
+				i.docReady(function() {
+					var r = i.toDashed(o),
+						s = "data-" + r,
+						a = document.querySelectorAll("[" + s + "]"),
+						h = document.querySelectorAll(".js-" + r),
+						u = i.makeArray(a).concat(i.makeArray(h)),
+						d = s + "-options",
+						c = t.jQuery;
+					u.forEach(function(t) {
+						var i, r = t.getAttribute(s) || t.getAttribute(d);
+						try {
+							i = r && JSON.parse(r)
+						} catch (a) {
+							return void(n && n.error("Error parsing " + s + " on " + t.className + ": " + a))
+						}
+						var h = new e(t, i);
+						c && c.data(t, o, h)
+					})
+				})
+			}, i
+		}),
+		function(t, e) {
+			"function" == typeof define && define.amd ? define("outlayer/item", ["ev-emitter/ev-emitter", "get-size/get-size"], function(i, n) {
+				return e(t, i, n)
+			}) : "object" == typeof module && module.exports ? module.exports = e(t, require("ev-emitter"), require("get-size")) : (t.Outlayer = {}, t.Outlayer.Item = e(t, t.EvEmitter, t.getSize))
+		}(window, function(t, e, i) {
+			"use strict";
+
+			function n(t) {
+				for (var e in t) return !1;
+				return e = null, !0
+			}
+
+			function o(t, e) {
+				t && (this.element = t, this.layout = e, this.position = {
+					x: 0,
+					y: 0
+				}, this._create())
+			}
+
+			function r(t) {
+				return t.replace(/([A-Z])/g, function(t) {
+					return "-" + t.toLowerCase()
+				})
+			}
+			var s = document.documentElement.style,
+				a = "string" == typeof s.transition ? "transition" : "WebkitTransition",
+				h = "string" == typeof s.transform ? "transform" : "WebkitTransform",
+				u = {
+					WebkitTransition: "webkitTransitionEnd",
+					transition: "transitionend"
+				} [a],
+				d = [h, a, a + "Duration", a + "Property"],
+				c = o.prototype = Object.create(e.prototype);
+			c.constructor = o, c._create = function() {
+				this._transn = {
+					ingProperties: {},
+					clean: {},
+					onEnd: {}
+				}, this.css({
+					position: "absolute"
+				})
+			}, c.handleEvent = function(t) {
+				var e = "on" + t.type;
+				this[e] && this[e](t)
+			}, c.getSize = function() {
+				this.size = i(this.element)
+			}, c.css = function(t) {
+				var e = this.element.style;
+				for (var i in t) {
+					var n = d[i] || i;
+					e[n] = t[i]
+				}
+			}, c.getPosition = function() {
+				var t = getComputedStyle(this.element),
+					e = this.layout._getOption("originLeft"),
+					i = this.layout._getOption("originTop"),
+					n = t[e ? "left" : "right"],
+					o = t[i ? "top" : "bottom"],
+					r = this.layout.size,
+					s = -1 != n.indexOf("%") ? parseFloat(n) / 100 * r.width : parseInt(n, 10),
+					a = -1 != o.indexOf("%") ? parseFloat(o) / 100 * r.height : parseInt(o, 10);
+				s = isNaN(s) ? 0 : s, a = isNaN(a) ? 0 : a, s -= e ? r.paddingLeft : r.paddingRight, a -= i ? r.paddingTop : r.paddingBottom, this.position.x = s, this.position.y = a
+			}, c.layoutPosition = function() {
+				var t = this.layout.size,
+					e = {},
+					i = this.layout._getOption("originLeft"),
+					n = this.layout._getOption("originTop"),
+					o = i ? "paddingLeft" : "paddingRight",
+					r = i ? "left" : "right",
+					s = i ? "right" : "left",
+					a = this.position.x + t[o];
+				e[r] = this.getXValue(a), e[s] = "";
+				var h = n ? "paddingTop" : "paddingBottom",
+					u = n ? "top" : "bottom",
+					d = n ? "bottom" : "top",
+					c = this.position.y + t[h];
+				e[u] = this.getYValue(c), e[d] = "", this.css(e), this.emitEvent("layout", [this])
+			}, c.getXValue = function(t) {
+				var e = this.layout._getOption("horizontal");
+				return this.layout.options.percentPosition && !e ? t / this.layout.size.width * 100 + "%" : t + "px"
+			}, c.getYValue = function(t) {
+				var e = this.layout._getOption("horizontal");
+				return this.layout.options.percentPosition && e ? t / this.layout.size.height * 100 + "%" : t + "px"
+			}, c._transitionTo = function(t, e) {
+				this.getPosition();
+				var i = this.position.x,
+					n = this.position.y,
+					o = parseInt(t, 10),
+					r = parseInt(e, 10),
+					s = o === this.position.x && r === this.position.y;
+				if (this.setPosition(t, e), s && !this.isTransitioning) return void this.layoutPosition();
+				var a = t - i,
+					h = e - n,
+					u = {};
+				u.transform = this.getTranslate(a, h), this.transition({
+					to: u,
+					onTransitionEnd: {
+						transform: this.layoutPosition
+					},
+					isCleaning: !0
+				})
+			}, c.getTranslate = function(t, e) {
+				var i = this.layout._getOption("originLeft"),
+					n = this.layout._getOption("originTop");
+				return t = i ? t : -t, e = n ? e : -e, "translate3d(" + t + "px, " + e + "px, 0)"
+			}, c.goTo = function(t, e) {
+				this.setPosition(t, e), this.layoutPosition()
+			}, c.moveTo = c._transitionTo, c.setPosition = function(t, e) {
+				this.position.x = parseInt(t, 10), this.position.y = parseInt(e, 10)
+			}, c._nonTransition = function(t) {
+				this.css(t.to), t.isCleaning && this._removeStyles(t.to);
+				for (var e in t.onTransitionEnd) t.onTransitionEnd[e].call(this)
+			}, c._transition = function(t) {
+				if (!parseFloat(this.layout.options.transitionDuration)) return void this._nonTransition(t);
+				var e = this._transn;
+				for (var i in t.onTransitionEnd) e.onEnd[i] = t.onTransitionEnd[i];
+				for (i in t.to) e.ingProperties[i] = !0, t.isCleaning && (e.clean[i] = !0);
+				if (t.from) {
+					this.css(t.from);
+					var n = this.element.offsetHeight;
+					n = null
+				}
+				this.enableTransition(t.to), this.css(t.to), this.isTransitioning = !0
+			};
+			var l = "opacity," + r(d.transform || "transform");
+			c.enableTransition = function() {
+				this.isTransitioning || (this.css({
+					transitionProperty: l,
+					transitionDuration: this.layout.options.transitionDuration
+				}), masonryAddEventListener(this.element, u, this, !1))
+			}, c.transition = o.prototype[a ? "_transition" : "_nonTransition"], c.onwebkitTransitionEnd = function(t) {
+				this.ontransitionend(t)
+			}, c.onotransitionend = function(t) {
+				this.ontransitionend(t)
+			};
+			var f = {
+				"-webkit-transform": "transform"
+			};
+			c.ontransitionend = function(t) {
+				if (t.target === this.element) {
+					var e = this._transn,
+						i = f[t.propertyName] || t.propertyName;
+					if (delete e.ingProperties[i], n(e.ingProperties) && this.disableTransition(), i in e.clean && (this.element.style[t.propertyName] = "", delete e.clean[i]), i in e.onEnd) {
+						var o = e.onEnd[i];
+						o.call(this), delete e.onEnd[i]
+					}
+					this.emitEvent("transitionEnd", [this])
+				}
+			}, c.disableTransition = function() {
+				this.removeTransitionStyles(), this.element.removeEventListener(u, this, !1), this.isTransitioning = !1
+			}, c._removeStyles = function(t) {
+				var e = {};
+				for (var i in t) e[i] = "";
+				this.css(e)
+			};
+			var m = {
+				transitionProperty: "",
+				transitionDuration: ""
+			};
+			return c.removeTransitionStyles = function() {
+				this.css(m)
+			}, c.removeElem = function() {
+				this.element.parentNode.removeChild(this.element), this.css({
+					display: ""
+				}), this.emitEvent("remove", [this])
+			}, c.remove = function() {
+				return a && parseFloat(this.layout.options.transitionDuration) ? (this.once("transitionEnd", function() {
+					this.removeElem()
+				}), void this.hide()) : void this.removeElem()
+			}, c.reveal = function() {
+				delete this.isHidden, this.css({
+					display: ""
+				});
+				var t = this.layout.options,
+					e = {},
+					i = this.getHideRevealTransitionEndProperty("visibleStyle");
+				e[i] = this.onRevealTransitionEnd, this.transition({
+					from: t.hiddenStyle,
+					to: t.visibleStyle,
+					isCleaning: !0,
+					onTransitionEnd: e
+				})
+			}, c.onRevealTransitionEnd = function() {
+				this.isHidden || this.emitEvent("reveal")
+			}, c.getHideRevealTransitionEndProperty = function(t) {
+				var e = this.layout.options[t];
+				if (e.opacity) return "opacity";
+				for (var i in e) return i
+			}, c.hide = function() {
+				this.isHidden = !0, this.css({
+					display: ""
+				});
+				var t = this.layout.options,
+					e = {},
+					i = this.getHideRevealTransitionEndProperty("hiddenStyle");
+				e[i] = this.onHideTransitionEnd, this.transition({
+					from: t.visibleStyle,
+					to: t.hiddenStyle,
+					isCleaning: !0,
+					onTransitionEnd: e
+				})
+			}, c.onHideTransitionEnd = function() {
+				this.isHidden && (this.css({
+					display: "none"
+				}), this.emitEvent("hide"))
+			}, c.destroy = function() {
+				this.css({
+					position: "",
+					left: "",
+					right: "",
+					top: "",
+					bottom: "",
+					transition: "",
+					transform: ""
+				})
+			}, o
+		}),
+		function(t, e) {
+			"use strict";
+			"function" == typeof define && define.amd ? define("outlayer/outlayer", ["ev-emitter/ev-emitter", "get-size/get-size", "fizzy-ui-utils/utils", "./item"], function(i, n, o, r) {
+				return e(t, i, n, o, r)
+			}) : "object" == typeof module && module.exports ? module.exports = e(t, require("ev-emitter"), require("get-size"), require("fizzy-ui-utils"), require("./item")) : t.Outlayer = e(t, t.EvEmitter, t.getSize, t.fizzyUIUtils, t.Outlayer.Item)
+		}(window, function(t, e, i, n, o) {
+			"use strict";
+
+			function r(t, e) {
+				var i = n.getQueryElement(t);
+				if (!i) return void(a && a.error("Bad element for " + this.constructor.namespace + ": " + (i || t)));
+				this.element = i, h && (this.$element = h(this.element)), this.options = n.extend({}, this.constructor.defaults), this.option(e);
+				var o = ++d;
+				this.element.outlayerGUID = o, c[o] = this, this._create();
+				var r = this._getOption("initLayout");
+				r && this.layout()
+			}
+
+			function s(t) {
+				function e() {
+					t.apply(this, arguments)
+				}
+				return e.prototype = Object.create(t.prototype), e.prototype.constructor = e, e
+			}
+			var a = t.console,
+				h = t.jQuery,
+				u = function() {},
+				d = 0,
+				c = {};
+			r.namespace = "outlayer", r.Item = o, r.defaults = {
+				containerStyle: {
+					position: "relative"
+				},
+				initLayout: !0,
+				originLeft: !0,
+				originTop: !0,
+				resize: !0,
+				resizeContainer: !0,
+				transitionDuration: "0.4s",
+				hiddenStyle: {
+					opacity: 0,
+					transform: "scale(0.001)"
+				},
+				visibleStyle: {
+					opacity: 1,
+					transform: "scale(1)"
+				}
+			};
+			var l = r.prototype;
+			return n.extend(l, e.prototype), l.option = function(t) {
+				n.extend(this.options, t)
+			}, l._getOption = function(t) {
+				var e = this.constructor.compatOptions[t];
+				return e && void 0 !== this.options[e] ? this.options[e] : this.options[t]
+			}, r.compatOptions = {
+				initLayout: "isInitLayout",
+				horizontal: "isHorizontal",
+				layoutInstant: "isLayoutInstant",
+				originLeft: "isOriginLeft",
+				originTop: "isOriginTop",
+				resize: "isResizeBound",
+				resizeContainer: "isResizingContainer"
+			}, l._create = function() {
+				this.reloadItems(), this.stamps = [], this.stamp(this.options.stamp), n.extend(this.element.style, this.options.containerStyle);
+				var t = this._getOption("resize");
+				t && this.bindResize()
+			}, l.reloadItems = function() {
+				this.items = this._itemize(this.element.children)
+			}, l._itemize = function(t) {
+				for (var e = this._filterFindItemElements(t), i = this.constructor.Item, n = [], o = 0; o < e.length; o++) {
+					var r = e[o],
+						s = new i(r, this);
+					n.push(s)
+				}
+				return n
+			}, l._filterFindItemElements = function(t) {
+				return n.filterFindElements(t, this.options.itemSelector)
+			}, l.getItemElements = function() {
+				return this.items.map(function(t) {
+					return t.element
+				})
+			}, l.layout = function() {
+				this._resetLayout(), this._manageStamps();
+				var t = this._getOption("layoutInstant"),
+					e = void 0 !== t ? t : !this._isLayoutInited;
+				this.layoutItems(this.items, e), this._isLayoutInited = !0
+			}, l._init = l.layout, l._resetLayout = function() {
+				this.getSize()
+			}, l.getSize = function() {
+				this.size = i(this.element)
+			}, l._getMeasurement = function(t, e) {
+				var n, o = this.options[t];
+				o ? ("string" == typeof o ? n = this.element.querySelector(o) : o instanceof HTMLElement && (n = o), this[t] = n ? i(n)[e] : o) : this[t] = 0
+			}, l.layoutItems = function(t, e) {
+				t = this._getItemsForLayout(t), this._layoutItems(t, e), this._postLayout()
+			}, l._getItemsForLayout = function(t) {
+				return t.filter(function(t) {
+					return !t.isIgnored
+				})
+			}, l._layoutItems = function(t, e) {
+				if (this._emitCompleteOnItems("layout", t), t && t.length) {
+					var i = [];
+					t.forEach(function(t) {
+						var n = this._getItemLayoutPosition(t);
+						n.item = t, n.isInstant = e || t.isLayoutInstant, i.push(n)
+					}, this), this._processLayoutQueue(i)
+				}
+			}, l._getItemLayoutPosition = function() {
+				return {
+					x: 0,
+					y: 0
+				}
+			}, l._processLayoutQueue = function(t) {
+				t.forEach(function(t) {
+					this._positionItem(t.item, t.x, t.y, t.isInstant)
+				}, this)
+			}, l._positionItem = function(t, e, i, n) {
+				n ? t.goTo(e, i) : t.moveTo(e, i)
+			}, l._postLayout = function() {
+				this.resizeContainer()
+			}, l.resizeContainer = function() {
+				var t = this._getOption("resizeContainer");
+				if (t) {
+					var e = this._getContainerSize();
+					e && (this._setContainerMeasure(e.width, !0), this._setContainerMeasure(e.height, !1))
+				}
+			}, l._getContainerSize = u, l._setContainerMeasure = function(t, e) {
+				if (void 0 !== t) {
+					var i = this.size;
+					i.isBorderBox && (t += e ? i.paddingLeft + i.paddingRight + i.borderLeftWidth + i.borderRightWidth : i.paddingBottom + i.paddingTop + i.borderTopWidth + i.borderBottomWidth), t = Math.max(t, 0), this.element.style[e ? "width" : "height"] = t + "px"
+				}
+			}, l._emitCompleteOnItems = function(t, e) {
+				function i() {
+					o.dispatchEvent(t + "Complete", null, [e])
+				}
+
+				function n() {
+					s++, s == r && i()
+				}
+				var o = this,
+					r = e.length;
+				if (!e || !r) return void i();
+				var s = 0;
+				e.forEach(function(e) {
+					e.once(t, n)
+				})
+			}, l.dispatchEvent = function(t, e, i) {
+				var n = e ? [e].concat(i) : i;
+				if (this.emitEvent(t, n), h)
+					if (this.$element = this.$element || h(this.element), e) {
+						var o = h.Event(e);
+						o.type = t, this.$element.trigger(o, i)
+					} else this.$element.trigger(t, i)
+			}, l.ignore = function(t) {
+				var e = this.getItem(t);
+				e && (e.isIgnored = !0)
+			}, l.unignore = function(t) {
+				var e = this.getItem(t);
+				e && delete e.isIgnored
+			}, l.stamp = function(t) {
+				t = this._find(t), t && (this.stamps = this.stamps.concat(t), t.forEach(this.ignore, this))
+			}, l.unstamp = function(t) {
+				t = this._find(t), t && t.forEach(function(t) {
+					n.removeFrom(this.stamps, t), this.unignore(t)
+				}, this)
+			}, l._find = function(t) {
+				return t ? ("string" == typeof t && (t = this.element.querySelectorAll(t)), t = n.makeArray(t)) : void 0
+			}, l._manageStamps = function() {
+				this.stamps && this.stamps.length && (this._getBoundingRect(), this.stamps.forEach(this._manageStamp, this))
+			}, l._getBoundingRect = function() {
+				var t = this.element.getBoundingClientRect(),
+					e = this.size;
+				this._boundingRect = {
+					left: t.left + e.paddingLeft + e.borderLeftWidth,
+					top: t.top + e.paddingTop + e.borderTopWidth,
+					right: t.right - (e.paddingRight + e.borderRightWidth),
+					bottom: t.bottom - (e.paddingBottom + e.borderBottomWidth)
+				}
+			}, l._manageStamp = u, l._getElementOffset = function(t) {
+				var e = t.getBoundingClientRect(),
+					n = this._boundingRect,
+					o = i(t),
+					r = {
+						left: e.left - n.left - o.marginLeft,
+						top: e.top - n.top - o.marginTop,
+						right: n.right - e.right - o.marginRight,
+						bottom: n.bottom - e.bottom - o.marginBottom
+					};
+				return r
+			}, l.handleEvent = n.handleEvent, l.bindResize = function() {
+				masonryAddEventListener(t, "resize", this), this.isResizeBound = !0
+			}, l.unbindResize = function() {
+				t.removeEventListener("resize", this), this.isResizeBound = !1
+			}, l.onresize = function() {
+				this.resize()
+			}, n.debounceMethod(r, "onresize", 100), l.resize = function() {
+				this.isResizeBound && this.needsResizeLayout() && this.layout()
+			}, l.needsResizeLayout = function() {
+				var t = i(this.element),
+					e = this.size && t;
+				return e && t.innerWidth !== this.size.innerWidth
+			}, l.addItems = function(t) {
+				var e = this._itemize(t);
+				return e.length && (this.items = this.items.concat(e)), e
+			}, l.appended = function(t) {
+				var e = this.addItems(t);
+				e.length && (this.layoutItems(e, !0), this.reveal(e))
+			}, l.prepended = function(t) {
+				var e = this._itemize(t);
+				if (e.length) {
+					var i = this.items.slice(0);
+					this.items = e.concat(i), this._resetLayout(), this._manageStamps(), this.layoutItems(e, !0), this.reveal(e), this.layoutItems(i)
+				}
+			}, l.reveal = function(t) {
+				this._emitCompleteOnItems("reveal", t), t && t.length && t.forEach(function(t) {
+					t.reveal()
+				})
+			}, l.hide = function(t) {
+				this._emitCompleteOnItems("hide", t), t && t.length && t.forEach(function(t) {
+					t.hide()
+				})
+			}, l.revealItemElements = function(t) {
+				var e = this.getItems(t);
+				this.reveal(e)
+			}, l.hideItemElements = function(t) {
+				var e = this.getItems(t);
+				this.hide(e)
+			}, l.getItem = function(t) {
+				for (var e = 0; e < this.items.length; e++) {
+					var i = this.items[e];
+					if (i.element == t) return i
+				}
+			}, l.getItems = function(t) {
+				t = n.makeArray(t);
+				var e = [];
+				return t.forEach(function(t) {
+					var i = this.getItem(t);
+					i && e.push(i)
+				}, this), e
+			}, l.remove = function(t) {
+				var e = this.getItems(t);
+				this._emitCompleteOnItems("remove", e), e && e.length && e.forEach(function(t) {
+					t.remove(), n.removeFrom(this.items, t)
+				}, this)
+			}, l.destroy = function() {
+				var t = this.element.style;
+				t.height = "", t.position = "", t.width = "", this.items.forEach(function(t) {
+					t.destroy()
+				}), this.unbindResize();
+				var e = this.element.outlayerGUID;
+				delete c[e], delete this.element.outlayerGUID, h && h.removeData(this.element, this.constructor.namespace)
+			}, r.data = function(t) {
+				t = n.getQueryElement(t);
+				var e = t && t.outlayerGUID;
+				return e && c[e]
+			}, r.create = function(t, e) {
+				var i = s(r);
+				return i.defaults = n.extend({}, r.defaults), n.extend(i.defaults, e), i.compatOptions = n.extend({}, r.compatOptions), i.namespace = t, i.data = r.data, i.Item = s(o), n.htmlInit(i, t), h && h.bridget && h.bridget(t, i), i
+			}, r.Item = o, r
+		}),
+		function(t, e) {
+			"function" == typeof define && define.amd ? define(["outlayer/outlayer", "get-size/get-size"], e) : "object" == typeof module && module.exports ? module.exports = e(require("outlayer"), require("get-size")) : t.Masonry = e(t.Outlayer, t.getSize)
+		}(window, function(t, e) {
+			var i = t.create("masonry");
+			return i.compatOptions.fitWidth = "isFitWidth", i.prototype._resetLayout = function() {
+				this.getSize(), this._getMeasurement("columnWidth", "outerWidth"), this._getMeasurement("gutter", "outerWidth"), this.measureColumns(), this.colYs = [];
+				for (var t = 0; t < this.cols; t++) this.colYs.push(0);
+				this.maxY = 0
+			}, i.prototype.measureColumns = function() {
+				if (this.getContainerWidth(), !this.columnWidth) {
+					var t = this.items[0],
+						i = t && t.element;
+					this.columnWidth = i && e(i).outerWidth || this.containerWidth
+				}
+				var n = this.columnWidth += this.gutter,
+					o = this.containerWidth + this.gutter,
+					r = o / n,
+					s = n - o % n,
+					a = s && 1 > s ? "round" : "floor";
+				r = Math[a](r), this.cols = Math.max(r, 1)
+			}, i.prototype.getContainerWidth = function() {
+				var t = this._getOption("fitWidth"),
+					i = t ? this.element.parentNode : this.element,
+					n = e(i);
+				this.containerWidth = n && n.innerWidth
+			}, i.prototype._getItemLayoutPosition = function(t) {
+				t.getSize();
+				var e = t.size.outerWidth % this.columnWidth,
+					i = e && 1 > e ? "round" : "ceil",
+					n = Math[i](t.size.outerWidth / this.columnWidth);
+				n = Math.min(n, this.cols);
+				for (var o = this._getColGroup(n), r = Math.min.apply(Math, o), s = o.indexOf(r), a = {
+						x: this.columnWidth * s,
+						y: r
+					}, h = r + t.size.outerHeight, u = this.cols + 1 - o.length, d = 0; u > d; d++) this.colYs[s + d] = h;
+				return a
+			}, i.prototype._getColGroup = function(t) {
+				if (2 > t) return this.colYs;
+				for (var e = [], i = this.cols + 1 - t, n = 0; i > n; n++) {
+					var o = this.colYs.slice(n, n + t);
+					e[n] = Math.max.apply(Math, o)
+				}
+				return e
+			}, i.prototype._manageStamp = function(t) {
+				var i = e(t),
+					n = this._getElementOffset(t),
+					o = this._getOption("originLeft"),
+					r = o ? n.left : n.right,
+					s = r + i.outerWidth,
+					a = Math.floor(r / this.columnWidth);
+				a = Math.max(0, a);
+				var h = Math.floor(s / this.columnWidth);
+				h -= s % this.columnWidth ? 0 : 1, h = Math.min(this.cols - 1, h);
+				for (var u = this._getOption("originTop"), d = (u ? n.top : n.bottom) + i.outerHeight, c = a; h >= c; c++) this.colYs[c] = Math.max(d, this.colYs[c])
+			}, i.prototype._getContainerSize = function() {
+				this.maxY = Math.max.apply(Math, this.colYs);
+				var t = {
+					height: this.maxY
+				};
+				return this._getOption("fitWidth") && (t.width = this._getContainerFitWidth()), t
+			}, i.prototype._getContainerFitWidth = function() {
+				for (var t = 0, e = this.cols; --e && 0 === this.colYs[e];) t++;
+				return (this.cols - t) * this.columnWidth - this.gutter
+			}, i.prototype.needsResizeLayout = function() {
+				var t = this.containerWidth;
+				return this.getContainerWidth(), t != this.containerWidth
+			}, i
+		});
+
+
+		/*!
+		 * imagesLoaded PACKAGED v4.1.1
+		 * JavaScript is all like "You images are done yet or what?"
+		 * MIT License
+		 */
+		! function(t, e) {
+			"function" == typeof define && define.amd ? define("ev-emitter/ev-emitter", e) : "object" == typeof module && module.exports ? module.exports = e() : t.EvEmitter = e()
+		}("undefined" != typeof window ? window : this, function() {
+			function t() {}
+			var e = t.prototype;
+			return e.on = function(t, e) {
+				if (t && e) {
+					var i = this._events = this._events || {},
+						n = i[t] = i[t] || [];
+					return -1 == n.indexOf(e) && n.push(e), this
+				}
+			}, e.once = function(t, e) {
+				if (t && e) {
+					this.on(t, e);
+					var i = this._onceEvents = this._onceEvents || {},
+						n = i[t] = i[t] || {};
+					return n[e] = !0, this
+				}
+			}, e.off = function(t, e) {
+				var i = this._events && this._events[t];
+				if (i && i.length) {
+					var n = i.indexOf(e);
+					return -1 != n && i.splice(n, 1), this
+				}
+			}, e.emitEvent = function(t, e) {
+				var i = this._events && this._events[t];
+				if (i && i.length) {
+					var n = 0,
+						o = i[n];
+					e = e || [];
+					for (var r = this._onceEvents && this._onceEvents[t]; o;) {
+						var s = r && r[o];
+						s && (this.off(t, o), delete r[o]), o.apply(this, e), n += s ? 0 : 1, o = i[n]
+					}
+					return this
+				}
+			}, t
+		}),
+		function(t, e) {
+			"use strict";
+			"function" == typeof define && define.amd ? define(["ev-emitter/ev-emitter"], function(i) {
+				return e(t, i)
+			}) : "object" == typeof module && module.exports ? module.exports = e(t, require("ev-emitter")) : t.imagesLoaded = e(t, t.EvEmitter)
+		}(window, function(t, e) {
+			function i(t, e) {
+				for (var i in e) t[i] = e[i];
+				return t
+			}
+
+			function n(t) {
+				var e = [];
+				if (Array.isArray(t)) e = t;
+				else if ("number" == typeof t.length)
+					for (var i = 0; i < t.length; i++) e.push(t[i]);
+				else e.push(t);
+				return e
+			}
+
+			function o(t, e, r) {
+				return this instanceof o ? ("string" == typeof t && (t = document.querySelectorAll(t)), this.elements = n(t), this.options = i({}, this.options), "function" == typeof e ? r = e : i(this.options, e), r && this.on("always", r), this.getImages(), h && (this.jqDeferred = new h.Deferred), void setTimeout(function() {
+					this.check()
+				}.bind(this))) : new o(t, e, r)
+			}
+
+			function r(t) {
+				this.img = t
+			}
+
+			function s(t, e) {
+				this.url = t, this.element = e, this.img = new Image
+			}
+			var h = t.jQuery,
+				a = t.console;
+			o.prototype = Object.create(e.prototype), o.prototype.options = {}, o.prototype.getImages = function() {
+				this.images = [], this.elements.forEach(this.addElementImages, this)
+			}, o.prototype.addElementImages = function(t) {
+				"IMG" == t.nodeName && this.addImage(t), this.options.background === !0 && this.addElementBackgroundImages(t);
+				var e = t.nodeType;
+				if (e && d[e]) {
+					for (var i = t.querySelectorAll("img"), n = 0; n < i.length; n++) {
+						var o = i[n];
+						this.addImage(o)
+					}
+					if ("string" == typeof this.options.background) {
+						var r = t.querySelectorAll(this.options.background);
+						for (n = 0; n < r.length; n++) {
+							var s = r[n];
+							this.addElementBackgroundImages(s)
+						}
+					}
+				}
+			};
+			var d = {
+				1: !0,
+				9: !0,
+				11: !0
+			};
+			return o.prototype.addElementBackgroundImages = function(t) {
+				var e = getComputedStyle(t);
+				if (e)
+					for (var i = /url\((['"])?(.*?)\1\)/gi, n = i.exec(e.backgroundImage); null !== n;) {
+						var o = n && n[2];
+						o && this.addBackground(o, t), n = i.exec(e.backgroundImage)
+					}
+			}, o.prototype.addImage = function(t) {
+				var e = new r(t);
+				this.images.push(e)
+			}, o.prototype.addBackground = function(t, e) {
+				var i = new s(t, e);
+				this.images.push(i)
+			}, o.prototype.check = function() {
+				function t(t, i, n) {
+					setTimeout(function() {
+						e.progress(t, i, n)
+					})
+				}
+				var e = this;
+				return this.progressedCount = 0, this.hasAnyBroken = !1, this.images.length ? void this.images.forEach(function(e) {
+					e.once("progress", t), e.check()
+				}) : void this.complete()
+			}, o.prototype.progress = function(t, e, i) {
+				this.progressedCount++, this.hasAnyBroken = this.hasAnyBroken || !t.isLoaded, this.emitEvent("progress", [this, t, e]), this.jqDeferred && this.jqDeferred.notify && this.jqDeferred.notify(this, t), this.progressedCount == this.images.length && this.complete(), this.options.debug && a && a.log("progress: " + i, t, e)
+			}, o.prototype.complete = function() {
+				var t = this.hasAnyBroken ? "fail" : "done";
+				if (this.isComplete = !0, this.emitEvent(t, [this]), this.emitEvent("always", [this]), this.jqDeferred) {
+					var e = this.hasAnyBroken ? "reject" : "resolve";
+					this.jqDeferred[e](this)
+				}
+			}, r.prototype = Object.create(e.prototype), r.prototype.check = function() {
+				var t = this.getIsImageComplete();
+				return t ? void this.confirm(0 !== this.img.naturalWidth, "naturalWidth") : (this.proxyImage = new Image, masonryAddEventListener(this.proxyImage, "load", this), masonryAddEventListener(this.proxyImage, "error", this), masonryAddEventListener(this.img, "load", this), masonryAddEventListener(this.img, "error", this), void(this.proxyImage.src = this.img.src))
+			}, r.prototype.getIsImageComplete = function() {
+				return this.img.complete && void 0 !== this.img.naturalWidth
+			}, r.prototype.confirm = function(t, e) {
+				this.isLoaded = t, this.emitEvent("progress", [this, this.img, e])
+			}, r.prototype.handleEvent = function(t) {
+				var e = "on" + t.type;
+				this[e] && this[e](t)
+			}, r.prototype.onload = function() {
+				this.confirm(!0, "onload"), this.unbindEvents()
+			}, r.prototype.onerror = function() {
+				this.confirm(!1, "onerror"), this.unbindEvents()
+			}, r.prototype.unbindEvents = function() {
+				this.proxyImage.removeEventListener("load", this), this.proxyImage.removeEventListener("error", this), this.img.removeEventListener("load", this), this.img.removeEventListener("error", this)
+			}, s.prototype = Object.create(r.prototype), s.prototype.check = function() {
+				masonryAddEventListener(this.img, "load", this), masonryAddEventListener(this.img, "error", this), this.img.src = this.url;
+				var t = this.getIsImageComplete();
+				t && (this.confirm(0 !== this.img.naturalWidth, "naturalWidth"), this.unbindEvents())
+			}, s.prototype.unbindEvents = function() {
+				this.img.removeEventListener("load", this), this.img.removeEventListener("error", this)
+			}, s.prototype.confirm = function(t, e) {
+				this.isLoaded = t, this.emitEvent("progress", [this, this.element, e])
+			}, o.makeJQueryPlugin = function(e) {
+				e = e || t.jQuery, e && (h = e, h.fn.imagesLoaded = function(t, e) {
+					var i = new o(this, t, e);
+					return i.jqDeferred.promise(h(this))
+				})
+			}, o.makeJQueryPlugin(), o
+		});
+
+		/*!
+		 * Dirty Patch LeftToRight Masonry
+		 * by David DeSandro
+		 */
+		Masonry.prototype._getItemLayoutPosition = function(t) {
+			t.getSize();
+			var i = t.size.outerWidth % this.columnWidth,
+				o = Math[i && i < 1 ? "round" : "ceil"](t.size.outerWidth / this.columnWidth);
+			o = Math.min(o, this.cols);
+			for (var s = this._getColGroup(o), e = this.items.indexOf(t) % this.cols, h = s[e], n = {
+					x: this.columnWidth * e,
+					y: h
+				}, r = h + t.size.outerHeight, u = this.cols + 1 - s.length, l = 0; l < u; l++) this.colYs[e + l] = r;
+			return n
+		};
+	</script>
+</head>
+
+<body class="t-Pac">
+				<div id="cookie-bar" class="CookieBar js-CookieBar u-background-95 u-padding-r-all" aria-hidden="true">
+			<!--
+			<p>
+				<button id="cookiesRefuseEx" style="top: 0; right: 0; position: absolute; margin-bottom: 0 !important; margin-left: 0 !important;" class="Button Button--default u-text-r-xxs u-inlineBlock u-margin-r-all">X</button>
+			</p>
+			-->
+			<p class="u-color-white u-text-r-xs u-lineHeight-m u-padding-r-bottom">Questo sito utilizza cookie tecnici.
+				<!--  <br>Rifiutando verranno utilizzati i soli <b>cookie tecnici</b>, necessari al funzionamento del sito.-->
+				<br>Per maggiori informazioni consulta la <b><a class="u-color-white u-text-r-xs u-lineHeight-m u-padding-r-bottom" href="/c042023/zf/index.php/privacy/index/privacy">PRIVACY</a></b>.
+			</p>
+			<p>
+				<button id="cookiesRefuse" class="Button Button--default u-text-r-xxs u-inlineBlock u-margin-r-all" style="margin-right: 0.5em !important; margin-bottom: 0.2em !important; margin-top: 0.1em !important;">
+					OK
+				</button>
+				<!--  
+				<button class="Button Button--default u-text-r-xxs u-inlineBlock u-margin-r-all"
+							id="cookiesRefuse" style="margin-left: 0 !important; margin-bottom: 0.2em !important; margin-top: 0.1em !important;">
+					Rifiuta
+				</button>
+				-->
+				<b><a class="u-color-white u-text-r-xs u-lineHeight-m u-padding-r-bottom" href="/c042023/zf/index.php/privacy/index/cookie">INFORMATIVA COOKIE</a></b>
+			</p>
+		</div>
+	
+	<ul class="Skiplinks js-fr-bypasslinks u-hiddenPrint">
+		<li><a href="#main">Vai al Contenuto</a></li>
+		<li><a class="js-fr-offcanvas-open" href="#menu" aria-controls="menu" aria-label="accedi al menu" title="accedi al menu">Vai alla navigazione del sito</a></li>
+	</ul>
+
+	<div id="messaggio-anteprima-attiva" class="htoast-anteprima-container" style="display:none">
+		<div class="htoast-anteprima-info">
+			<div class="htoast-anteprima-message">
+				Stai visualizzando il sito in modalit&agrave; anteprima
+			</div>
+		</div>
+	</div>
+
+	
+				<header class="Header Headroom--fixed js-Headroom u-hiddenPrint">
+					<div class="Header-banner ">
+													<div class="Header-owner Headroom-hideme ">
+																									<a href=""><span>Regione Marche - Provincia di Ancona</span></a>
+																<div class="Header-languages">
+																										</div>
+								<div class="Header-user hidden-xs">
+																			 																	</div>
+							</div>
+											</div>
+
+											<div class="Header-navbar u-background-50">
+							<div class="u-layout-wide Grid Grid--alignMiddle u-layoutCenter">
+								<div class="Header-logo Grid-cell" aria-hidden="true">
+																			<a href="/c042023/index.php" tabindex="-1">
+											<img src='https://www.halleyweb.com/c042023/zf/index.php/kamaleonte/index/logo/preview/0' height='75'  alt='Logo Comune'>										</a>
+																	</div>
+
+								<div class="Header-title Grid-cell">
+									<h1 class="Header-titleLink">
+										<a href="/c042023/">
+											<span style="font-size: 1.20em; font-weight: 700;">Comune di Maiolati Spontini</span><br />
+<span style="font-size: 0.6em; font-weight: 500;">Citt&agrave; natale del compositore Gaspare Spontini</span>
+<style type="text/css">.Footerblock {
+border-top: .1rem solid currentColor!important;
+}
+
+#halley-footer-copyright .right {
+display:none;
+}
+.Header-navbar {
+    color: #F39E12 !important;
+    border-bottom: 1px solid #F39E12;
+
+}
+#block114.u-border-bottom-m ,{
+    border-bottom: .2rem solid currentColor!important;
+}
+
+#block114 .border-color-red {
+    background-color: #237a5e!important;
+    border-bottom: 2px solid #F39E12;
+}
+
+#block114 i.fa , {
+    color:#FFF!important;
+    font-size: 2em;
+}
+
+#block114 .u-text-r-xs  {
+    font-size: 1.75rem!important;
+}
+#block118 .u-borderRadius-m {
+    border-bottom: 2px solid #F39E12;
+/* SFONDO LINK */
+
+}
+
+.Footer-block li, .Footer-links, .Footer-subBlock {
+    border-top: .1rem solid currentColor!important;
+}
+
+.u-background-5, .Accordion--plus .Accordion-header:hover, .Accordion--default .Accordion-header:hover, .Linklist a:hover {
+  background-color: #F9F6F1 !important;
+
+}
+
+.Icon-search {
+    background-color: #004321;
+    color: #fff!important;
+}
+.Header-search {
+margin-bottom: 0px!important; 
+
+}
+
+
+ul.Linklist > li > a{
+	padding-top:8px !important;
+	padding-bottom:8px !important;
+font-weight: 600 !important;
+}
+
+/* FINE NEWS */
+</style>
+<br>
+											<small></small>
+										</a>
+									</h1>
+								</div>
+
+								<div class="Header-searchTrigger Grid-cell">
+																			<button aria-controls="header-search" class="js-Header-search-trigger Icon Icon-search " title="attiva il form di ricerca" aria-label="attiva il form di ricerca" aria-hidden="false">
+										</button>
+										<button aria-controls="header-search" class="js-Header-search-trigger Icon Icon-close u-hidden " title="disattiva il form di ricerca" aria-label="disattiva il form di ricerca" aria-hidden="true">
+										</button>
+																	</div>
+
+								<div class="Header-utils Grid-cell">
+																			<div class="Header-social Headroom-hideme">
+											<p>Seguici su</p>
+											<ul class="Header-socialIcons">
+																									<li><a href="https://www.facebook.com/comunedimaiolatispontini/" title="Facebook"><span class="Icon-facebook"></span><span class="u-hiddenVisually">Facebook</span></a></li>
+																																																	<li><a href="https://www.youtube.com/@comunemaiolatispontini1198" title="Youtube"><span class="Icon-youtube"></span><span class="u-hiddenVisually">Youtube</span></a></li>
+																							</ul>
+										</div>
+									
+									<div class="Header-search" id="header-search">
+																								<form method='get' class='Form' action='https://www.halleyweb.com/c042023/po/search.php' accept-charset="utf-8">
+			  <div class="Form-field Form-field--withPlaceholder Grid u-background-white u-color-grey-30 u-borderRadius-s" role="search">
+				<input value='' name='q' id='q' class="Form-input Form-input--ultraLean Grid-cell u-sizeFill u-text-r-s u-color-black u-text-r-xs u-borderRadius-s" required>
+				<label class="Form-label u-color-grey-50 u-text-r-xxs" for="q">cerca nel sito</label>
+				<button class="Grid-cell u-sizeFit Icon-search Icon--rotated u-color-grey-50 u-padding-all-s u-textWeight-700" title="Avvia la ricerca" aria-label="Avvia la ricerca">
+			  </button>
+			  </div>
+			</form>
+																			</div>
+								</div>
+
+								<div class="Header-toggle Grid-cell">
+									<a class="Hamburger-toggleContainer js-fr-offcanvas-open u-nojsDisplayInlineBlock u-lg-hidden u-md-hidden" href="#menu" aria-controls="menu" aria-label="accedi al menu" title="accedi al menu">
+										<span class="Hamburger-toggle" role="presentation"></span>
+										<span class="Header-toggleText" role="presentation">Menu</span>
+									</a>
+								</div>
+
+							</div>
+						</div>
+						<!-- Header-navbar -->
+					
+											<div class="Headroom-hideme u-textCenter u-hidden u-sm-hidden u-md-block u-lg-block" id="hMegaMenuDivParent">
+							<nav class="Megamenu Megamenu--default js-megamenu " data-rel=".Offcanvas .Treeview"></nav>
+						</div>
+									</header>
+				<section class="Offcanvas Offcanvas--right Offcanvas--modal js-fr-offcanvas u-jsVisibilityHidden u-nojsDisplayNone u-hiddenPrint" id="menu">
+					<h2 class="u-hiddenVisually">Menu di navigazione</h2>
+					<div class="Offcanvas-content u-background-white">
+						<div class="Offcanvas-toggleContainer u-background-70 u-jsHidden">
+							<a class="Hamburger-toggleContainer u-block u-color-white u-padding-bottom-xxl u-padding-left-s u-padding-top-xxl js-fr-offcanvas-close" aria-controls="menu" aria-label="esci dalla navigazione" title="esci dalla navigazione" href="#">
+								<span class="Hamburger-toggle is-active" aria-hidden="true">
+								</span>
+							</a>
+						</div>
+						<nav>
+														<ul class='Linklist Linklist--padded Treeview Treeview--default js-Treeview u-text-r-xs '>			<li>
+				<a data-megamenu-class="" accesskey="F" href="javascript:void(0)" >Il Comune informa</a><ul><li><a>ORGANIZZAZIONE</a><ul><li  id='halley-menu-item-679'><a href='https://www.halleyweb.com/c042023/zf/index.php/organi-politico-amministrativo/index/detail/categoria/78/idOrgano/GTVRnPQ--H' target='_self'>Sindaco</a></li><li  id='halley-menu-item-680'><a href='https://www.halleyweb.com/c042023/zf/index.php/trasparenza/index/index/categoria/78' target='_self'>Giunta e Consiglio</a></li><li  id='halley-menu-item-682'><a href='https://www.halleyweb.com/c042023/zf/index.php/trasparenza/index/index/categoria/81' target='_self'>Uffici</a></li><li  id='halley-menu-item-684'><a href='https://www.halleyweb.com/c042023/zf/index.php/numeri-indirizzi-utili/' target='_self'>Contatti utili</a></li><li  id='halley-menu-item-690'><a href='http://www.comune.maiolatispontini.an.it/c042023/zf/index.php/trasparenza/index/index/categoria/212' target='_self'>Società partecipate</a></li><li  id='halley-menu-item-681'><a href='https://www.halleyweb.com/c042023/zf/index.php/trasparenza/index/index' target='_self'>Amministrazione trasparente</a></li></ul></li></ul><ul><li><a>ATTI</a><ul><li  id='halley-menu-item-676'><a href='https://www.halleyweb.com/c042023/zf/index.php/atti-amministrativi/delibere' target='_self'>Delibere</a></li><li  id='halley-menu-item-770'><a href='https://www.halleyweb.com/zf/index.php/atti-amministrativi/ordinanze' target='_self'>Ordinanze</a></li><li  id='halley-menu-item-677'><a href='https://www.halleyweb.com/c042023/zf/index.php/atti-amministrativi/determine' target='_self'>Determine</a></li><li  id='halley-menu-item-689'><a href='http://www.comune.maiolatispontini.an.it/c042023/zf/index.php/atti-generali' target='_self'>Regolamenti</a></li><li  id='halley-menu-item-674'><a href='https://www.halleyweb.com/c042023/mc/mc_p_ricerca.php' target='_self'>Albo pretorio</a></li><li  id='halley-menu-item-675'><a href='https://www.halleyweb.com/c042023/mc/mc_matri_p_ricerca.php' target='_self'>Pubblicazioni di matrimonio</a></li><li  id='halley-menu-item-678'><a href='https://www.halleyweb.com/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/10262' target='_self'>Statuto</a></li></ul></li></ul><ul><li><a>SERVIZI e INFO</a><ul><li  id='halley-menu-item-799'><a href='/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/21835' target='_self'>Comunicati stampa 2026</a></li><li  id='halley-menu-item-773'><a href='/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/21709' target='_self'>Comunicati stampa 2025</a></li><li  id='halley-menu-item-687'><a href='https://www.comune.maiolatispontini.an.it/c042023/po/mostra_news.php?id=1014&amp;area=H' target='_self'>Servizi Scolastici</a></li><li  id='halley-menu-item-685'><a href='https://www.halleyweb.com/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/21274' target='_self'>Anagrafe</a></li><li  id='halley-menu-item-688'><a href='https://www.halleyweb.com/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/20004' target='_self'>Sociale</a></li><li  id='halley-menu-item-733'><a href='http://www.comune.maiolatispontini.an.it/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/21259' target='_self'>Elettorale</a></li><li  id='halley-menu-item-691'><a href='https://www.halleyweb.com/c042023/zf/index.php/modulistica/index' target='_self'>Modulistica</a></li><li  id='halley-menu-item-757'><a href='/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/10270' target='_self'>Tariffe/Aliquote</a></li></ul></li></ul></li>			<li>
+				<a data-megamenu-class="" accesskey="" href="javascript:void(0)" >Cittadini</a><ul><li><a>SERVIZI</a><ul><li  id='halley-menu-item-695'><a href='https://www.halleyweb.com/c042023/po/po_login.php' target='_self'>Area riservata</a></li><li  id='halley-menu-item-701'><a href='https://www.halleyweb.com/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/20004' target='_self'>Agevolazioni</a></li><li  id='halley-menu-item-700'><a href='http://www.comune.maiolatispontini.an.it/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/20011' target='_self'>Assistente Sociale</a></li><li  id='halley-menu-item-704'><a href='http://www.comune.maiolatispontini.an.it/c042023/zf/index.php/servizi-aggiuntivi/index/index/idservizio/20046' target='_self'>Assistenza domiciliare</a></li><li  id='halley-menu-item-699'><a href='http://www.comune.maiolatispontini.an.it/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/20900' target='_self'>Piedibus</a></li><li  id='halley-menu-item-702'><a href='https://www.halleyweb.com/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/20020' target='_self'>Mensa scolastica</a></li></ul></li></ul><ul><li><a>PAGAMENTI</a><ul><li  id='halley-menu-item-696'><a href='https://maiolatispontini.mycity.it/iuc' target='_self'>IMU</a></li><li  id='halley-menu-item-703'><a href='https://www.halleyweb.com/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/20129' target='_self'>Fatturazione elettronica</a></li><li  id='halley-menu-item-698'><a href='https://www.halleyweb.com/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/20131' target='_self'>Richiesta certificazione contributi</a></li><li  id='halley-menu-item-697'><a href='https://www.halleyweb.com/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/21148' target='_self'>MPay Regione Marche</a></li></ul></li></ul></li>			<li>
+				<a data-megamenu-class="" accesskey="I" href="javascript:void(0)" >Imprese</a><ul><li><a>UTILITÀ</a><ul><li  id='halley-menu-item-707'><a href='https://www.halleyweb.com/c042023/po/po_imlogin.php' target='_self'>Area riservata</a></li><li  id='halley-menu-item-708'><a href='https://maiolatispontini.nuvolaitalsoft.eu/' target='_self'>SUAP</a></li><li  id='halley-menu-item-709'><a href='https://maiolatispontini.nuvolaitalsoft.eu/sue/' target='_self'>SUE</a></li><li  id='halley-menu-item-706'><a href='http://www.comune.maiolatispontini.an.it/zf/index.php/modulistica/index/dettaglio-area/area/2?sat=1578519968&amp;nodo=nodo1' target='_self'>Tosap</a></li><li  id='halley-menu-item-711'><a href='https://www.halleyweb.com/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/20129' target='_self'>Fatturazione elettronica</a></li><li  id='halley-menu-item-712'><a href='https://www.halleyweb.com/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/21148' target='_self'>MPay Regione Marche</a></li><li  id='halley-menu-item-710'><a href='https://www.halleyweb.com/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/20007' target='_self'>Zone non metanizzate</a></li></ul></li></ul></li>			<li>
+				<a data-megamenu-class="" accesskey="" href="javascript:void(0)" >Cultura e Turismo</a><ul><li><a>CULTURA</a><ul><li  id='halley-menu-item-739'><a href='/c042023/zf/index.php/storia-comune' target='_self'>Storia del Comune</a></li><li  id='halley-menu-item-714'><a href='https://www.halleyweb.com/c042023/zf/index.php/associazioni' target='_self'>Associazioni</a></li><li  id='halley-menu-item-715'><a href='https://www.halleyweb.com/c042023/zf/index.php/musei-monumenti' target='_self'>Musei e Monumenti</a></li><li  id='halley-menu-item-716'><a href='https://www.halleyweb.com/c042023/zf/index.php/teatri' target='_self'>Teatro Gaspare Spontini</a></li><li  id='halley-menu-item-717'><a href='https://www.halleyweb.com/c042023/zf/index.php/comunita-religiose/index-parrocchia' target='_self'>Comunità religiose</a></li><li  id='halley-menu-item-782'><a href='/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/21744' target='_self'>Partigiani del territorio</a></li></ul></li></ul><ul><li><a>TURISMO</a><ul><li  id='halley-menu-item-718'><a href='https://www.halleyweb.com/c042023/zf/index.php/servizi-aggiuntivi/index/index/idservizio/20000' target='_self'>Guide e Itinerari</a></li><li  id='halley-menu-item-719'><a href='https://www.halleyweb.com/c042023/zf/index.php/aziende-locali' target='_self'>Aziende locali</a></li><li  id='halley-menu-item-720'><a href='https://www.halleyweb.com/c042023/zf/index.php/locali-pubblici' target='_self'>Locali pubblici</a></li><li  id='halley-menu-item-721'><a href='https://www.halleyweb.com/c042023/zf/index.php/esercizi-commerciali' target='_self'>Esercizi commerciali</a></li></ul></li></ul></li>			<li>
+				<a data-megamenu-class="" accesskey="" href="javascript:void(0)" >Gaspare Spontini</a><ul><li><a>IL COMPOSITORE</a><ul><li  id='halley-menu-item-725'><a href='http://www.comune.maiolatispontini.an.it/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/395' target='_self'>La storia</a></li><li  id='halley-menu-item-726'><a href='https://www.museospontini.it' target='_self'>Il Museo, l'Archivio e la Biblioteca</a></li></ul></li></ul><ul><li><a>LE FONDAZIONI</a><ul><li  id='halley-menu-item-731'><a href='https://www.fondazionegasparespontini.it' target='_blank'>Fondazione Gaspare Spontini - Casa di riposo</a></li><li  id='halley-menu-item-729'><a href='https://www.fondazionepergolesispontini.com' target='_blank'>Fondazione Pergolesi Spontini</a></li></ul></li></ul></li>			<li>
+				<a data-megamenu-class="" accesskey="" href="https://www.bibliotecalafornace.it/" >Biblioteca La Fornace</a></li>			<li>
+				<a data-megamenu-class="" accesskey="" href="https://maiolatispontini.civicam.it/" >Streaming Diretta Consiglio Comunale</a></li></ul>						</nav>
+					</div>
+				</section>
+											
+						
+			<div id="main" >
+				<div class="u-layout-wide u-layoutCenter u-text-r-l u-padding-r-top u-layout-r-withGutter u-margin-r-bottom">
+																		<div class="Grid">
+									<div class="Grid-cell u-md-size12of12 u-lg-size12of12">
+										
+																																					<nav aria-label="sei qui:" role="navigation"><ul class="Breadcrumb"><li class="Breadcrumb-item"><a class="Breadcrumb-link u-color-50" href="/c042023/hh/index.php">Home</a></li><li class="Breadcrumb-item"><span class="Breadcrumb-link u-color-50 H-Breadcrumb-nolink">Accesso agli atti</span></li><li class="Breadcrumb-item">Delibere</li></ul></nav>									
+																			<h2 class='u-text-h2'>
+																																																								Atti amministrativi										</h2>
+									
+																			<h3 class='pageSubTitle u-text-h3'>
+											Delibere										</h3>
+									
+									
+																			<div id="halley-main-button" class="pull-right">
+											<button id='button-open-ricerca' class='btn btn-gray'><span class='fa fa-search'></span> Cerca</button> <button id='button-open-csv' class='btn btn-default'><span class='fa fa-file-excel-o'></span> CSV</button>										</div>
+										<div class="clearfix"></div>
+											<form method="GET" class="hide well" id="form-ricerca-delibere" style="padding-bottom:0px;">
+		<div class="row"> 
+		    <div class="form-group col-md-3">
+		        <label class="control-label" for="numeroParticolare">Numero</label>
+		        <input name='numeroParticolare' value=""  type='text' id='input-numeroParticolare' class='form-control' maxlength='255'>			</div>	   
+			
+			<div class="form-group col-md-3">   
+		        <label class="control-label" for="select-anno">Anno</label>
+	            <select name='anno'  id='select-anno' class='form-control'><option value='' selected='selected'>Tutti</option><option value='2027' >2027</option><option value='2026' >2026</option><option value='2025' >2025</option><option value='2024' >2024</option><option value='2023' >2023</option><option value='2022' >2022</option><option value='2021' >2021</option><option value='2020' >2020</option><option value='2019' >2019</option><option value='2018' >2018</option><option value='2017' >2017</option></select>		    </div>
+		    
+		    <div class="form-group col-md-3">
+		        <label class="control-label" for="input-dataDal">Data dal</label>
+		        <div class='input-group'>
+    <input name='dataDal' value=''  type='text' id='input-dataDal' class='form-control'  placeholder="gg/mm/aaaa" autocomplete="off">
+    <span class='input-group-addon'><span class='fa fa-calendar'></span></span>        
+</div>
+<script>
+    if ($('#input-dataDal').prop('type') != 'date') {
+        $('#input-dataDal').datepicker();
+    }
+</script>		    </div>
+		    
+		    <div class="form-group col-md-3">    
+		        <label class="control-label" for="input-dataAl">Data al</label>
+		        <div class='input-group'>
+    <input name='dataAl' value=''  type='text' id='input-dataAl' class='form-control'  placeholder="gg/mm/aaaa" autocomplete="off">
+    <span class='input-group-addon'><span class='fa fa-calendar'></span></span>        
+</div>
+<script>
+    if ($('#input-dataAl').prop('type') != 'date') {
+        $('#input-dataAl').datepicker();
+    }
+</script>		    </div>
+	    </div>
+	    
+	    <div class="row">   
+	    	<div class="form-group col-md-3">
+		        <label class="control-label" for="select-tipo">Tipo atto</label>
+		        <select name='tipo'  id='select-tipo' class='form-control'><option value='' selected='selected'>Tutti</option><option value='1' >Delibera Di Giunta</option><option value='2' >Delibera Di Consiglio</option><option value='3' >Commissario Giunta</option><option value='4' >Commissario Consiglio</option></select>		    </div>	
+		    
+		    <div class="form-group col-md-3">   
+		        <label class="control-label" for="select-assessorato">Assessorato</label>
+	            <select name='assessorato'  id='select-assessorato' class='form-control'><option value='' selected='selected'>Tutti</option><option value='35' > </option><option value='33' > </option><option value='32' > </option><option value='31' > </option><option value='30' > </option><option value='29' > </option><option value='28' > </option><option value='27' > </option><option value='26' > </option><option value='25' > </option><option value='24' > </option><option value='23' > </option><option value='22' > </option><option value='21' > </option><option value='34' > </option><option value='17' > </option><option value='19' > </option><option value='20' > </option><option value='1' >AFFARI ISTITUZ.</option><option value='14' >AGRICOLTURA</option><option value='44' >AMBIENTE</option><option value='45' >ASSOCIAZIONISMO</option><option value='46' >ATTIVITA' PRODUTTIVE</option><option value='57' >BANDI E PNRR</option><option value='48' >BIBLIOTECA</option><option value='3' >BILANCIO</option><option value='11' >COMMERCIO</option><option value='54' >COMUNICAZIONE</option><option value='6' >CULTURA</option><option value='16' >DEMOGRAFICI</option><option value='18' >DEMOGRAFICI</option><option value='49' >DEMOGRAFICI</option><option value='58' >EDILIZIA COMUNALE</option><option value='52' >EMERGENZE STRAORDINARIE</option><option value='55' >FINANZE</option><option value='15' >INDUSTRIA</option><option value='12' >LAVORI PUBBLICI</option><option value='53' >MARKETING TERRITORIALE</option><option value='37' >PATRIMONIO</option><option value='2' >PERSONALE</option><option value='59' >POLITICHE DELLA FAMIGLIA</option><option value='7' >POLITICHE GIOVANILI</option><option value='50' >POLITICHE SPONTINIANE</option><option value='36' >POLIZIA LOCALE</option><option value='56' >PROGRAMMAZIONE ECONOMICA</option><option value='40' >PROTEZIONE CIVILE</option><option value='5' >PUBBLICA ISTRUZIONE</option><option value='9' >SANITA'</option><option value='39' >SERVIZI CIMITERIALI</option><option value='47' >SERVIZI EDUCATIVI</option><option value='10' >SERVIZI SOCIALI</option><option value='51' >SISMA</option><option value='8' >SPORT E TEMPO LIB.</option><option value='42' >TRASPORTI</option><option value='4' >TRIBUTI</option><option value='43' >TURISMO</option><option value='13' >URBANISTICA</option><option value='38' >VERDE PUBBLICO</option><option value='41' >VIABILITA'</option></select>		    </div>
+		    
+		    <div class="form-group col-md-3">   
+		        <label class="control-label" for="select-ufficio">Ufficio</label>
+	            <select name='ufficio'  id='select-ufficio' class='form-control'><option value='' selected='selected'>Tutti</option><option value='24' >ALBO</option><option value='4' >AMBIENTE</option><option value='32' >ASS. CULTURA E SPETTACOLI</option><option value='33' >ASS. LAVORI PUBBLICI</option><option value='15' >ASS.AMB.-URBAN.</option><option value='16' >ASS.COMMERCIO</option><option value='14' >ASS.PERSONALE</option><option value='11' >ASS.PUBBL.ISTR.</option><option value='59' >ASS.RE ALL'AGRICOLTURA</option><option value='62' >ASS.RE BILANCIO</option><option value='61' >ASS.RE PROTEZ. CIVILE --VERDE PUBBLICO-</option><option value='63' >ASS.RE PROTEZIONE CIVILE</option><option value='12' >ASS.SERV.SOCIALI</option><option value='13' >ASS.SPORT</option><option value='31' >ASS.TURISMO</option><option value='18' >ATTI</option><option value='87' >BIBLIOTECA</option><option value='47' >CAPIGRUPPO</option><option value='84' >CIMITERO MAIOLATI SCISCIANO</option><option value='20' >CIMITERO MOIE</option><option value='6' >COMMERCIO</option><option value='46' >CONSIGLIO</option><option value='64' >CONTRTTI -GARE -APPALTI-</option><option value='8' >DEMOGRAFICI</option><option value='7' >ECONOMATO</option><option value='21' >GIUNTA</option><option value='69' >LAVORI PUBBLICI</option><option value='19' >MESSO NOTIF.RE</option><option value='78' >PERSONALE</option><option value='17' >POLIZIA MUNICIP.</option><option value='89' >PROTOCOLLO</option><option value='2' >RAGIONERIA</option><option value='66' >RAPPRESENTATI R.S.U. SEDE--</option><option value='9' >SEGRETARIO</option><option value='1' >SEGRETERIA</option><option value='83' >SERVIZI DEMOGRAFICI</option><option value='85' >SERVIZI EDUCATIVI</option><option value='73' >SERVIZI FINANZIARI</option><option value='74' >SERVIZI SOCIALI</option><option value='55' >SERVIZI SOCIALI---HANDICAP</option><option value='10' >SINDACO</option><option value='90' >SUAP</option><option value='76' >TECNICO-LAV.PUBB.</option><option value='5' >TRIBUTI</option><option value='65' >UFF. TRASPORTO  --   SCUOLABUS</option><option value='88' >UFFICIO AGRIC.RA-SPORT -ASS.NI SPORT.VE -CULTURALI</option><option value='60' >UFFICIO CULTURA-TEATRO -MANIFESTAZIONI--</option><option value='58' >UFFICIO ELETTORALE</option><option value='70' >UFFICIO INFORMATICA</option><option value='57' >UFFICIO LEVA</option><option value='67' >UFFICIO PERSONALE</option><option value='82' >UFFICIO PROTEZIONE CIVILE</option><option value='56' >UFFICIO SCUOLA</option><option value='71' >UNIONE DEI COMUNI DELLA MEDIA VALLESINA</option><option value='3' >URBANISTICA</option><option value='93' >URBANISTICA</option><option value='68' >VICE SINDACO</option></select>		    </div>    
+		    
+		    <div class="form-group col-md-3">   
+		     	<label class="control-label" for="input-assessoreProponente">Assessore proponente</label>
+			        <input name='assessoreProponente' value=""  type='text' id='input-assessoreProponente' class='form-control' maxlength='255'>		    	</div>
+	    	</div>
+	           
+	    <div class="form-group">
+	        <label class="control-label" for="input-oggetto">Oggetto</label>
+	        <input name='oggetto' value=""  type='text' id='input-oggetto' class='form-control' maxlength='255'>	    </div>
+	    
+		<div class="form-group text-right">    
+			<button type="submit" class="btn btn-gray"><span class="fa fa-search"></span> Cerca</button>
+			<a href="/c042023/zf/index.php/atti-amministrativi/delibere/annulla-ricerca" class="btn btn-default">Annulla</a>
+	    </div>
+	    
+	    <input type="hidden" name="ricerca" value="1">   
+	</form>
+	
+	<form method="GET" class="hide well" id="form-csv-delibere" style="padding-bottom:0px;" action="/c042023/zf/index.php/atti-amministrativi/delibere/csv" target="_blank">
+		<div class="row"> 	
+			<div class="form-group col-md-3">   
+		        <label class="control-label" for="select-anno">Anno</label>
+	            <select name='anno'  id='select-anno' class='form-control'><option value='2017' >2017</option><option value='2018' >2018</option><option value='2019' >2019</option><option value='2020' >2020</option><option value='2021' >2021</option><option value='2022' >2022</option><option value='2023' >2023</option><option value='2024' >2024</option><option value='2025' >2025</option><option value='2026' >2026</option></select>		    </div>
+	    </div>
+	    
+		<div class="form-group text-right">    
+			<button type="submit" class="btn btn-default">
+				<span class='fa fa-file-excel-o'></span> CSV
+			</button>
+	    </div>
+	</form>
+	
+	
+<div id="table-delibere-public">    
+    
+    <table class="cms-table">    
+        <caption>
+                        <div class="table-loader-bar"><div></div></div>
+        </caption>
+        
+        <thead>        
+            <tr>
+                                                
+                                                        
+                    <th class='hidden-xs' >
+                                                    <a data-href-ajax="/c042023/zf/index.php/atti-amministrativi/delibere/table?table-delibere-public-sidx=DOTADES&amp;table-delibere-public-sord=ASC" href="#" class="button-order text-nowrap">
+                                                                    <span class="fa fa-sort fa-disabled pull-left"></span>
+                                                                <div style="margin-left:12px;">Tipo atto</div>
+                            </a>
+                                            </th>
+                                                        
+                    <th class='text-right hidden-xs' >
+                                                    <a data-href-ajax="/c042023/zf/index.php/atti-amministrativi/delibere/table?table-delibere-public-sidx=ATPRNUD&amp;table-delibere-public-sord=ASC" href="#" class="button-order text-nowrap">
+                                                                    <span class="fa fa-sort fa-disabled pull-left"></span>
+                                                                <div style="margin-left:12px;">N.</div>
+                            </a>
+                                            </th>
+                                                        
+                    <th class='hidden-xs' >
+                                                    <a data-href-ajax="/c042023/zf/index.php/atti-amministrativi/delibere/table?table-delibere-public-sidx=ATPRRDE&amp;table-delibere-public-sord=ASC" href="#" class="button-order text-nowrap">
+                                                                    <span class="fa fa-sort fa-disabled pull-left"></span>
+                                                                <div style="margin-left:12px;">Data</div>
+                            </a>
+                                            </th>
+                                                        
+                    <th class='hidden-xs' >
+                                                    Oggetto                                            </th>
+                                                        
+                    <th class='visible-xs' >
+                                                    Delibere                                            </th>
+                            </tr>
+            
+                                </thead>
+        
+        <tbody>
+                                                          
+                                        
+                    <tr data-href='/c042023/zf/index.php/atti-amministrativi/delibere/dettaglio/atto/GTlRFekE9RT0-H' >
+                                                                        
+                                                    
+                                                        
+                            <td class='hidden-xs nospace' >
+                                Delibera Di Giunta                            </td>
+                                                                                
+                                                        
+                            <td class='text-right hidden-xs' >
+                                74                            </td>
+                                                                                
+                                                        
+                            <td class='hidden-xs' >
+                                13/07/2026                            </td>
+                                                                                
+                                                        
+                            <td class='hidden-xs' >
+                                <div class='truncate-ellipsis'><span><a href='/c042023/zf/index.php/atti-amministrativi/delibere/dettaglio/atto/GTlRFekE9RT0-H' class=''>MODIFICA  DISPOSIZIONE POSTEGGI AREA FIERA SANT'ANNA 2026-</a></span></div>                            </td>
+                                                                                
+                                                        
+                            <td class='visible-xs' >
+                                <div>Delibera di giunta</div><div>n. 74 del 13/07/2026</div><div>MODIFICA  DISPOSIZIONE POSTEGGI AREA FIERA SANT'ANNA 2026-</div>                            </td>
+                                                                        </tr>                       
+                                              
+                                        
+                    <tr data-href='/c042023/zf/index.php/atti-amministrativi/delibere/dettaglio/atto/GTlRFekE1Zz0-H' >
+                                                                        
+                                                    
+                                                        
+                            <td class='hidden-xs nospace' >
+                                Delibera Di Giunta                            </td>
+                                                                                
+                                                        
+                            <td class='text-right hidden-xs' >
+                                73                            </td>
+                                                                                
+                                                        
+                            <td class='hidden-xs' >
+                                07/07/2026                            </td>
+                                                                                
+                                                        
+                            <td class='hidden-xs' >
+                                <div class='truncate-ellipsis'><span><a href='/c042023/zf/index.php/atti-amministrativi/delibere/dettaglio/atto/GTlRFekE1Zz0-H' class=''>CAMPI DI CALCIO "M. PIERUCCI"  E "GRANDE TORINO"  - APPROVAZIONE LINEE DI INDIRIZZO PER AFFIDAMENTO GESTIONE</a></span></div>                            </td>
+                                                                                
+                                                        
+                            <td class='visible-xs' >
+                                <div>Delibera di giunta</div><div>n. 73 del 07/07/2026</div><div>CAMPI DI CALCIO "M. PIERUCCI"  E "GRANDE TORINO"  - APPROVAZIONE LINEE DI INDIRIZZO PER AFFIDAMENTO GESTIONE</div>                            </td>
+                                                                        </tr>                       
+                                              
+                                        
+                    <tr data-href='/c042023/zf/index.php/atti-amministrativi/delibere/dettaglio/atto/GTlRFekE1Yz0-H' >
+                                                                        
+                                                    
+                                                        
+                            <td class='hidden-xs nospace' >
+                                Delibera Di Giunta                            </td>
+                                                                                
+                                                        
+                            <td class='text-right hidden-xs' >
+                                72                            </td>
+                                                                                
+                                                        
+                            <td class='hidden-xs' >
+                                07/07/2026                            </td>
+                                                                                
+                                                        
+                            <td class='hidden-xs' >
+                                <div class='truncate-ellipsis'><span><a href='/c042023/zf/index.php/atti-amministrativi/delibere/dettaglio/atto/GTlRFekE1Yz0-H' class=''>CAMPO DI CALCIO "G. SCIREA"  MAIOLATI SPONTINI - APPROVAZIONE LINEE DI INDIRIZZO PER AFFIDAMENTO GESTIONE</a></span></div>                            </td>
+                                                                                
+                                                        
+                            <td class='visible-xs' >
+                                <div>Delibera di giunta</div><div>n. 72 del 07/07/2026</div><div>CAMPO DI CALCIO "G. SCIREA"  MAIOLATI SPONTINI - APPROVAZIONE LINEE DI INDIRIZZO PER AFFIDAMENTO GESTIONE</div>                            </td>
+                                                                        </tr>                       
+                                              
+                                        
+                    <tr data-href='/c042023/zf/index.php/atti-amministrativi/delibere/dettaglio/atto/GTlRFekU1TT0-H' >
+                                                                        
+                                                    
+                                                        
+                            <td class='hidden-xs nospace' >
+                                Delibera Di Giunta                            </td>
+                                                                                
+                                                        
+                            <td class='text-right hidden-xs' >
+                                71                            </td>
+                                                                                
+                                                        
+                            <td class='hidden-xs' >
+                                07/07/2026                            </td>
+                                                                                
+                                                        
+                            <td class='hidden-xs' >
+                                <div class='truncate-ellipsis'><span><a href='/c042023/zf/index.php/atti-amministrativi/delibere/dettaglio/atto/GTlRFekU1TT0-H' class=''>APPROVAZIONE STATO ATTUAZIONE DEI PROGRAMMI ESERCIZIO 2026 - SCHEMA DUP 2027-2029</a></span></div>                            </td>
+                                                                                
+                                                        
+                            <td class='visible-xs' >
+                                <div>Delibera di giunta</div><div>n. 71 del 07/07/2026</div><div>APPROVAZIONE STATO ATTUAZIONE DEI PROGRAMMI ESERCIZIO 2026 - SCHEMA DUP 2027-2029</div>                            </td>
+                                                                        </tr>                       
+                                              
+                                        
+                    <tr data-href='/c042023/zf/index.php/atti-amministrativi/delibere/dettaglio/atto/GTlRFekU1ST0-H' >
+                                                                        
+                                                    
+                                                        
+                            <td class='hidden-xs nospace' >
+                                Delibera Di Giunta                            </td>
+                                                                                
+                                                        
+                            <td class='text-right hidden-xs' >
+                                70                            </td>
+                                                                                
+                                                        
+                            <td class='hidden-xs' >
+                                07/07/2026                            </td>
+                                                                                
+                                                        
+                            <td class='hidden-xs' >
+                                <div class='truncate-ellipsis'><span><a href='/c042023/zf/index.php/atti-amministrativi/delibere/dettaglio/atto/GTlRFekU1ST0-H' class=''>BILANCIO CONSOLIDATO ESERCIZIO 2025 - INDIVIDUAZIONE COMPONENTI DEL "GRUPPO COMUNE DI MAIOLATI SPONTINI" E DEL PERIMETRO DI CONSOLIDAMENTO</a></span></div>                            </td>
+                                                                                
+                                                        
+                            <td class='visible-xs' >
+                                <div>Delibera di giunta</div><div>n. 70 del 07/07/2026</div><div>BILANCIO CONSOLIDATO ESERCIZIO 2025 - INDIVIDUAZIONE COMPONENTI DEL "GRUPPO COMUNE DI MAIOLATI SPONTINI" E DEL PERIMETRO DI CONSOLIDAMENTO</div>                            </td>
+                                                                        </tr>                       
+                                    </tbody>
+                <tfoot>
+        	<tr>
+                <td colspan="5"> 
+                            	<nav role="navigation" aria-label="Navigazione paginata" class="u-layout-prose" style="margin:auto;">
+                        <ul class="Grid Grid--fit Grid--alignMiddle u-text-r-xxs" style="list-style-type: none !important;">
+                        
+                        	                        	                                <li class="Grid-cell u-textCenter">
+                                    <span class="Icon-chevron-left u-text-r-s" role="presentation"></span>
+                                    <span class="u-hiddenVisually">Pagina precedente</span>
+                                </li> 
+                                            
+                			                        
+                                                        	<li class="Grid-cell u-textCenter">
+                                    <span class="u-padding-r-all u-block u-background-50 u-color-white">
+                                    	<span class="u-text-r-s"><span class="u-md-hidden u-lg-hidden">Pagina</span> 1</span>
+                                    </span>
+                                </li> 
+                                                        
+                                                                                    	                            		                            			                            			<li class="Grid-cell u-textCenter u-hidden u-md-inlineBlock u-lg-inlineBlock">
+                            				<a data-href-ajax="/c042023/zf/index.php/atti-amministrativi/delibere/table/table-delibere-public-page/2" href="/c042023/zf/index.php/atti-amministrativi/delibere/index/table-delibere-public-page/2" aria-label="Pagina 2" class="button-pagination u-padding-r-all u-color-50 u-textClean u-block">
+                            					<span class="u-text-r-m">2</span>
+                            				</a>
+                            			</li>
+                            			
+                            			                            			<li class="Grid-cell u-textCenter u-hidden u-md-inlineBlock u-lg-inlineBlock">
+                            				<a data-href-ajax="/c042023/zf/index.php/atti-amministrativi/delibere/table/table-delibere-public-page/3" href="/c042023/zf/index.php/atti-amministrativi/delibere/index/table-delibere-public-page/3" aria-label="Pagina 3" class="button-pagination u-padding-r-all u-color-50 u-textClean u-block">
+                            					<span class="u-text-r-m">3</span>
+                            				</a>
+                            			</li>
+                            		            	
+                            	                            	
+                            	                            		<li class="Grid-cell u-textCenter u-hidden u-md-inlineBlock u-lg-inlineBlock" aria-hidden="true">
+                                        <span class="u-padding-r-all u-block u-color-50">
+                                            <span class="u-text-r-m">...</span>
+                                        </span>
+                                    </li>
+                            	                                                        
+                                                                                                                        	                                    <li class="Grid-cell u-textCenter u-hidden u-md-inlineBlock u-lg-inlineBlock">
+                                        <a data-href-ajax="/c042023/zf/index.php/atti-amministrativi/delibere/table/table-delibere-public-page/436" href="/c042023/zf/index.php/atti-amministrativi/delibere/index/table-delibere-public-page/436" aria-label="Pagina 436" class="button-pagination u-padding-r-all u-color-50 u-textClean u-block">
+                                            <span class="u-text-r-m">436</span>
+                                        </a>
+                                    </li>
+                                                                                        
+                                                       	                           		                        		<li class="Grid-cell u-textCenter">
+                                	<a data-href-ajax="/c042023/zf/index.php/atti-amministrativi/delibere/table/table-delibere-public-page/2" href="/c042023/zf/index.php/atti-amministrativi/delibere/index/table-delibere-public-page/2" class="button-pagination u-padding-r-all u-color-50 u-textClean u-block" title="Pagina successiva">
+                                    	<span class="Icon-chevron-right u-text-r-s" role="presentation"></span>
+                                    	<span class="u-hiddenVisually">Pagina successiva</span>
+                                  	</a>
+                            	</li>        	        
+                                                    </ul>
+                    </nav>
+                		</td>
+            </tr>
+        </tfoot>
+            </table>
+    
+    <script> 
+      
+    // Halley Grid error
+    function errorHalleyGrid_delibere_public(xhr) {
+    	$("#table-delibere-public .table-error").html("<span class='fa fa-exclamation-circle' title='"+$.trim(xhr.responseText)+"'></span>");
+    	$("#table-delibere-public .table-error").css('visibility', 'visible');		
+		console.log("Errore nell'aggiornamento della tabella 'table-delibere-public': "+xhr.responseText);
+		loaderHalleyGrid_delibere_public(false);
+    }
+    
+    // Halley Grid Loader
+    function loaderHalleyGrid_delibere_public(state) {
+        if(state) {        	
+			$("#table-delibere-public .table-loader-bar").css('visibility', 'visible');
+			$("#table-delibere-public").css("background-color","#FFFFFF").css("opacity","0.6");
+        } else {        	
+			$("#table-delibere-public .table-loader-bar").css('visibility', 'hidden');
+			$("#table-delibere-public").css("background-color","#FFFFFF").css("opacity","1");
+        }
+    }
+
+//	Ricarica la Grid
+    function reloadHalleyGrid_delibere_public() {
+    	updateHalleyGrid_delibere_public("/c042023/zf/index.php/atti-amministrativi/delibere/table");
+    }
+    
+    // Aggiorna la Grid mettendo la barra di caricamento
+    function updateHalleyGrid_delibere_public(href, params) {
+    	params = params || 0;
+    	$.ajax({
+    		type: "post",			
+    		url: href,
+    		data: params,
+    		beforeSend: function() {    			
+    			loaderHalleyGrid_delibere_public(true); 			    			
+    		},                
+    		success : function(data) {        		
+    			$("#table-delibere-public").replaceWith(data);		
+    		},
+    		error: function(xhr) {
+    			errorHalleyGrid_delibere_public(xhr);	               
+    		} 		
+    	});
+    }
+
+    // Invia i dati della ricerca
+    function sendSearchParams_delibere_public() {
+	    var params = {};
+    	$("#table-delibere-public .input-search").each(function(index, obj){ 
+	    	params[$(this).attr("name")] = $(this).val();
+	    });
+    	updateHalleyGrid_delibere_public("/c042023/zf/index.php/atti-amministrativi/delibere/table", params);  
+    }    
+    
+    $(document).ready(function(){
+        // Datepicker
+        $("#table-delibere-public .search-datepicker").datepicker();        
+
+        // Paginazione
+        $("#table-delibere-public .button-pagination, #table-delibere-public .button-order").on("click", function(event){
+        	event.preventDefault();
+        	var href = $(this).attr("data-href-ajax");  
+        	updateHalleyGrid_delibere_public(href);
+        });
+        
+        // Paginazione: selezione pagina da select
+        $("#table-delibere-public .select-pagination").on("change", function(){    
+        	var href = "/c042023/zf/index.php/atti-amministrativi/delibere/table";                  
+        	var params = {};
+        	params["table-delibere-public-page"] = $(this).val();        	
+        	updateHalleyGrid_delibere_public(href, params);        	
+        }); 
+
+        // Aggiungendo l'attributo data-href ad un riga viene aggiunto l'evento click della riga
+    	$("#table-delibere-public tr[data-href]").on("mouseup", function(){
+    		// Controllo se c'è una selezione del testo
+    		var text = "";
+            if (typeof window.getSelection != "undefined") {
+                var text = window.getSelection().toString();
+            } else if (typeof document.selection != "undefined" && document.selection.type == "Text") {
+                text = document.selection.createRange().text;
+            }        
+            
+            // Se non è stato selezionato del testo, faccio location.href
+            if(!text) {
+            	location.href=$(this).attr("data-href");
+            }
+    	});
+    	
+    	// Fix per il problema che mettendo data-href e cliccando su un link viene richiamato due volte il link
+    	$("#table-delibere-public .prevent-default").on("click", function(event){
+    		event.preventDefault();
+    	});  
+
+    	// TOOLBAR RICERCA
+    	// Campo ricercabile testo
+    	$("#table-delibere-public .input-search").keypress(function(event) {
+    		if(event.which == 13) {  
+        		//FIX per evitare di effettuarei il submit di una form se la tabella è contenuta in essa 
+    			event.preventDefault();
+    		    sendSearchParams_delibere_public();
+    		}
+    	});
+    	// Campo ricercabile data
+    	$("#table-delibere-public .search-datepicker").change(function(){
+    		sendSearchParams_delibere_public();
+        });    
+        // Campo ricercabile select
+        $("#table-delibere-public .search-select").change(function(){
+    		sendSearchParams_delibere_public();
+        });    
+
+        // RESET DEI PARAMETRI DELLA TABELLA
+        $("#table-delibere-public .button-reset-session-params").on("click", function(event){
+            event.preventDefault();
+        	$.ajax({
+	    		type: "get",			
+	    		url: "/c042023/zf/index.php/schemi/grid/reset-session-params/grid/delibere-public",
+	    		beforeSend: function() {    	    		    			
+	    			loaderHalleyGrid_delibere_public(true);    			    			
+	    		},
+	    		error: function(xhr) {
+	    			alert("Si è verificato un errore durante il reset dei parametri della tabella. "+xhr.responseText);
+	    		},
+	    		complete: function(xhr) {
+	    			updateHalleyGrid_delibere_public("/c042023/zf/index.php/atti-amministrativi/delibere/table");
+	    		}
+	    	});
+        });
+        
+    	// ORDINAMENTO RIGHE TABELLA
+    	     
+    })    
+    </script>
+</div>	<br>
+<div class="alert alert-info">
+	Per leggere i file firmati digitalmente (estensione '.p7m') è necessario aver installato il software
+	<a href="https://www.firma.infocert.it/installazione/installazione_DiKe.php" target="_blank">Dike (download)</a>
+	<br>
+	<a href="/c042023/po/po_p_guida_p7m.php">Istruzioni per l'apertura di un file con firma digitale</a>	  
+</div>	
+	<script>
+	function toogleRicerca() {
+		if(!$("#form-csv-delibere").hasClass("hide")){
+			$("#form-csv-delibere").addClass("hide");
+			$("#button-open-csv").show();
+		}
+		
+		$("#form-ricerca-delibere").removeClass("hide");
+		$("#button-open-ricerca").hide();
+	}
+
+	function toogleCsv() {
+		if(!$("#form-ricerca-delibere").hasClass("hide")){
+			$("#form-ricerca-delibere").addClass("hide");
+			$("#button-open-ricerca").show();
+		}
+		$("#form-csv-delibere").removeClass("hide");
+		$("#button-open-csv").hide();
+	}
+	
+		
+	$(document).ready(function(){
+		$("#button-open-ricerca").on("click", function(){
+			toogleRicerca();
+		});
+		$("#button-open-csv").on("click", function(){
+			toogleCsv();
+		});
+	})
+	</script>
+						</div>
+		</div>
+		<div style='clear:both'></div>
+	</div>
+	</div>
+						<div class="footer-container-italia u-background-95 u-hiddenPrint">
+				<div class="u-layout-wide u-layoutCenter u-layout-r-withGutter">
+					<footer class="Footer u-background-95">
+						<div class="u-cf">
+															<img class="Footer-logo" src='https://www.halleyweb.com/c042023/zf/index.php/kamaleonte/index/logo/preview/0' height='75'  alt='Logo Comune'>							
+							<p class="Footer-siteName">
+								<span style="font-size: 1.20em; font-weight: 700;">Comune di Maiolati Spontini</span><br />
+<span style="font-size: 0.6em; font-weight: 500;">Citt&agrave; natale del compositore Gaspare Spontini</span>
+<style type="text/css">.Footerblock {
+border-top: .1rem solid currentColor!important;
+}
+
+#halley-footer-copyright .right {
+display:none;
+}
+.Header-navbar {
+    color: #F39E12 !important;
+    border-bottom: 1px solid #F39E12;
+
+}
+#block114.u-border-bottom-m ,{
+    border-bottom: .2rem solid currentColor!important;
+}
+
+#block114 .border-color-red {
+    background-color: #237a5e!important;
+    border-bottom: 2px solid #F39E12;
+}
+
+#block114 i.fa , {
+    color:#FFF!important;
+    font-size: 2em;
+}
+
+#block114 .u-text-r-xs  {
+    font-size: 1.75rem!important;
+}
+#block118 .u-borderRadius-m {
+    border-bottom: 2px solid #F39E12;
+/* SFONDO LINK */
+
+}
+
+.Footer-block li, .Footer-links, .Footer-subBlock {
+    border-top: .1rem solid currentColor!important;
+}
+
+.u-background-5, .Accordion--plus .Accordion-header:hover, .Accordion--default .Accordion-header:hover, .Linklist a:hover {
+  background-color: #F9F6F1 !important;
+
+}
+
+.Icon-search {
+    background-color: #004321;
+    color: #fff!important;
+}
+.Header-search {
+margin-bottom: 0px!important; 
+
+}
+
+
+ul.Linklist > li > a{
+	padding-top:8px !important;
+	padding-bottom:8px !important;
+font-weight: 600 !important;
+}
+
+/* FINE NEWS */
+</style>
+							</p>
+						</div>
+
+						<div class="Grid Grid--withGutter u-padding-all-l">
+																								<div class="Grid-cell u-size2of2">
+										<script>
+$(document).ready(function(){
+var $newSocial = $('<li><a href="/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/21504" title="WhatsApp"><span class="Icon-whatsapp"></span><span class="u-hiddenVisually">WhatsApp</span></a></li>'); 
+
+$('.Header-socialIcons').append($newSocial);
+
+});
+
+</script>
+<div class="Grid Grid--withGutter">
+<div class="Footer-block Grid-cell u-md-size1of3 u-lg-size1of3">
+<div class="Footer-subBlock">
+<h3 class="Footer-subTitle"><em>Sede Comunale</em></h3>
+Largo Pastori,1<br />
+60030 Maiolati Spontini (AN)<br />
+C.F. e P.IVA 00188950422<br />
+Cod. ISTAT:&nbsp; 042023<br />
+Cod. catastale:&nbsp; E837<br />
+Cod. Fattura Elettronica: <a href="https://www.halleyweb.com/c042023/images/codici%20FATTURA%20ELETTRONICA.pdf">clicca qui</a><br />
+<br />
+IBAN: <a href="/c042023/zf/index.php/trasparenza/index/index/categoria/133">clicca qui</a><br />
+&nbsp;</div>
+</div>
+
+<div class="Footer-block Grid-cell u-md-size1of3 u-lg-size1of3">
+<div class="Footer-subBlock">
+<h3 class="Footer-subTitle"><em>Recapiti e contatti</em></h3>
+
+<p><i class="fa fa-phone" style="width: 16px;">&nbsp;</i>&nbsp;Tel. +39 0731 70751<br />
+<i class="fa fa-fax" style="width: 16px;">&nbsp;</i>&nbsp;Fax +39 0731 702816<br />
+<i class="fa fa-envelope" style="width: 16px;">&nbsp;</i>&nbsp;<a href="mailto:comune@maiolati.spontini.it">comune@maiolati.spontini.it</a><br />
+PEC:&nbsp;<a href="mailto:comune.maiolatispontini@emarche.it">comune.maiolatispontini@emarche.it</a>&nbsp;<br />
+&nbsp;</p>
+</div>
+</div>
+
+<div class="Footer-block Grid-cell u-md-size1of3 u-lg-size1of3">
+<div class="Footer-subBlock">
+<h3 class="Footer-subTitle"><em>Elenco siti tematici</em></h3>
+<i class="fa fa-cube">&nbsp;</i><a href="http://www.provincia.ancona.it" target="_blank">Provincia di Ancona</a><br />
+<i class="fa fa-cube">&nbsp;</i><a href="https://www.regione.marche.it/" target="_blank">Regione Marche</a><br />
+<i class="fa fa-cube">&nbsp;</i><a href="http://www.governo.it/" target="_blank">Governo</a><br />
+<br />
+<br />
+<a href="https://designers.italia.it/" target="_blank"><img alt="" src="/c001227/images/DI.png" style="width:220px;" /></a></div>
+</div>
+</div>
+
+<ul class="Footer-links u-cf">
+	<li><a href="/c042023/zf/index.php/privacy/index/cookie">Cookie Policy</a></li>
+	<li><a href="/c042023/zf/index.php/privacy/index/privacy">Privacy policy</a></li>
+	<li><a href="/c042023/zf/index.php/privacy/index/note-legali">Note legali</a></li>
+	<li><a href="/c042023/zf/index.php/servizi-aggiuntivi/index/index/idtesto/21251">Accessibilit&agrave;</a></li>
+	<li><a href="https://www.halleyweb.com/c042023/hh/login.php">INTRANET</a></li>
+	<li><a href="https://www.halleyweb.com/c042023/po/po_exlogin.php">EXTRANET</a>&nbsp;</li>
+</ul>
+									</div>
+																					</div>
+
+						<div class="Grid Grid--withGutter u-padding-all-l">
+							<div class="Grid-cell u-size2of2">
+								<div id="halley-footer-copyright" class="notranslate">
+									<div class="left" id="copyright_diritti">&copy; 2026 Halley Informatica. Tutti i diritti riservati. Halley
+										EG										041440.
+									</div>
+									<div class="right">
+																															<span id="copyright_w3c">
+												<a href="http://www.w3.org/WAI/WCAG1AA-Conformance" title="Questo sito &egrave; accessibile secondo le specifiche WCAG 1.0 (Linee guida per l'accessibilit&agrave; del WEB) con livello di conformit&amp;agrave doppia A"><img style="border:0px" src="/c042023/immagini/yellow_wai-aa.gif" alt="Icona di conformit&agrave; di livello doppia A secondo le specifiche di accessibilit&agrave; W3C-WAI Linee guida per l'accessibilit&agrave; del WEB 1.0"></a>
+												<img style="border:0px" src="/c042023/immagini/valid_html5.png" alt="Icona di validit&agrave; dell'XHTML usato, secondo le specifiche del W3C">
+												<a href="http://jigsaw.w3.org/css-validator/" title="Questo sito utilizza un CSS valido"><img style="border:0px" src="/c042023/immagini/valid_css3.png" alt="Icona di validit&agrave; del foglio di stile CSS usato, secondo le specifiche del W3C"></a>
+											</span>
+																			</div>
+									<div class="right" id="halley-privacy-note">
+																					<a href="/c042023/zf/index.php/privacy/index/note-legali">Note legali</a>
+																															-
+																															<a href="/c042023/zf/index.php/privacy/index/privacy">Privacy</a>
+																			</div>
+									<div class="clear"></div>
+								</div>
+							</div>
+						</div>
+					</footer>
+				</div>
+			</div>
+
+			<a href="#" title="torna all'inizio del contenuto" class="ScrollTop js-scrollTop js-scrollTo">
+				<em class="ScrollTop-icon Icon-collapse" aria-hidden="true"></em>
+				<span class="u-hiddenVisually">torna all'inizio del contenuto</span>
+			</a>
+
+
+		
+	
+	<!--[if IE 8]>
+  <script src="/km/design-web-toolkit/build/vendor/respond.min.js"></script>
+  <script src="/km/design-web-toolkit/build/vendor/rem.min.js"></script>
+  <script src="/km/design-web-toolkit/build/vendor/selectivizr.js"></script>
+  <script src="/km/design-web-toolkit/build/vendor/slice.js"></script>
+  <![endif]-->
+
+	<!--[if lte IE 9]>
+  <script src="/km/design-web-toolkit/build/vendor/polyfill.min.js"></script>
+  <![endif]-->
+
+	<!-- sostituire questo percorso con quello degli assets javascript nel proprio sito web:
+	è il percorso, relativo alla webroot, della directory che contiene il file IWT.min.js e i file *.chunk.js -->
+
+	<script>
+		__PUBLIC_PATH__ = '/km/design-web-toolkit/build/'
+	</script>
+
+	<script src="/km/design-web-toolkit/build/IWT.min.js"></script>
+
+				<script>
+		var recuperoDiss = function() {
+			$("#dialog-recuperoDiss").remove();
+			$("body").append("<div id='dialog-recuperoDiss'>Caricamento...</div>");
+			$("#dialog-recuperoDiss").dialog({
+				title: "Attenzione!",
+				width: 890,
+				position: {
+					my: "center center-200",
+					at: "center center",
+					of: window
+				},
+				open: function(event, ui) {
+					$.ajax({
+						type: "post",
+						url: "/zf/index.php/recupero-diss/recupero-diss",
+						beforeSend: function() {
+							cmsDivOverlay(true);
+						},
+						success: function(data) {
+							$("#dialog-recuperoDiss").html(data);
+						},
+						error: function() {
+							alert("Non è stato possibile caricare il messaggio di errore");
+						},
+						complete: function() {
+							cmsDivOverlay(false);
+						}
+					});
+				},
+				buttons: {
+					"Ok": {
+						text: "Ok",
+						"class": "btn btn-success",
+						click: function() {
+							$("#dialog-recuperoDiss").dialog("destroy").remove();
+							cmsDivOverlay(false);
+						}
+					}
+				}
+			})
+		}
+	</script>
+	</body>
+
+	</html>

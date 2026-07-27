@@ -398,6 +398,7 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> (axum::Router, St
         operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
+        curation_allowed_hosts: vec!["halleyweb.com".to_string()],
     };
 
     let rag_engine = Arc::new(RagEngine::new(
@@ -574,6 +575,7 @@ async fn when_check_health(world: &mut BotWorld) {
         operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
+        curation_allowed_hosts: vec!["halleyweb.com".to_string()],
     };
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
@@ -676,6 +678,7 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
         operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
+        curation_allowed_hosts: vec!["halleyweb.com".to_string()],
     };
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
@@ -1603,6 +1606,7 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> (axum::Router, S
         operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
+        curation_allowed_hosts: vec!["halleyweb.com".to_string()],
     };
 
     let rag_engine = Arc::new(RagEngine::new(
@@ -1978,6 +1982,7 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
         operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
+        curation_allowed_hosts: vec!["halleyweb.com".to_string()],
     };
 
     let rag_engine = Arc::new(RagEngine::new(
@@ -2639,6 +2644,7 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
         operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
+        curation_allowed_hosts: vec!["halleyweb.com".to_string()],
     };
 
     let rag_engine = Arc::new(RagEngine::new(
@@ -2887,6 +2893,7 @@ async fn given_manual_ingest_api_available(world: &mut BotWorld) {
         operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
+        curation_allowed_hosts: vec!["halleyweb.com".to_string()],
     };
 
     let rag_engine = Arc::new(RagEngine::new(
@@ -2973,6 +2980,164 @@ async fn given_manual_ingest_api_available(world: &mut BotWorld) {
 
     world.admin_db_path = Some(path);
     world.ingest_manual_router = Some(router);
+}
+
+/// Stands in for `CuratingIngestManualAdapter` dispatching to
+/// `HalleyCurationAdapter` for an allow-listed source (Plan 0030). The real
+/// pagination/bookmark/upload orchestration is covered by the wiremock-backed
+/// adapter tests in `backend/src/admin/ingest_manual/halley/curation.rs` —
+/// this step-definition scope tests only the HTTP/auth/audit contract, using
+/// a call counter to simulate the bookmark narrowing a second run to "no new
+/// items", matching the real adapter's observable behavior.
+struct SimulatedCurationPort {
+    calls: AtomicUsize,
+}
+
+#[async_trait]
+impl IngestManualAdminPort for SimulatedCurationPort {
+    async fn ingest(
+        &self,
+        section: &str,
+        src: &str,
+        window: RecencyWindow,
+    ) -> Result<IngestManualResponse, IngestManualError> {
+        let call_number = self.calls.fetch_add(1, Ordering::SeqCst);
+        let status = if call_number == 0 {
+            "ingested 2 document(s)".to_string()
+        } else {
+            "no new items".to_string()
+        };
+        Ok(IngestManualResponse {
+            section: section.to_string(),
+            src: src.to_string(),
+            window: window.to_string(),
+            status,
+        })
+    }
+}
+
+#[given("the curation API is available for an allow-listed source")]
+async fn given_curation_api_available(world: &mut BotWorld) {
+    let path = temp_db();
+    let store = Arc::new(
+        kb_store::KbStore::open(&path)
+            .await
+            .expect("failed to open test kb.db for curation"),
+    );
+    let persona: Arc<dyn PersonaPort> = Arc::new(
+        backend::rag_engine::persona::PersonaAdapter::new(store.clone()),
+    );
+    let persona_admin: Arc<dyn PersonaAdminPort> = Arc::new(
+        backend::rag_engine::persona_admin::PersonaAdminAdapter::new(store.clone(), persona),
+    );
+
+    let config = Config {
+        embed_url: "http://embed:8080".into(),
+        generate_url: "http://generate:8080".into(),
+        kb_path: path.clone(),
+        top_k: 5,
+        min_score: 0.35,
+        operator_credential_path: "/nonexistent-bdd-credential.json".into(),
+        operator_username: None,
+        operator_password: None,
+        session_ttl_secs: 1800,
+        upload_max_bytes: 10_485_760,
+        curation_allowed_hosts: vec!["example-halley-instance.test".to_string()],
+    };
+
+    let rag_engine = Arc::new(RagEngine::new(
+        Arc::new(StubEmbedding),
+        Arc::new(ConfigurableRetrieval { chunks: vec![] }),
+        Arc::new(ConfigurablePersona { snapshot: None }),
+        Arc::new(RecordingGeneration {
+            call_count: AtomicUsize::new(0),
+            last_prompt: std::sync::Mutex::new(None),
+        }),
+        5,
+        0.35,
+    ));
+
+    let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
+    let preview_store = Arc::new(PreviewStore::new(15));
+    let upload_state = UploadState {
+        upload,
+        preview_store,
+        config: config.clone(),
+        audit: Arc::new(NoopAudit),
+    };
+    let ingest_config_state = stub_ingest_config_state();
+    let ingest_run_state = stub_ingest_run_state();
+
+    let ingest_manual_port: Arc<dyn IngestManualAdminPort> = Arc::new(SimulatedCurationPort {
+        calls: AtomicUsize::new(0),
+    });
+    let audit_port: Arc<dyn AuditLogPort> = Arc::new(KbStoreAuditLogAdapter::new(store.clone()));
+    let ingest_manual_state = IngestManualState {
+        ingest_manual: ingest_manual_port,
+        audit: audit_port.clone(),
+    };
+
+    let training_session_port: Arc<dyn TrainingSessionAdminPort> = Arc::new(
+        backend::admin::training_sessions::adapter::KbStoreTrainingSessionAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_session_state = TrainingSessionState {
+        training_sessions: training_session_port,
+        audit: Arc::new(NoopAudit),
+    };
+
+    let training_message_port: Arc<dyn TrainingMessageAdminPort> = Arc::new(
+        backend::admin::training_messages::adapter::RagTrainingMessageAdapter::new(
+            store.clone(),
+            rag_engine.clone(),
+        ),
+    );
+    let training_message_state = TrainingMessageState {
+        training_messages: training_message_port,
+        audit: Arc::new(NoopAudit),
+    };
+
+    let training_feedback_port: Arc<dyn TrainingFeedbackAdminPort> = Arc::new(
+        backend::admin::training_feedback::adapter::KbStoreTrainingFeedbackAdapter::new(
+            store.clone(),
+        ),
+    );
+    let training_feedback_state = TrainingFeedbackState {
+        training_feedback: training_feedback_port,
+        audit: Arc::new(NoopAudit),
+    };
+
+    let session_store = Arc::new(SessionStore::new(config.session_ttl_secs));
+    let session_token = session_store.insert("operator".into());
+    world.admin_session_cookie = Some(format!("session={session_token}"));
+
+    let router = backend::router_with(
+        AppState { rag_engine },
+        persona_admin,
+        config,
+        session_store,
+        audit_port,
+        backend::AdminRouterState {
+            upload: upload_state,
+            ingest_config: ingest_config_state,
+            ingest_manual: ingest_manual_state,
+            ingest_run: ingest_run_state,
+            training_sessions: training_session_state,
+            training_messages: training_message_state,
+            training_feedback: training_feedback_state,
+        },
+    );
+
+    world.admin_db_path = Some(path);
+    world.ingest_manual_router = Some(router);
+}
+
+#[then(regex = r#"^the manual ingest reports "([^"]+)"$"#)]
+async fn then_manual_ingest_reports(world: &mut BotWorld, expected_status: String) {
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(body["status"].as_str(), Some(expected_status.as_str()));
 }
 
 async fn manual_ingest_request(
@@ -3080,6 +3245,7 @@ async fn given_training_sessions_api_available(world: &mut BotWorld) {
         operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
+        curation_allowed_hosts: vec!["halleyweb.com".to_string()],
     };
 
     let rag_engine = Arc::new(RagEngine::new(
@@ -3490,6 +3656,7 @@ async fn given_training_messages_api_available(world: &mut BotWorld) {
         operator_password: None,
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
+        curation_allowed_hosts: vec!["halleyweb.com".to_string()],
     };
 
     let counter = Arc::new(RecordingGeneration {

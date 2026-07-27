@@ -73,13 +73,14 @@ describe('SectionDetailView', () => {
     expect(wrapper.text().toLowerCase()).toContain('non trovata');
   });
 
-  it('shows the ingested documents for the section, with link-shaped source refs as anchors', async () => {
+  it('shows the ingested documents for the section, with a detail dialog exposing link-shaped source refs as anchors', async () => {
     vi.spyOn(adminApi, 'getIngestConfig').mockResolvedValue(config());
     vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue([
       {
         source_ref: 'https://example.com/news/1',
         source: 'scrape',
         chunk_count: 2,
+        created_at: '2026-07-24 00:00:00',
       },
     ]);
     const router = makeRouter();
@@ -92,11 +93,15 @@ describe('SectionDetailView', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('Contenuti ingeriti');
-    const link = wrapper
+    expect(wrapper.text()).toContain('2 blocchi');
+
+    await wrapper.find('.ingested-documents__card').trigger('click');
+
+    const dialog = wrapper.find('dialog.document-detail');
+    const link = dialog
       .findAll('a')
       .find((a) => a.text() === 'https://example.com/news/1');
     expect(link?.attributes('href')).toBe('https://example.com/news/1');
-    expect(wrapper.text()).toContain('2 blocchi');
   });
 
   it('deleting the section requires confirmation, then navigates back to the sections list', async () => {

@@ -67,6 +67,7 @@ pub struct IngestedDocument {
     pub source_ref: String,
     pub source: DocumentSource,
     pub chunk_count: i64,
+    pub created_at: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -203,6 +204,16 @@ pub struct IngestRunRequest {
     pub id: i64,
     pub requested_at: String,
     pub status: RunRequestStatus,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct IngestBookmark {
+    pub id: i64,
+    pub section_id: i64,
+    pub source_url: String,
+    pub last_item_ref: String,
+    pub last_item_date: String,
+    pub updated_at: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]

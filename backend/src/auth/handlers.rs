@@ -137,6 +137,7 @@ mod tests {
                 operator_password: None,
                 session_ttl_secs: 1800,
                 upload_max_bytes: 10_485_760,
+                curation_allowed_hosts: vec!["halleyweb.com".to_string()],
             },
             session_store: Arc::new(SessionStore::new(1800)),
         }

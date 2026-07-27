@@ -7,6 +7,8 @@ use axum::routing::{delete, get, post, put};
 use crate::admin::ingest_config::adapter::KbStoreIngestConfigAdapter;
 use crate::admin::ingest_config::handlers::IngestConfigState;
 use crate::admin::ingest_manual::adapter::PipelineIngestManualAdapter;
+use crate::admin::ingest_manual::composite_adapter::CuratingIngestManualAdapter;
+use crate::admin::ingest_manual::halley::curation::HalleyCurationAdapter;
 use crate::admin::ingest_manual::handlers::IngestManualState;
 use crate::admin::ingest_run::adapter::KbStoreIngestRunAdapter;
 use crate::admin::ingest_run::handlers::IngestRunState;
@@ -95,7 +97,7 @@ pub async fn router() -> Router {
     let preview_store = Arc::new(PreviewStore::new(15));
     let audit_port: Arc<dyn AuditLogPort> = Arc::new(KbStoreAuditLogAdapter::new(store.clone()));
     let upload_state = admin::upload::handlers::UploadState {
-        upload: upload_port,
+        upload: upload_port.clone(),
         preview_store: preview_store.clone(),
         config: config.clone(),
         audit: audit_port.clone(),
@@ -138,8 +140,21 @@ pub async fn router() -> Router {
     // Same shared `ingest_pipeline` instance the upload port uses above — this
     // is the "one shared service" both the admin-ui trigger and the `bin/ingest`
     // CLI call (Plan 0029), not a second, divergent ingestion code path.
-    let ingest_manual_port: Arc<dyn crate::admin::ingest_manual::IngestManualAdminPort> =
+    let scrape_manual_port: Arc<dyn crate::admin::ingest_manual::IngestManualAdminPort> =
         Arc::new(PipelineIngestManualAdapter::new(ingest_pipeline));
+    // The Halley curation path (Plan 0030) reuses the same `store` and the
+    // same `upload_port` the human-reviewed upload flow already uses. No
+    // domain is hardcoded anywhere in this path — `config.curation_allowed_hosts`
+    // (empty unless explicitly set, see Config::from_env) is the only source
+    // of which hosts this dispatches to curation instead of the scrape path.
+    let curation_manual_port: Arc<dyn crate::admin::ingest_manual::IngestManualAdminPort> =
+        Arc::new(HalleyCurationAdapter::new(store.clone(), upload_port));
+    let ingest_manual_port: Arc<dyn crate::admin::ingest_manual::IngestManualAdminPort> =
+        Arc::new(CuratingIngestManualAdapter::new(
+            scrape_manual_port,
+            curation_manual_port,
+            config.curation_allowed_hosts.clone(),
+        ));
     let ingest_manual_state = IngestManualState {
         ingest_manual: ingest_manual_port,
         audit: audit_port.clone(),

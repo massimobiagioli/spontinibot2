@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 
+import { DsButton } from '../ds';
 import QuestionDetail from './QuestionDetail.vue';
 import {
   listTrainingFeedback,
@@ -8,12 +9,15 @@ import {
   type TrainingMessageResponse,
 } from '../../services/adminApi';
 
+const PAGE_SIZE = 20;
+
 const props = defineProps<{
   messages: TrainingMessageResponse[];
 }>();
 
 const feedbackByMessage = ref<Record<number, TrainingFeedbackResponse[]>>({});
 const selectedId = ref<number | null>(null);
+const currentPage = ref(1);
 
 async function loadFeedback(): Promise<void> {
   const entries = await Promise.all(
@@ -33,15 +37,39 @@ async function loadFeedback(): Promise<void> {
 onMounted(loadFeedback);
 watch(
   () => props.messages.map((m) => m.id).join(','),
-  loadFeedback,
+  () => {
+    currentPage.value = 1;
+    loadFeedback();
+  },
 );
+
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(props.messages.length / PAGE_SIZE)),
+);
+
+const pagedMessages = computed(() =>
+  props.messages.slice(
+    (currentPage.value - 1) * PAGE_SIZE,
+    currentPage.value * PAGE_SIZE,
+  ),
+);
+
+function prevPage(): void {
+  currentPage.value = Math.max(1, currentPage.value - 1);
+}
+
+function nextPage(): void {
+  currentPage.value = Math.min(totalPages.value, currentPage.value + 1);
+}
 
 type Verdict = 'positive' | 'negative' | 'none';
 
 function verdictFor(messageId: number): Verdict {
   const list = feedbackByMessage.value[messageId];
   if (!list || list.length === 0) return 'none';
-  return list[list.length - 1]!.sentiment === 'positive' ? 'positive' : 'negative';
+  return list[list.length - 1]!.sentiment === 'positive'
+    ? 'positive'
+    : 'negative';
 }
 
 function verdictLabel(verdict: Verdict): string {
@@ -74,42 +102,69 @@ function onFeedbackChanged(
   <section>
     <h2>Domande ({{ messages.length }})</h2>
 
-    <p v-if="messages.length === 0">
-      Nessuna domanda in questa sessione.
-    </p>
+    <p v-if="messages.length === 0">Nessuna domanda in questa sessione.</p>
 
-    <div v-else class="question-grid">
-      <button
-        v-for="message in messages"
-        :key="message.id"
-        type="button"
-        class="question-grid__card"
-        @click="open(message.id)"
-      >
-        <p class="question-grid__question">{{ message.question }}</p>
-        <div class="question-grid__meta">
-          <span class="badge badge-secondary">
-            {{ message.source === 'manual' ? 'Manuale' : 'Bot' }}
-          </span>
-          <span v-if="message.fell_back" class="badge badge-warning">
-            Nessuna info trovata
-          </span>
-          <span v-if="message.execution_time_ms !== null" class="question-grid__time">
-            {{ message.execution_time_ms }} ms
-          </span>
-        </div>
-        <span
-          class="badge"
-          :class="{
-            'badge-success': verdictFor(message.id) === 'positive',
-            'badge-danger': verdictFor(message.id) === 'negative',
-            'badge-light': verdictFor(message.id) === 'none',
-          }"
+    <template v-else>
+      <div class="question-grid">
+        <button
+          v-for="message in pagedMessages"
+          :key="message.id"
+          type="button"
+          class="question-grid__card"
+          @click="open(message.id)"
         >
-          {{ verdictLabel(verdictFor(message.id)) }}
+          <p class="question-grid__question">{{ message.question }}</p>
+          <div class="question-grid__meta">
+            <span class="badge badge-secondary">
+              {{ message.source === 'manual' ? 'Manuale' : 'Bot' }}
+            </span>
+            <span v-if="message.fell_back" class="badge badge-warning">
+              Nessuna info trovata
+            </span>
+            <span
+              v-if="message.execution_time_ms !== null"
+              class="question-grid__time"
+            >
+              {{ message.execution_time_ms }} ms
+            </span>
+          </div>
+          <span
+            class="badge"
+            :class="{
+              'badge-success': verdictFor(message.id) === 'positive',
+              'badge-danger': verdictFor(message.id) === 'negative',
+              'badge-light': verdictFor(message.id) === 'none',
+            }"
+          >
+            {{ verdictLabel(verdictFor(message.id)) }}
+          </span>
+        </button>
+      </div>
+
+      <nav v-if="messages.length > PAGE_SIZE" class="question-grid__pagination">
+        <DsButton
+          variant="secondary"
+          outline
+          data-testid="question-grid-prev-page"
+          :disabled="currentPage === 1"
+          @click="prevPage"
+        >
+          Precedente
+        </DsButton>
+        <span class="badge badge-light">
+          Pagina {{ currentPage }} di {{ totalPages }}
         </span>
-      </button>
-    </div>
+        <DsButton
+          variant="secondary"
+          outline
+          data-testid="question-grid-next-page"
+          :disabled="currentPage === totalPages"
+          @click="nextPage"
+        >
+          Successivo
+        </DsButton>
+      </nav>
+    </template>
 
     <QuestionDetail
       v-if="selectedMessage"
@@ -165,5 +220,13 @@ function onFeedbackChanged(
 .question-grid__time {
   font-size: 0.85rem;
   color: var(--spontini-color-text-muted, #6c757d);
+}
+
+.question-grid__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
 }
 </style>

@@ -95,4 +95,68 @@ describe('QuestionGrid', () => {
     await wrapper.find('button.btn-outline-secondary').trigger('click');
     expect(wrapper.text()).not.toContain('Scheda domanda');
   });
+
+  function manyMessages(count: number): adminApi.TrainingMessageResponse[] {
+    return Array.from({ length: count }, (_, i) => ({
+      id: i + 1,
+      session_id: 1,
+      question: `Domanda numero ${i + 1}`,
+      answer: 'Risposta.',
+      sources: [],
+      fell_back: false,
+      created_at: '2026-07-24T00:00:00Z',
+      expected_answer: null,
+      execution_time_ms: null,
+      source: 'chat' as const,
+    }));
+  }
+
+  it('paginates the questions 20 per page, matching a 100-question test session', async () => {
+    vi.spyOn(adminApi, 'listTrainingFeedback').mockResolvedValue([]);
+
+    const wrapper = mount(QuestionGrid, {
+      props: { messages: manyMessages(100) },
+    });
+    await flushPromises();
+
+    expect(wrapper.findAll('.question-grid__card')).toHaveLength(20);
+    expect(wrapper.text()).toContain('Pagina 1 di 5');
+
+    await wrapper
+      .find('[data-testid="question-grid-next-page"]')
+      .trigger('click');
+    expect(wrapper.findAll('.question-grid__card')).toHaveLength(20);
+    expect(wrapper.text()).toContain('Pagina 2 di 5');
+    expect(wrapper.text()).toContain('Domanda numero 21');
+  });
+
+  it('does not show pagination controls when there are 20 or fewer questions', async () => {
+    vi.spyOn(adminApi, 'listTrainingFeedback').mockResolvedValue([]);
+
+    const wrapper = mount(QuestionGrid, { props: { messages } });
+    await flushPromises();
+
+    expect(
+      wrapper.find('[data-testid="question-grid-next-page"]').exists(),
+    ).toBe(false);
+  });
+
+  it('resets to page 1 when the message set changes (e.g. switching sessions)', async () => {
+    vi.spyOn(adminApi, 'listTrainingFeedback').mockResolvedValue([]);
+
+    const wrapper = mount(QuestionGrid, {
+      props: { messages: manyMessages(30) },
+    });
+    await flushPromises();
+
+    await wrapper
+      .find('[data-testid="question-grid-next-page"]')
+      .trigger('click');
+    expect(wrapper.text()).toContain('Pagina 2 di 2');
+
+    await wrapper.setProps({ messages: manyMessages(45) });
+    await flushPromises();
+
+    expect(wrapper.text()).toContain('Pagina 1 di 3');
+  });
 });
