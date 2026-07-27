@@ -92,9 +92,6 @@ pub async fn upload_document(
     let mut file_bytes: Option<Vec<u8>> = None;
     let mut filename: Option<String> = None;
     let mut section: Option<String> = None;
-    let mut category: Option<String> = None;
-    let mut tags: Option<Vec<String>> = None;
-    let mut trust_score: Option<f32> = None;
 
     while let Some(field) = multipart
         .next_field()
@@ -124,33 +121,6 @@ pub async fn upload_document(
                     .map_err(|e| map_upload_error(UploadError::InvalidRequest(e.to_string())))?;
                 section = Some(text);
             }
-            "category" => {
-                let text = field
-                    .text()
-                    .await
-                    .map_err(|e| map_upload_error(UploadError::InvalidRequest(e.to_string())))?;
-                if !text.is_empty() {
-                    category = Some(text);
-                }
-            }
-            "tags" => {
-                let text = field
-                    .text()
-                    .await
-                    .map_err(|e| map_upload_error(UploadError::InvalidRequest(e.to_string())))?;
-                if !text.is_empty() {
-                    tags = Some(text.split(',').map(|s| s.trim().to_string()).collect());
-                }
-            }
-            "trust_score" => {
-                let text = field
-                    .text()
-                    .await
-                    .map_err(|e| map_upload_error(UploadError::InvalidRequest(e.to_string())))?;
-                if !text.is_empty() {
-                    trust_score = text.parse().ok();
-                }
-            }
             _ => {}
         }
     }
@@ -166,6 +136,20 @@ pub async fn upload_document(
 
     let extracted =
         CompositeExtractor::extract(&file_bytes, &filename).map_err(map_upload_error)?;
+
+    // The operator uploads into a section already, and manually tuning a
+    // trust score or picking tags is busywork for them — derive all three
+    // automatically instead: category mirrors the section, trust_score
+    // reflects that an operator curated this upload, and tags come from the
+    // extracted text's own significant words (see `tagging::extract_tags`).
+    let category = Some(section.clone());
+    let trust_score = Some(0.9);
+    let derived_tags = super::tagging::extract_tags(&extracted.content, 5);
+    let tags = if derived_tags.is_empty() {
+        None
+    } else {
+        Some(derived_tags)
+    };
 
     let entry = PreviewEntry {
         extracted_text: extracted,

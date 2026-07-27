@@ -9,6 +9,7 @@ const V5_SCHEMA: &str = include_str!("V5__training_feedback.sql");
 const V6_SCHEMA: &str = include_str!("V6__audit_log.sql");
 const V7_SCHEMA: &str = include_str!("V7__training_redesign.sql");
 const V8_SCHEMA: &str = include_str!("V8__documents_section.sql");
+const V9_SCHEMA: &str = include_str!("V9__backfill_documents_section.sql");
 
 /// Run database migrations idempotently.
 ///
@@ -155,6 +156,23 @@ pub async fn run_migrations(conn: &Connection) -> Result<()> {
         tx.execute_batch(V8_SCHEMA).await?;
         tx.execute(
             "INSERT INTO _migrations (version, name) VALUES (8, 'documents_section_schema')",
+            libsql::params![],
+        )
+        .await?;
+        tx.commit().await?;
+    }
+
+    let mut rows = conn
+        .query(
+            "SELECT 1 FROM _migrations WHERE version = 9",
+            libsql::params![],
+        )
+        .await?;
+    if rows.next().await?.is_none() {
+        let tx = conn.transaction().await?;
+        tx.execute_batch(V9_SCHEMA).await?;
+        tx.execute(
+            "INSERT INTO _migrations (version, name) VALUES (9, 'backfill_documents_section')",
             libsql::params![],
         )
         .await?;
@@ -410,5 +428,82 @@ mod tests {
         run_migrations(&conn)
             .await
             .expect("second migration run should also succeed");
+    }
+
+    #[tokio::test]
+    async fn should_backfill_section_from_metadata_when_column_was_null() {
+        let db = Builder::new_local(":memory:")
+            .build()
+            .await
+            .expect("failed to create in-memory db");
+        let conn = db.connect().expect("failed to connect");
+
+        run_migrations(&conn).await.expect("migrations failed");
+
+        // Simulate a pre-V8 scraped document: section column NULL, but the
+        // chunker's own metadata already recorded the section name.
+        conn.execute(
+            r#"INSERT INTO documents (source, source_ref, content, metadata)
+               VALUES ('scrape', 'https://example.com', 'x', '{"section":"storia","source_url":"https://example.com"}')"#,
+            libsql::params![],
+        )
+        .await
+        .expect("insert failed");
+
+        // A manual upload's metadata never recorded a section — must stay NULL.
+        conn.execute(
+            r#"INSERT INTO documents (source, source_ref, content, metadata)
+               VALUES ('manual', 'doc.pdf', 'y', '{"category":"news","tags":null,"trust_score":0.9}')"#,
+            libsql::params![],
+        )
+        .await
+        .expect("insert failed");
+
+        // The first `run_migrations` call already recorded V9 as applied
+        // (against an empty table, a no-op) — force it to re-run now that
+        // there is data to backfill, exactly as it would on a pre-V8
+        // database being migrated for the first time.
+        conn.execute(
+            "DELETE FROM _migrations WHERE version = 9",
+            libsql::params![],
+        )
+        .await
+        .expect("failed to reset migration record");
+
+        run_migrations(&conn)
+            .await
+            .expect("re-running migrations should apply the backfill");
+
+        let mut rows = conn
+            .query(
+                "SELECT section FROM documents WHERE source_ref = 'https://example.com'",
+                libsql::params![],
+            )
+            .await
+            .expect("query failed");
+        let section: Option<String> = rows
+            .next()
+            .await
+            .expect("query failed")
+            .expect("row should exist")
+            .get(0)
+            .expect("failed to read section");
+        assert_eq!(section.as_deref(), Some("storia"));
+
+        let mut rows = conn
+            .query(
+                "SELECT section FROM documents WHERE source_ref = 'doc.pdf'",
+                libsql::params![],
+            )
+            .await
+            .expect("query failed");
+        let section: Option<String> = rows
+            .next()
+            .await
+            .expect("query failed")
+            .expect("row should exist")
+            .get(0)
+            .expect("failed to read section");
+        assert!(section.is_none());
     }
 }

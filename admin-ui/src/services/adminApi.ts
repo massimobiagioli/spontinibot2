@@ -102,12 +102,6 @@ export interface ConfirmResponse {
   chunk_count: number;
 }
 
-export interface UploadMetadataInput {
-  category?: string;
-  tags?: string[];
-  trustScore?: number;
-}
-
 export interface PersonaResponse {
   id: number;
   version: number;
@@ -339,18 +333,12 @@ export function getIngestRun(id: number): Promise<IngestRunResponse> {
 export async function uploadDocument(
   file: File,
   section: string,
-  metadata: UploadMetadataInput,
 ): Promise<UploadResponse> {
   const form = new FormData();
   form.append('file', file, file.name);
   form.append('section', section);
-  if (metadata.category) form.append('category', metadata.category);
-  if (metadata.tags && metadata.tags.length > 0) {
-    form.append('tags', metadata.tags.join(','));
-  }
-  if (metadata.trustScore !== undefined) {
-    form.append('trust_score', String(metadata.trustScore));
-  }
+  // Category, trust score, and tags are derived automatically by the
+  // backend — the operator no longer supplies them.
 
   return request<UploadResponse>('/admin/api/upload', {
     method: 'POST',

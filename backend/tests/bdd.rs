@@ -1801,6 +1801,35 @@ async fn then_preview_shows_text(world: &mut BotWorld) {
     assert!(body["chunk_count_estimate"].as_u64().unwrap() >= 1);
 }
 
+#[then(regex = r#"^the preview metadata has category "([^"]+)" and trust score ([0-9.]+)$"#)]
+async fn then_preview_metadata_category_and_trust_score(
+    world: &mut BotWorld,
+    category: String,
+    trust_score: f64,
+) {
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    assert_eq!(
+        body["metadata"]["category"].as_str(),
+        Some(category.as_str())
+    );
+    assert_eq!(body["metadata"]["trust_score"].as_f64(), Some(trust_score));
+}
+
+#[then("the preview metadata tags are derived from the document content")]
+async fn then_preview_metadata_tags_derived(world: &mut BotWorld) {
+    let body: serde_json::Value =
+        serde_json::from_str(world.response_body.as_ref().unwrap()).unwrap();
+    let tags = body["metadata"]["tags"]
+        .as_array()
+        .expect("expected a tags array derived from the uploaded content");
+    assert!(!tags.is_empty(), "expected at least one derived tag");
+    assert!(
+        tags.iter().any(|t| t.as_str() == Some("article")),
+        "expected 'article' among the tags derived from the test article content, got {tags:?}"
+    );
+}
+
 #[when("the operator confirms the upload with that token")]
 async fn when_confirm_upload(world: &mut BotWorld) {
     let token = world.upload_token.as_ref().expect("no token available");

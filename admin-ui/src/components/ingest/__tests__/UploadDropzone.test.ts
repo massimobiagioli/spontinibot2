@@ -14,6 +14,14 @@ function selectFile(wrapper: ReturnType<typeof mount>, file: File): void {
 }
 
 describe('UploadDropzone', () => {
+  it('does not ask the operator for category, tags, or trust score — the backend derives them', () => {
+    const wrapper = mount(UploadDropzone, { props: { sectionName: 'news' } });
+
+    expect(wrapper.text()).not.toContain('Categoria');
+    expect(wrapper.text()).not.toContain('Trust score');
+    expect(wrapper.text()).not.toContain('Tag');
+  });
+
   it('uploads a file, shows the preview, confirms, and shows the chunk count', async () => {
     const uploadSpy = vi.spyOn(adminApi, 'uploadDocument').mockResolvedValue({
       token: 'abc',
@@ -44,11 +52,7 @@ describe('UploadDropzone', () => {
     await Promise.resolve();
     await wrapper.vm.$nextTick();
 
-    expect(uploadSpy).toHaveBeenCalledWith(file, 'news', {
-      category: undefined,
-      tags: undefined,
-      trustScore: undefined,
-    });
+    expect(uploadSpy).toHaveBeenCalledWith(file, 'news');
     expect(previewSpy).toHaveBeenCalledWith('abc');
     expect(wrapper.text()).toContain('doc.txt');
     expect(wrapper.text()).toContain('contenuto estratto');

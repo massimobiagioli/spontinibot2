@@ -10,6 +10,7 @@ pub mod extractors;
 pub mod handlers;
 pub mod ports;
 pub mod preview_store;
+pub mod tagging;
 
 use std::fmt;
 

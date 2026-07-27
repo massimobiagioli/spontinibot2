@@ -1,14 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue';
 
-import { DsButton, DsInput } from '../ds';
+import { DsButton } from '../ds';
 import {
   AdminApiError,
   confirmUpload,
   getUploadPreview,
   uploadDocument,
   type PreviewResponse,
-  type UploadMetadataInput,
 } from '../../services/adminApi';
 
 const props = defineProps<{
@@ -19,9 +18,6 @@ type Phase = 'idle' | 'uploading' | 'preview' | 'confirming' | 'done';
 
 const phase = ref<Phase>('idle');
 const selectedFile = ref<File | null>(null);
-const category = ref('');
-const tags = ref('');
-const trustScore = ref('');
 const error = ref<string | null>(null);
 const token = ref<string | null>(null);
 const preview = ref<PreviewResponse | null>(null);
@@ -43,9 +39,6 @@ function onFileChange(event: Event): void {
 function resetForm(): void {
   phase.value = 'idle';
   selectedFile.value = null;
-  category.value = '';
-  tags.value = '';
-  trustScore.value = '';
   token.value = null;
   preview.value = null;
 }
@@ -55,16 +48,10 @@ async function upload(): Promise<void> {
   phase.value = 'uploading';
   error.value = null;
   try {
-    const metadata: UploadMetadataInput = {};
-    if (category.value) metadata.category = category.value;
-    if (tags.value) metadata.tags = tags.value.split(',').map((t) => t.trim());
-    if (trustScore.value) metadata.trustScore = Number(trustScore.value);
-
-    const uploaded = await uploadDocument(
-      selectedFile.value,
-      props.sectionName,
-      metadata,
-    );
+    // Category, trust score, and tags are derived automatically by the
+    // backend from the section and the document's own content — the
+    // operator doesn't pick them.
+    const uploaded = await uploadDocument(selectedFile.value, props.sectionName);
     token.value = uploaded.token;
     preview.value = await getUploadPreview(uploaded.token);
     phase.value = 'preview';
@@ -116,9 +103,6 @@ function cancel(): void {
           @change="onFileChange"
         />
       </div>
-      <DsInput v-model="category" label="Categoria" />
-      <DsInput v-model="tags" label="Tag (separati da virgola)" />
-      <DsInput v-model="trustScore" label="Trust score" type="number" />
 
       <p v-if="error" role="alert">{{ error }}</p>
 

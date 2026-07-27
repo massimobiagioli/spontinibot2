@@ -199,7 +199,7 @@ describe('adminApi', () => {
     expect(lastCall(fetchMock)[0]).toBe('/admin/api/ingest/run/1');
   });
 
-  it('uploadDocument POSTs a multipart form with the file and metadata', async () => {
+  it('uploadDocument POSTs a multipart form with just the file and section — category, tags, and trust score are derived server-side', async () => {
     const uploadResponse = {
       token: 'abc',
       preview_url: '/admin/api/upload/preview/abc',
@@ -207,11 +207,7 @@ describe('adminApi', () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(uploadResponse, 201));
     const file = new File(['content'], 'doc.txt', { type: 'text/plain' });
 
-    const result = await uploadDocument(file, 'news', {
-      category: 'general',
-      tags: ['a', 'b'],
-      trustScore: 0.8,
-    });
+    const result = await uploadDocument(file, 'news');
 
     expect(result).toEqual(uploadResponse);
     const [url, init] = lastCall(fetchMock);
@@ -219,9 +215,9 @@ describe('adminApi', () => {
     expect(init.method).toBe('POST');
     const form = init.body as FormData;
     expect(form.get('section')).toBe('news');
-    expect(form.get('category')).toBe('general');
-    expect(form.get('tags')).toBe('a,b');
-    expect(form.get('trust_score')).toBe('0.8');
+    expect(form.get('category')).toBeNull();
+    expect(form.get('tags')).toBeNull();
+    expect(form.get('trust_score')).toBeNull();
   });
 
   it('getUploadPreview fetches the preview by token', async () => {
