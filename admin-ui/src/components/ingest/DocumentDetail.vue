@@ -64,6 +64,16 @@ function close(): void {
           </p>
         </section>
 
+        <section class="document-detail__field">
+          <p class="document-detail__label">Sintesi</p>
+          <p class="document-detail__value">
+            {{
+              props.document.summary ??
+              'Nessuna sintesi disponibile per questo contenuto.'
+            }}
+          </p>
+        </section>
+
         <dl class="document-detail__meta">
           <div class="document-detail__meta-item">
             <dt>Origine</dt>

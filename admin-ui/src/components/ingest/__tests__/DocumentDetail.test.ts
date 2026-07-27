@@ -12,6 +12,7 @@ describe('DocumentDetail', () => {
           source: 'scrape',
           chunk_count: 3,
           created_at: '2026-07-24 00:00:00',
+          summary: null,
         },
       },
     });
@@ -32,6 +33,7 @@ describe('DocumentDetail', () => {
           source: 'manual',
           chunk_count: 1,
           created_at: '2026-07-24 00:00:00',
+          summary: null,
         },
       },
     });
@@ -49,6 +51,7 @@ describe('DocumentDetail', () => {
           source: 'manual',
           chunk_count: 1,
           created_at: '2026-07-24 00:00:00',
+          summary: null,
         },
       },
     });
@@ -56,5 +59,39 @@ describe('DocumentDetail', () => {
     await wrapper.find('button.btn-outline-secondary').trigger('click');
 
     expect(wrapper.emitted('close')).toBeTruthy();
+  });
+
+  it("shows the document's content synthesis when one is available", () => {
+    const wrapper = mount(DocumentDetail, {
+      props: {
+        document: {
+          source_ref: 'delibera-di-giunta-74-2026-07-13.pdf',
+          source: 'manual',
+          chunk_count: 6,
+          created_at: '2026-07-27 00:00:00',
+          summary: "POSTEGGI AREA FIERA SANT'ANNA",
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain("POSTEGGI AREA FIERA SANT'ANNA");
+  });
+
+  it('shows an honest fallback when no content synthesis is available', () => {
+    const wrapper = mount(DocumentDetail, {
+      props: {
+        document: {
+          source_ref: 'comunicato.pdf',
+          source: 'manual',
+          chunk_count: 1,
+          created_at: '2026-07-24 00:00:00',
+          summary: null,
+        },
+      },
+    });
+
+    expect(wrapper.text()).toContain(
+      'Nessuna sintesi disponibile per questo contenuto.',
+    );
   });
 });

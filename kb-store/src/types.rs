@@ -68,6 +68,7 @@ pub struct IngestedDocument {
     pub source: DocumentSource,
     pub chunk_count: i64,
     pub created_at: String,
+    pub summary: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]

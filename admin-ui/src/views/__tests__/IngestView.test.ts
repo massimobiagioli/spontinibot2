@@ -26,7 +26,14 @@ describe('IngestView', () => {
       .mockResolvedValue({
         schedule: null,
         sections: [
-          { id: 1, name: 'news', ordering: 10, created_at: 'now', sources: [] },
+          {
+            id: 1,
+            name: 'news',
+            ordering: 10,
+            created_at: 'now',
+            sources: [],
+            curation_sources: [],
+          },
         ],
       });
 

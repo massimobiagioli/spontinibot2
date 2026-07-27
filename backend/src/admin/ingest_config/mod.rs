@@ -7,7 +7,8 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
 use kb_store::{
-    IngestSchedule, IngestSection, IngestSource, IngestedDocument, NewIngestSchedule, SourceType,
+    IngestBookmark, IngestSchedule, IngestSection, IngestSource, IngestedDocument,
+    NewIngestSchedule, SourceType,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -72,11 +73,35 @@ impl From<IngestSource> for IngestSourceResponse {
     }
 }
 
+/// A non-interactive curation source (Plan 0030) — the durable checkpoint
+/// `ingest_bookmark` records for a section's automated curation, as opposed
+/// to an `IngestSourceResponse` (a recurring, `robots.txt`-honoring scrape/
+/// api source the scheduler actively polls). Distinct on purpose: a curation
+/// source is a byproduct of the curation adapter running, not an operator-
+/// editable "Fonti" entry — it has no `enabled`/delete affordance.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct CurationSourceResponse {
+    pub source_url: String,
+    pub last_item_date: String,
+    pub updated_at: String,
+}
+
+impl From<IngestBookmark> for CurationSourceResponse {
+    fn from(b: IngestBookmark) -> Self {
+        Self {
+            source_url: b.source_url,
+            last_item_date: b.last_item_date,
+            updated_at: b.updated_at,
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct IngestSectionWithSources {
     #[serde(flatten)]
     pub section: IngestSectionResponse,
     pub sources: Vec<IngestSourceResponse>,
+    pub curation_sources: Vec<CurationSourceResponse>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -91,6 +116,7 @@ pub struct IngestedDocumentResponse {
     pub source: String,
     pub chunk_count: i64,
     pub created_at: String,
+    pub summary: Option<String>,
 }
 
 impl From<IngestedDocument> for IngestedDocumentResponse {
@@ -100,6 +126,7 @@ impl From<IngestedDocument> for IngestedDocumentResponse {
             source: d.source.to_string(),
             chunk_count: d.chunk_count,
             created_at: d.created_at,
+            summary: d.summary,
         }
     }
 }
@@ -144,6 +171,10 @@ pub trait IngestConfigAdminPort: Send + Sync {
         &self,
         section_id: i64,
     ) -> Result<Vec<IngestSourceResponse>, IngestConfigError>;
+    async fn list_curation_sources(
+        &self,
+        section_id: i64,
+    ) -> Result<Vec<CurationSourceResponse>, IngestConfigError>;
     async fn create_source(
         &self,
         section_id: i64,
@@ -220,12 +251,49 @@ mod tests {
             source: kb_store::DocumentSource::Scrape,
             chunk_count: 3,
             created_at: "2026-07-24 00:00:00".into(),
+            summary: None,
         };
         let response = IngestedDocumentResponse::from(doc);
         assert_eq!(response.source_ref, "https://example.com/news/1");
         assert_eq!(response.source, "scrape");
         assert_eq!(response.created_at, "2026-07-24 00:00:00");
         assert_eq!(response.chunk_count, 3);
+        assert_eq!(response.summary, None);
+    }
+
+    #[test]
+    fn should_carry_summary_through_to_the_response_when_present() {
+        let doc = IngestedDocument {
+            source_ref: "delibera-di-giunta-74-2026-07-13.pdf".into(),
+            source: kb_store::DocumentSource::Manual,
+            chunk_count: 5,
+            created_at: "2026-07-27 00:00:00".into(),
+            summary: Some("POSTEGGI AREA FIERA SANT'ANNA".into()),
+        };
+        let response = IngestedDocumentResponse::from(doc);
+        assert_eq!(
+            response.summary.as_deref(),
+            Some("POSTEGGI AREA FIERA SANT'ANNA")
+        );
+    }
+
+    #[test]
+    fn should_convert_bookmark_to_curation_source_response() {
+        let bookmark = IngestBookmark {
+            id: 1,
+            section_id: 3,
+            source_url: "https://www.halleyweb.com/.../delibere".into(),
+            last_item_ref: "74".into(),
+            last_item_date: "2026-07-13".into(),
+            updated_at: "2026-07-27 15:07:53".into(),
+        };
+        let response = CurationSourceResponse::from(bookmark);
+        assert_eq!(
+            response.source_url,
+            "https://www.halleyweb.com/.../delibere"
+        );
+        assert_eq!(response.last_item_date, "2026-07-13");
+        assert_eq!(response.updated_at, "2026-07-27 15:07:53");
     }
 
     #[test]

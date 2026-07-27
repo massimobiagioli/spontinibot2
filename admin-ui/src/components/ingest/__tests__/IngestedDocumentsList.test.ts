@@ -12,6 +12,7 @@ describe('IngestedDocumentsList', () => {
         source: 'scrape',
         chunk_count: 3,
         created_at: '2026-07-24 00:00:00',
+        summary: null,
       },
     ]);
 
@@ -31,6 +32,7 @@ describe('IngestedDocumentsList', () => {
         source: 'manual',
         chunk_count: 1,
         created_at: '2026-07-24 00:00:00',
+        summary: null,
       },
     ]);
 
@@ -49,6 +51,7 @@ describe('IngestedDocumentsList', () => {
         source: 'scrape',
         chunk_count: 3,
         created_at: '2026-07-24 00:00:00',
+        summary: null,
       },
     ]);
 
@@ -72,6 +75,7 @@ describe('IngestedDocumentsList', () => {
         source: 'manual',
         chunk_count: 1,
         created_at: '2026-07-24 00:00:00',
+        summary: null,
       },
     ]);
 
@@ -128,18 +132,21 @@ describe('IngestedDocumentsList', () => {
         source: 'scrape',
         chunk_count: 2,
         created_at: '2026-07-24 00:00:00',
+        summary: null,
       },
       {
         source_ref: 'b.pdf',
         source: 'manual',
         chunk_count: 1,
         created_at: '2026-07-25 00:00:00',
+        summary: null,
       },
       {
         source_ref: 'c.pdf',
         source: 'manual',
         chunk_count: 1,
         created_at: '2026-07-26 00:00:00',
+        summary: null,
       },
     ]);
 
@@ -157,6 +164,7 @@ describe('IngestedDocumentsList', () => {
       source: 'manual',
       chunk_count: 1,
       created_at: '2026-07-24 00:00:00',
+      summary: null,
     }));
     vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue(docs);
 
@@ -201,6 +209,7 @@ describe('IngestedDocumentsList', () => {
         source: 'manual',
         chunk_count: 1,
         created_at: '2026-07-24 00:00:00',
+        summary: null,
       },
     ]);
 
@@ -218,6 +227,7 @@ describe('IngestedDocumentsList', () => {
       source: 'manual',
       chunk_count: 1,
       created_at: '2026-07-24 00:00:00',
+      summary: null,
     }));
     vi.spyOn(adminApi, 'listSectionDocuments').mockResolvedValue(docs);
 

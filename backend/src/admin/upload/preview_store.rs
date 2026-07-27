@@ -11,6 +11,7 @@ pub struct UploadMetadata {
     pub category: Option<String>,
     pub tags: Option<Vec<String>>,
     pub trust_score: Option<f32>,
+    pub summary: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -98,6 +99,7 @@ mod tests {
                 category: None,
                 tags: None,
                 trust_score: None,
+                summary: None,
             },
             filename: "test.txt".into(),
             created_at: Utc::now(),

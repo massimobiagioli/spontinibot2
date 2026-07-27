@@ -171,6 +171,7 @@ impl HalleyCurationAdapter {
                 Some(derived_tags)
             },
             trust_score: Some(TRUST_SCORE),
+            summary: Some(detail.oggetto.clone()),
         };
 
         self.upload
@@ -254,8 +255,11 @@ mod tests {
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    /// (text, section, filename, summary) recorded per `ingest_uploaded` call.
+    type RecordedCall = (String, String, String, Option<String>);
+
     struct RecordingUploadPort {
-        calls: Mutex<Vec<(String, String, String)>>,
+        calls: Mutex<Vec<RecordedCall>>,
         fail_on_filename: Option<String>,
     }
 
@@ -282,7 +286,7 @@ mod tests {
             text: &str,
             section: &str,
             filename: &str,
-            _metadata: &UploadMetadata,
+            metadata: &UploadMetadata,
         ) -> Result<Vec<i64>, crate::admin::upload::UploadError> {
             if self.fail_on_filename.as_deref() == Some(filename) {
                 return Err(crate::admin::upload::UploadError::IngestFailed(
@@ -293,6 +297,7 @@ mod tests {
                 text.to_string(),
                 section.to_string(),
                 filename.to_string(),
+                metadata.summary.clone(),
             ));
             Ok(vec![1])
         }
@@ -406,12 +411,74 @@ mod tests {
         assert!(
             calls
                 .iter()
-                .any(|(_, _, f)| f == "delibera-di-giunta-75-2026-07-20.txt")
+                .any(|(_, _, f, _)| f == "delibera-di-giunta-75-2026-07-20.txt")
         );
         assert!(
             calls
                 .iter()
-                .any(|(_, _, f)| f == "delibera-di-giunta-74-2026-07-13.txt")
+                .any(|(_, _, f, _)| f == "delibera-di-giunta-74-2026-07-13.txt")
+        );
+    }
+
+    #[tokio::test]
+    async fn should_persist_the_halley_oggetto_field_as_the_document_summary() {
+        // Regression test: `parse_detail` already extracts each act's real
+        // official "Oggetto" (subject) field, but it used to be discarded
+        // after parsing instead of being persisted anywhere — leaving the
+        // ingested-document detail card with no way to show what a curated
+        // document is actually about.
+        let server = MockServer::start().await;
+        let src = server.uri();
+
+        Mock::given(method("GET"))
+            .and(path("/"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string(listing_html(&[("74", "13/07/2026")])),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/index/table-delibere-public-page/2"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(listing_html(&[])))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/detail/74"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string(detail_html("74", "/attachment/74.txt")),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/attachment/74.txt"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("Contenuto dell'atto 74."))
+            .mount(&server)
+            .await;
+
+        let store = temp_store().await;
+        store
+            .upsert_section(kb_store::NewIngestSection {
+                name: "delibere".into(),
+                ordering: 0,
+            })
+            .await
+            .expect("section insert failed");
+
+        let upload = Arc::new(RecordingUploadPort::new());
+        let adapter = HalleyCurationAdapter::new(store, upload.clone());
+
+        adapter
+            .ingest("delibere", &src, RecencyWindow::Days(30))
+            .await
+            .expect("curation failed");
+
+        let calls = upload.calls.lock().unwrap();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(
+            calls[0].3.as_deref(),
+            Some("Atto numero 74"),
+            "the uploaded metadata's summary must match the real Oggetto text \
+             from the detail page, not be discarded"
         );
     }
 
@@ -756,7 +823,7 @@ mod tests {
 
         let calls = upload.calls.lock().unwrap();
         assert_eq!(calls.len(), 2);
-        let filenames: std::collections::HashSet<_> = calls.iter().map(|(_, _, f)| f).collect();
+        let filenames: std::collections::HashSet<_> = calls.iter().map(|(_, _, f, _)| f).collect();
         assert_eq!(
             filenames.len(),
             2,

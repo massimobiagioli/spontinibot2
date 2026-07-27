@@ -17,10 +17,21 @@ function source(overrides: Partial<adminApi.IngestSourceResponse> = {}) {
   };
 }
 
+function curationSource(
+  overrides: Partial<adminApi.CurationSourceResponse> = {},
+) {
+  return {
+    source_url: 'https://www.halleyweb.com/.../delibere',
+    last_item_date: '2026-07-13',
+    updated_at: '2026-07-27 15:07:53',
+    ...overrides,
+  };
+}
+
 describe('SourceList', () => {
   it('renders a scrape source as active', () => {
     const wrapper = mount(SourceList, {
-      props: { sectionId: 10, sources: [source()] },
+      props: { sectionId: 10, sources: [source()], curationSources: [] },
     });
 
     expect(wrapper.text()).toContain('https://example.com/news');
@@ -40,6 +51,7 @@ describe('SourceList', () => {
             coming_soon: true,
           }),
         ],
+        curationSources: [],
       },
     });
 
@@ -54,7 +66,7 @@ describe('SourceList', () => {
       .mockResolvedValue(source({ id: 3, url: 'https://example.com/new' }));
 
     const wrapper = mount(SourceList, {
-      props: { sectionId: 10, sources: [] },
+      props: { sectionId: 10, sources: [], curationSources: [] },
     });
 
     await wrapper
@@ -79,7 +91,7 @@ describe('SourceList', () => {
     );
 
     const wrapper = mount(SourceList, {
-      props: { sectionId: 10, sources: [] },
+      props: { sectionId: 10, sources: [], curationSources: [] },
     });
 
     await wrapper
@@ -99,7 +111,7 @@ describe('SourceList', () => {
       .mockResolvedValue(true);
 
     const wrapper = mount(SourceList, {
-      props: { sectionId: 10, sources: [source()] },
+      props: { sectionId: 10, sources: [source()], curationSources: [] },
     });
 
     await wrapper.find('li button').trigger('click');
@@ -122,7 +134,7 @@ describe('SourceList', () => {
     );
 
     const wrapper = mount(SourceList, {
-      props: { sectionId: 10, sources: [source()] },
+      props: { sectionId: 10, sources: [source()], curationSources: [] },
     });
 
     await wrapper.find('li button').trigger('click');
@@ -134,5 +146,56 @@ describe('SourceList', () => {
     expect(wrapper.text()).toContain('database error: connection refused');
     expect(wrapper.emitted('changed')).toBeUndefined();
     expect(wrapper.find('dialog').element.open).toBe(false);
+  });
+
+  it('renders a curation source distinctly, with no delete action', () => {
+    const wrapper = mount(SourceList, {
+      props: {
+        sectionId: 3,
+        sources: [],
+        curationSources: [curationSource()],
+      },
+    });
+
+    expect(wrapper.text()).toContain('https://www.halleyweb.com/.../delibere');
+    expect(wrapper.text()).toContain('Curazione automatica');
+    expect(wrapper.text()).toContain('2026-07-13');
+    expect(wrapper.find('.source-list__curation-item button').exists()).toBe(
+      false,
+    );
+  });
+
+  it('shows an honest empty state when there are no sources of any kind', () => {
+    const wrapper = mount(SourceList, {
+      props: { sectionId: 2, sources: [], curationSources: [] },
+    });
+
+    expect(wrapper.text()).toContain(
+      'Nessuna fonte configurata per questa sezione.',
+    );
+  });
+
+  it('does not show the empty state when a curation source exists', () => {
+    const wrapper = mount(SourceList, {
+      props: {
+        sectionId: 3,
+        sources: [],
+        curationSources: [curationSource()],
+      },
+    });
+
+    expect(wrapper.text()).not.toContain(
+      'Nessuna fonte configurata per questa sezione.',
+    );
+  });
+
+  it('does not show the empty state when an ordinary source exists', () => {
+    const wrapper = mount(SourceList, {
+      props: { sectionId: 10, sources: [source()], curationSources: [] },
+    });
+
+    expect(wrapper.text()).not.toContain(
+      'Nessuna fonte configurata per questa sezione.',
+    );
   });
 });

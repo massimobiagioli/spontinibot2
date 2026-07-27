@@ -121,6 +121,7 @@ describe('accessibility', () => {
               coming_soon: true,
             },
           ],
+          curation_sources: [],
         },
       ],
     });
