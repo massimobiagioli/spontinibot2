@@ -147,7 +147,8 @@ impl KbStore {
         let conn = self.db.connect()?;
         let mut rows = conn
             .query(
-                "SELECT source_ref, source, COUNT(*) AS chunk_count, MAX(created_at) AS created_at \
+                "SELECT source_ref, source, COUNT(*) AS chunk_count, MAX(created_at) AS created_at, \
+                        MAX(json_extract(metadata, '$.summary')) AS summary \
                  FROM documents WHERE section = ?1 \
                  GROUP BY source_ref, source ORDER BY created_at DESC",
                 libsql::params![section],
@@ -164,6 +165,7 @@ impl KbStore {
                 source,
                 chunk_count: row.get::<i64>(2)?,
                 created_at: row.get::<String>(3)?,
+                summary: row.get::<Option<String>>(4)?,
             });
         }
         Ok(summaries)
@@ -516,6 +518,29 @@ impl KbStore {
         self.get_bookmark(section_id, source_url)
             .await?
             .ok_or_else(|| KbStoreError::Migration("bookmark not found after upsert".into()))
+    }
+
+    pub async fn list_bookmarks_for_section(&self, section_id: i64) -> Result<Vec<IngestBookmark>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, section_id, source_url, last_item_ref, last_item_date, updated_at \
+                 FROM ingest_bookmark WHERE section_id = ?1 ORDER BY id ASC",
+                libsql::params![section_id],
+            )
+            .await?;
+        let mut bookmarks = Vec::new();
+        while let Some(row) = rows.next().await? {
+            bookmarks.push(IngestBookmark {
+                id: row.get::<i64>(0)?,
+                section_id: row.get::<i64>(1)?,
+                source_url: row.get::<String>(2)?,
+                last_item_ref: row.get::<String>(3)?,
+                last_item_date: row.get::<String>(4)?,
+                updated_at: row.get::<String>(5)?,
+            });
+        }
+        Ok(bookmarks)
     }
 
     pub async fn list_sources_by_section(&self, section_id: i64) -> Result<Vec<IngestSource>> {
@@ -1701,6 +1726,79 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn should_return_empty_vec_when_section_has_no_bookmarks() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let section = store
+            .upsert_section(NewIngestSection {
+                name: "news".into(),
+                ordering: 0,
+            })
+            .await
+            .expect("insert section failed");
+
+        let bookmarks = store
+            .list_bookmarks_for_section(section.id)
+            .await
+            .expect("query failed");
+        assert!(bookmarks.is_empty());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_list_bookmarks_for_the_requested_section_only() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let delibere = store
+            .upsert_section(NewIngestSection {
+                name: "delibere".into(),
+                ordering: 0,
+            })
+            .await
+            .expect("insert section failed");
+        let news = store
+            .upsert_section(NewIngestSection {
+                name: "news".into(),
+                ordering: 10,
+            })
+            .await
+            .expect("insert section failed");
+
+        store
+            .upsert_bookmark(
+                delibere.id,
+                "https://www.halleyweb.com/.../delibere",
+                "74",
+                "2026-07-13",
+            )
+            .await
+            .expect("bookmark insert failed");
+        store
+            .upsert_bookmark(
+                news.id,
+                "https://example.com/news-other-source",
+                "1",
+                "2026-01-01",
+            )
+            .await
+            .expect("bookmark insert failed");
+
+        let bookmarks = store
+            .list_bookmarks_for_section(delibere.id)
+            .await
+            .expect("query failed");
+
+        assert_eq!(bookmarks.len(), 1);
+        assert_eq!(
+            bookmarks[0].source_url,
+            "https://www.halleyweb.com/.../delibere"
+        );
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
     async fn should_list_sources_for_section() {
         let path = temp_db_path();
         let store = KbStore::open(&path).await.expect("failed to open db");
@@ -2012,6 +2110,90 @@ mod tests {
 
         drop(store);
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_summary_from_metadata_when_present() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        store
+            .insert_document(NewDocument {
+                source: DocumentSource::Manual,
+                source_ref: "delibera-di-giunta-74-2026-07-13.pdf".into(),
+                content: "chunk".into(),
+                metadata: Some(
+                    r#"{"category":"delibere","tags":null,"trust_score":0.9,"summary":"POSTEGGI AREA FIERA SANT'ANNA"}"#
+                        .into(),
+                ),
+                embedding: vec![0.0; EMBEDDING_DIM],
+                section: Some("delibere".into()),
+            })
+            .await
+            .expect("insert failed");
+
+        let summaries = store
+            .list_ingested_documents("delibere")
+            .await
+            .expect("list_ingested_documents failed");
+
+        assert_eq!(summaries.len(), 1);
+        assert_eq!(
+            summaries[0].summary.as_deref(),
+            Some("POSTEGGI AREA FIERA SANT'ANNA")
+        );
+    }
+
+    #[tokio::test]
+    async fn should_return_none_summary_when_metadata_has_no_summary_key() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        store
+            .insert_document(NewDocument {
+                source: DocumentSource::Manual,
+                source_ref: "comunicato.pdf".into(),
+                content: "chunk".into(),
+                metadata: Some(r#"{"category":"news","tags":null,"trust_score":0.9}"#.into()),
+                embedding: vec![0.0; EMBEDDING_DIM],
+                section: Some("news".into()),
+            })
+            .await
+            .expect("insert failed");
+
+        let summaries = store
+            .list_ingested_documents("news")
+            .await
+            .expect("list_ingested_documents failed");
+
+        assert_eq!(summaries.len(), 1);
+        assert_eq!(summaries[0].summary, None);
+    }
+
+    #[tokio::test]
+    async fn should_return_none_summary_when_document_has_no_metadata_at_all() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        store
+            .insert_document(NewDocument {
+                source: DocumentSource::Scrape,
+                source_ref: "https://example.com/news/1".into(),
+                content: "chunk".into(),
+                metadata: None,
+                embedding: vec![0.0; EMBEDDING_DIM],
+                section: Some("news".into()),
+            })
+            .await
+            .expect("insert failed");
+
+        let summaries = store
+            .list_ingested_documents("news")
+            .await
+            .expect("list_ingested_documents failed");
+
+        assert_eq!(summaries.len(), 1);
+        assert_eq!(summaries[0].summary, None);
     }
 
     #[tokio::test]

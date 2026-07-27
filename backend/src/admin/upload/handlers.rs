@@ -158,6 +158,7 @@ pub async fn upload_document(
             category,
             tags,
             trust_score,
+            summary: None,
         },
         filename,
         created_at: chrono::Utc::now(),

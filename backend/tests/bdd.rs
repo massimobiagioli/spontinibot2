@@ -173,6 +173,12 @@ impl IngestConfigAdminPort for StubIngestConfigAdmin {
     ) -> Result<Vec<IngestSourceResponse>, IngestConfigError> {
         Ok(vec![])
     }
+    async fn list_curation_sources(
+        &self,
+        _section_id: i64,
+    ) -> Result<Vec<backend::admin::ingest_config::CurationSourceResponse>, IngestConfigError> {
+        Ok(vec![])
+    }
     async fn create_source(
         &self,
         _section_id: i64,
@@ -2381,6 +2387,30 @@ async fn when_delete_section(world: &mut BotWorld, section_name: String) {
     world.response_body = Some(String::from_utf8(body_bytes.to_vec()).unwrap());
 }
 
+#[given(regex = r#"^a curation bookmark exists for section "([^"]+)" at source "([^"]+)"$"#)]
+async fn given_curation_bookmark_exists(
+    world: &mut BotWorld,
+    section_name: String,
+    source_url: String,
+) {
+    let path = world
+        .ingest_config_db_path
+        .clone()
+        .expect("ingest config API not initialized yet");
+    let store = kb_store::KbStore::open(&path)
+        .await
+        .expect("failed to reopen test kb.db");
+    let sections = store.list_sections().await.expect("list_sections failed");
+    let section = sections
+        .iter()
+        .find(|s| s.name == section_name)
+        .unwrap_or_else(|| panic!("section '{section_name}' not found"));
+    store
+        .upsert_bookmark(section.id, &source_url, "74", "2026-07-13")
+        .await
+        .expect("upsert_bookmark failed");
+}
+
 #[given(
     regex = r#"^a document has been ingested into section "([^"]+)" with source ref "([^"]+)"$"#
 )]
@@ -2575,6 +2605,28 @@ async fn then_sources_in_section(
                 expected_count,
                 "expected {expected_count} source(s) in section '{section_name}', got {}",
                 sources.len()
+            );
+            return;
+        }
+    }
+    panic!("section '{section_name}' not found in response");
+}
+
+#[then(regex = r#"^the ingest configuration has (\d+) curation sources? in section "([^"]+)"$"#)]
+async fn then_curation_sources_in_section(
+    world: &mut BotWorld,
+    expected_count: usize,
+    section_name: String,
+) {
+    let body = fetch_ingest_config(world).await;
+    for section in body["sections"].as_array().unwrap() {
+        if section["name"].as_str() == Some(section_name.as_str()) {
+            let curation_sources = section["curation_sources"].as_array().unwrap();
+            assert_eq!(
+                curation_sources.len(),
+                expected_count,
+                "expected {expected_count} curation source(s) in section '{section_name}', got {}",
+                curation_sources.len()
             );
             return;
         }

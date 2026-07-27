@@ -55,3 +55,17 @@ Feature: Ingest configuration management via admin API
     Given the ingest config API is available
     When the operator lists the documents ingested into unknown section 999999
     Then the request is rejected with 404
+
+  Scenario: Operator sees the curation source for a section with an active curation bookmark
+    Given the ingest config API is available
+    And an ingest section "delibere" exists
+    And a curation bookmark exists for section "delibere" at source "https://www.halleyweb.com/.../delibere"
+    When the operator gets the ingest configuration
+    Then the ingest configuration has 1 curation source in section "delibere"
+
+  Scenario: Operator sees an honest empty state for a section with no source of any kind
+    Given the ingest config API is available
+    And an ingest section "news" exists
+    When the operator gets the ingest configuration
+    Then the ingest configuration has 0 sources in section "news"
+    And the ingest configuration has 0 curation sources in section "news"

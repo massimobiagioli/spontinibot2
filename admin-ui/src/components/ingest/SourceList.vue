@@ -6,12 +6,14 @@ import {
   AdminApiError,
   createSource,
   deleteSource,
+  type CurationSourceResponse,
   type IngestSourceResponse,
 } from '../../services/adminApi';
 
 const props = defineProps<{
   sectionId: number;
   sources: IngestSourceResponse[];
+  curationSources: CurationSourceResponse[];
 }>();
 
 const emit = defineEmits<{ changed: [] }>();
@@ -72,7 +74,28 @@ async function confirmDelete(): Promise<void> {
 
     <p v-if="deleteError" role="alert">{{ deleteError }}</p>
 
-    <ul>
+    <p
+      v-if="sources.length === 0 && curationSources.length === 0"
+      class="source-list__empty"
+    >
+      Nessuna fonte configurata per questa sezione.
+    </p>
+
+    <ul v-if="curationSources.length > 0">
+      <li
+        v-for="curation in curationSources"
+        :key="curation.source_url"
+        class="source-list__curation-item"
+      >
+        <span class="badge badge-secondary">Curazione automatica</span>
+        <span>{{ curation.source_url }}</span>
+        <span class="source-list__curation-date">
+          ultimo aggiornamento: {{ curation.last_item_date }}
+        </span>
+      </li>
+    </ul>
+
+    <ul v-if="sources.length > 0">
       <li
         v-for="source in sources"
         :key="source.id"
@@ -109,3 +132,17 @@ async function confirmDelete(): Promise<void> {
     />
   </div>
 </template>
+
+<style scoped>
+.source-list__curation-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.source-list__curation-date {
+  font-size: 0.85rem;
+  color: var(--spontini-color-text-muted, #6c757d);
+}
+</style>

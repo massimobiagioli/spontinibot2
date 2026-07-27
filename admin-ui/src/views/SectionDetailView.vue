@@ -113,6 +113,7 @@ async function confirmDelete(): Promise<void> {
     <SourceList
       :section-id="section.id"
       :sources="section.sources"
+      :curation-sources="section.curation_sources"
       @changed="loadSection"
     />
 

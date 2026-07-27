@@ -17,6 +17,7 @@ function config(
         ordering: 10,
         created_at: '2026-07-24T00:00:00Z',
         sources: [],
+        curation_sources: [],
       },
     ],
     ...overrides,
@@ -81,6 +82,7 @@ describe('SectionDetailView', () => {
         source: 'scrape',
         chunk_count: 2,
         created_at: '2026-07-24 00:00:00',
+        summary: null,
       },
     ]);
     const router = makeRouter();

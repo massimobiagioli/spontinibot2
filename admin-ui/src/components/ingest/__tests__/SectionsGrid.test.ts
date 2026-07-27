@@ -12,6 +12,7 @@ function section(overrides: Partial<adminApi.IngestSectionWithSources> = {}) {
     ordering: 10,
     created_at: '2026-07-24T00:00:00Z',
     sources: [],
+    curation_sources: [],
     ...overrides,
   };
 }

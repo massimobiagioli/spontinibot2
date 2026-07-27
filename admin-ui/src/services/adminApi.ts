@@ -55,8 +55,15 @@ export interface IngestSourceResponse {
   coming_soon: boolean;
 }
 
+export interface CurationSourceResponse {
+  source_url: string;
+  last_item_date: string;
+  updated_at: string;
+}
+
 export interface IngestSectionWithSources extends IngestSectionResponse {
   sources: IngestSourceResponse[];
+  curation_sources: CurationSourceResponse[];
 }
 
 export interface IngestConfigResponse {
@@ -69,6 +76,7 @@ export interface IngestedDocumentResponse {
   source: string;
   chunk_count: number;
   created_at: string;
+  summary: string | null;
 }
 
 export interface IngestRunResponse {

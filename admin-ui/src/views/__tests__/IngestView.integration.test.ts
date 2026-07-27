@@ -62,6 +62,7 @@ describe('IngestView integration scenario', () => {
             ordering: 10,
             created_at: '2026-07-24T00:00:00Z',
             sources: [],
+            curation_sources: [],
           },
         ],
       })
@@ -84,6 +85,7 @@ describe('IngestView integration scenario', () => {
                 coming_soon: false,
               },
             ],
+            curation_sources: [],
           },
         ],
       });

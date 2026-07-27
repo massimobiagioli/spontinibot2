@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use kb_store::{KbStore, NewIngestSchedule, NewIngestSection, NewIngestSource};
 
 use super::{
-    IngestConfigAdminPort, IngestConfigError, IngestScheduleResponse, IngestSectionResponse,
-    IngestSourceResponse, IngestedDocumentResponse,
+    CurationSourceResponse, IngestConfigAdminPort, IngestConfigError, IngestScheduleResponse,
+    IngestSectionResponse, IngestSourceResponse, IngestedDocumentResponse,
 };
 
 pub struct KbStoreIngestConfigAdapter {
@@ -63,6 +63,17 @@ impl IngestConfigAdminPort for KbStoreIngestConfigAdapter {
         Ok(sources
             .into_iter()
             .map(IngestSourceResponse::from)
+            .collect())
+    }
+
+    async fn list_curation_sources(
+        &self,
+        section_id: i64,
+    ) -> Result<Vec<CurationSourceResponse>, IngestConfigError> {
+        let bookmarks = self.store.list_bookmarks_for_section(section_id).await?;
+        Ok(bookmarks
+            .into_iter()
+            .map(CurationSourceResponse::from)
             .collect())
     }
 
@@ -298,6 +309,53 @@ mod tests {
         assert_eq!(sources.len(), 2);
         assert!(sources.iter().any(|s| s.source_type == "scrape"));
         assert!(sources.iter().any(|s| s.source_type == "api"));
+    }
+
+    #[tokio::test]
+    async fn should_list_curation_sources_from_bookmarks() {
+        let store = Arc::new(temp_store().await);
+        let adapter = KbStoreIngestConfigAdapter::new(store.clone());
+
+        let section = adapter
+            .create_section(sample_section("delibere", 10))
+            .await
+            .unwrap();
+        store
+            .upsert_bookmark(
+                section.id,
+                "https://www.halleyweb.com/.../delibere",
+                "74",
+                "2026-07-13",
+            )
+            .await
+            .expect("bookmark insert failed");
+
+        let curation_sources = adapter
+            .list_curation_sources(section.id)
+            .await
+            .expect("list_curation_sources failed");
+        assert_eq!(curation_sources.len(), 1);
+        assert_eq!(
+            curation_sources[0].source_url,
+            "https://www.halleyweb.com/.../delibere"
+        );
+        assert_eq!(curation_sources[0].last_item_date, "2026-07-13");
+    }
+
+    #[tokio::test]
+    async fn should_return_empty_curation_sources_when_no_bookmark_exists() {
+        let store = Arc::new(temp_store().await);
+        let adapter = KbStoreIngestConfigAdapter::new(store);
+
+        let section = adapter
+            .create_section(sample_section("news", 10))
+            .await
+            .unwrap();
+        let curation_sources = adapter
+            .list_curation_sources(section.id)
+            .await
+            .expect("list_curation_sources failed");
+        assert!(curation_sources.is_empty());
     }
 
     #[tokio::test]

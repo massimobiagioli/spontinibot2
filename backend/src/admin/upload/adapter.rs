@@ -30,6 +30,7 @@ impl UploadPort for IngestCoreUploadAdapter {
             "category": metadata.category,
             "tags": metadata.tags,
             "trust_score": metadata.trust_score,
+            "summary": metadata.summary,
         });
         let metadata_str = Some(metadata_json.to_string());
 
@@ -86,6 +87,7 @@ mod tests {
             category: Some("test".into()),
             tags: Some(vec!["tag1".into()]),
             trust_score: Some(0.9),
+            summary: None,
         };
 
         let ids = adapter

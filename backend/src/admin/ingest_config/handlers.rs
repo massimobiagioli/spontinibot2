@@ -83,8 +83,16 @@ pub async fn get_config(
             .list_sources(section.id)
             .await
             .map_err(map_config_error)?;
-        sections_with_sources
-            .push(crate::admin::ingest_config::IngestSectionWithSources { section, sources });
+        let curation_sources = state
+            .ingest_config
+            .list_curation_sources(section.id)
+            .await
+            .map_err(map_config_error)?;
+        sections_with_sources.push(crate::admin::ingest_config::IngestSectionWithSources {
+            section,
+            sources,
+            curation_sources,
+        });
     }
 
     Ok(Json(IngestConfigResponse {
@@ -313,6 +321,13 @@ mod tests {
         ) -> Result<Vec<IngestSourceResponse>, IngestConfigError> {
             Ok(vec![])
         }
+        async fn list_curation_sources(
+            &self,
+            _section_id: i64,
+        ) -> Result<Vec<crate::admin::ingest_config::CurationSourceResponse>, IngestConfigError>
+        {
+            Ok(vec![])
+        }
         async fn create_source(
             &self,
             _section_id: i64,
@@ -343,6 +358,7 @@ mod tests {
                 source: "scrape".into(),
                 chunk_count: 2,
                 created_at: "2026-07-24 00:00:00".into(),
+                summary: None,
             }])
         }
     }
