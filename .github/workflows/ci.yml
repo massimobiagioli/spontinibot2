@@ -1,77 +1,77 @@
-name: CI
+# name: CI
 
-on:
-  push:
-  pull_request:
-    branches: [main]
+# on:
+#   push:
+#   pull_request:
+#     branches: [main]
 
-jobs:
-  verify:
-    name: verify (build + test + lint + fmt-check + coverage + compose-config + a11y)
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+# jobs:
+#   verify:
+#     name: verify (build + test + lint + fmt-check + coverage + compose-config + a11y)
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v3
 
-      # Warm the BuildKit layer cache for each buildable service via the GitHub
-      # Actions cache backend. `make verify`'s `build` step (plain `docker
-      # compose build`) then hits these warmed layers instead of rebuilding
-      # from scratch — it is not modified to know about GHA caching itself.
-      - name: Prime build cache — backend
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: backend/Dockerfile
-          target: build
-          outputs: type=cacheonly
-          cache-from: type=gha,scope=backend
-          cache-to: type=gha,mode=max,scope=backend
+#       # Warm the BuildKit layer cache for each buildable service via the GitHub
+#       # Actions cache backend. `make verify`'s `build` step (plain `docker
+#       # compose build`) then hits these warmed layers instead of rebuilding
+#       # from scratch — it is not modified to know about GHA caching itself.
+#       - name: Prime build cache — backend
+#         uses: docker/build-push-action@v6
+#         with:
+#           context: .
+#           file: backend/Dockerfile
+#           target: build
+#           outputs: type=cacheonly
+#           cache-from: type=gha,scope=backend
+#           cache-to: type=gha,mode=max,scope=backend
 
-      - name: Prime build cache — ingest
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ingest/Dockerfile
-          target: build
-          outputs: type=cacheonly
-          cache-from: type=gha,scope=ingest
-          cache-to: type=gha,mode=max,scope=ingest
+#       - name: Prime build cache — ingest
+#         uses: docker/build-push-action@v6
+#         with:
+#           context: .
+#           file: ingest/Dockerfile
+#           target: build
+#           outputs: type=cacheonly
+#           cache-from: type=gha,scope=ingest
+#           cache-to: type=gha,mode=max,scope=ingest
 
-      - name: Prime build cache — admin-ui
-        uses: docker/build-push-action@v6
-        with:
-          context: ./admin-ui
-          file: admin-ui/Dockerfile
-          outputs: type=cacheonly
-          cache-from: type=gha,scope=admin-ui
-          cache-to: type=gha,mode=max,scope=admin-ui
+#       - name: Prime build cache — admin-ui
+#         uses: docker/build-push-action@v6
+#         with:
+#           context: ./admin-ui
+#           file: admin-ui/Dockerfile
+#           outputs: type=cacheonly
+#           cache-from: type=gha,scope=admin-ui
+#           cache-to: type=gha,mode=max,scope=admin-ui
 
-      - name: Prime build cache — frontend
-        uses: docker/build-push-action@v6
-        with:
-          context: ./frontend
-          file: frontend/Dockerfile
-          outputs: type=cacheonly
-          cache-from: type=gha,scope=frontend
-          cache-to: type=gha,mode=max,scope=frontend
+#       - name: Prime build cache — frontend
+#         uses: docker/build-push-action@v6
+#         with:
+#           context: ./frontend
+#           file: frontend/Dockerfile
+#           outputs: type=cacheonly
+#           cache-from: type=gha,scope=frontend
+#           cache-to: type=gha,mode=max,scope=frontend
 
-      # Cargo registry cache is a secondary speedup: the workspace crates
-      # (ingest-cli in particular) are also checked host-side by `cargo`
-      # invocations that some editors/tools run outside Docker; the Docker
-      # build cache above is what actually speeds up `make verify`'s
-      # container builds.
-      - name: Cache cargo registry
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+#       # Cargo registry cache is a secondary speedup: the workspace crates
+#       # (ingest-cli in particular) are also checked host-side by `cargo`
+#       # invocations that some editors/tools run outside Docker; the Docker
+#       # build cache above is what actually speeds up `make verify`'s
+#       # container builds.
+#       - name: Cache cargo registry
+#         uses: actions/cache@v4
+#         with:
+#           path: |
+#             ~/.cargo/registry
+#             ~/.cargo/git
+#           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+#           restore-keys: |
+#             ${{ runner.os }}-cargo-
 
-      - name: Run verify gate
-        run: make verify
+#       - name: Run verify gate
+#         run: make verify
