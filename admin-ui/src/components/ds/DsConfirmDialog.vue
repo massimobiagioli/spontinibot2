@@ -75,10 +75,19 @@ function cancel(): void {
 
 <style scoped>
 .ds-confirm-dialog {
-  border: none;
+  border: 1px solid rgba(31, 42, 55, 0.12);
   border-radius: 8px;
   padding: 0;
   width: min(28rem, 90vw);
+  /* This dialog doesn't use Bootstrap Italia's `.modal-content` class (only
+     `.modal-body`/`.modal-footer` for their flex/spacing rules), so it never
+     inherited BSI's `.modal-content` box-shadow — give it one directly,
+     otherwise the panel has no visual separation from `::backdrop`. */
+  box-shadow: var(--it-elevation-medium, 0 4px 16px rgba(0, 0, 0, 0.25));
+}
+
+.ds-confirm-dialog .modal-body {
+  padding-top: 1.5rem;
 }
 
 .ds-confirm-dialog::backdrop {
