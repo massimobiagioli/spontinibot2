@@ -33,6 +33,7 @@ use crate::rag_engine::persona::PersonaAdapter;
 use crate::rag_engine::persona_admin::PersonaAdminAdapter;
 use crate::rag_engine::ports::PersonaAdminPort;
 use crate::rag_engine::retrieval::RetrievalAdapter;
+use crate::rag_engine::training_notes::TrainingNotesAdapter;
 
 pub mod admin;
 pub mod audit;
@@ -114,14 +115,19 @@ pub async fn router() -> Router {
         });
     }
 
-    let rag_engine = Arc::new(RagEngine::new(
-        embedding,
-        retrieval,
-        persona,
-        generation,
-        config.top_k,
-        config.min_score,
-    ));
+    let training_notes: Arc<dyn crate::rag_engine::ports::TrainingNotesPort> =
+        Arc::new(TrainingNotesAdapter::new(config.training_notes_dir.clone()));
+    let rag_engine = Arc::new(
+        RagEngine::new(
+            embedding,
+            retrieval,
+            persona,
+            generation,
+            config.top_k,
+            config.min_score,
+        )
+        .with_training_notes(training_notes),
+    );
 
     let ingest_config_port: Arc<dyn crate::admin::ingest_config::IngestConfigAdminPort> =
         Arc::new(KbStoreIngestConfigAdapter::new(store.clone()));

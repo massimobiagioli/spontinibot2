@@ -30,6 +30,15 @@ pub trait GenerationPort: Send + Sync {
     async fn generate(&self, prompt: PromptParts) -> Result<String, RagError>;
 }
 
+/// Supplementary system-level instructions curated by `/train` from past
+/// test-session feedback (ADR 0016). Read on every `RagEngine::answer()`
+/// call — no cache, no reload endpoint — so a note written to
+/// `.project/training/` takes effect on the very next chat request.
+#[async_trait]
+pub trait TrainingNotesPort: Send + Sync {
+    async fn training_notes(&self) -> Result<String, RagError>;
+}
+
 #[async_trait]
 pub trait PersonaAdminPort: Send + Sync {
     async fn list_versions(&self, name: &str) -> Result<Vec<AdminPersonaSnapshot>, RagError>;
@@ -63,6 +72,10 @@ mod tests {
     }
 
     fn _assert_dyn_persona_admin() -> Box<dyn PersonaAdminPort> {
+        todo!()
+    }
+
+    fn _assert_dyn_training_notes() -> Box<dyn TrainingNotesPort> {
         todo!()
     }
 

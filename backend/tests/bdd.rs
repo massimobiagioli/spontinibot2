@@ -405,6 +405,7 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> (axum::Router, St
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
         curation_allowed_hosts: vec!["halleyweb.com".to_string()],
+        training_notes_dir: "/tmp/nonexistent-training-notes-dir".into(),
     };
 
     let rag_engine = Arc::new(RagEngine::new(
@@ -582,6 +583,7 @@ async fn when_check_health(world: &mut BotWorld) {
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
         curation_allowed_hosts: vec!["halleyweb.com".to_string()],
+        training_notes_dir: "/tmp/nonexistent-training-notes-dir".into(),
     };
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
@@ -685,6 +687,7 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
         curation_allowed_hosts: vec!["halleyweb.com".to_string()],
+        training_notes_dir: "/tmp/nonexistent-training-notes-dir".into(),
     };
     let upload: Arc<dyn UploadPort> = Arc::new(StubUploadPort);
     let preview_store = Arc::new(PreviewStore::new(15));
@@ -1613,6 +1616,7 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> (axum::Router, S
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
         curation_allowed_hosts: vec!["halleyweb.com".to_string()],
+        training_notes_dir: "/tmp/nonexistent-training-notes-dir".into(),
     };
 
     let rag_engine = Arc::new(RagEngine::new(
@@ -1989,6 +1993,7 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
         curation_allowed_hosts: vec!["halleyweb.com".to_string()],
+        training_notes_dir: "/tmp/nonexistent-training-notes-dir".into(),
     };
 
     let rag_engine = Arc::new(RagEngine::new(
@@ -2697,6 +2702,7 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
         curation_allowed_hosts: vec!["halleyweb.com".to_string()],
+        training_notes_dir: "/tmp/nonexistent-training-notes-dir".into(),
     };
 
     let rag_engine = Arc::new(RagEngine::new(
@@ -2946,6 +2952,7 @@ async fn given_manual_ingest_api_available(world: &mut BotWorld) {
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
         curation_allowed_hosts: vec!["halleyweb.com".to_string()],
+        training_notes_dir: "/tmp/nonexistent-training-notes-dir".into(),
     };
 
     let rag_engine = Arc::new(RagEngine::new(
@@ -3095,6 +3102,7 @@ async fn given_curation_api_available(world: &mut BotWorld) {
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
         curation_allowed_hosts: vec!["example-halley-instance.test".to_string()],
+        training_notes_dir: "/tmp/nonexistent-training-notes-dir".into(),
     };
 
     let rag_engine = Arc::new(RagEngine::new(
@@ -3298,6 +3306,7 @@ async fn given_training_sessions_api_available(world: &mut BotWorld) {
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
         curation_allowed_hosts: vec!["halleyweb.com".to_string()],
+        training_notes_dir: "/tmp/nonexistent-training-notes-dir".into(),
     };
 
     let rag_engine = Arc::new(RagEngine::new(
@@ -3709,6 +3718,7 @@ async fn given_training_messages_api_available(world: &mut BotWorld) {
         session_ttl_secs: 1800,
         upload_max_bytes: 10_485_760,
         curation_allowed_hosts: vec!["halleyweb.com".to_string()],
+        training_notes_dir: "/tmp/nonexistent-training-notes-dir".into(),
     };
 
     let counter = Arc::new(RecordingGeneration {

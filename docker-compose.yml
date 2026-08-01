@@ -35,6 +35,11 @@ services:
       - CURATION_ALLOWED_HOSTS=${CURATION_ALLOWED_HOSTS:-halleyweb.com}
     volumes:
       - kb-data:/data
+      # ADR 0016: `/train` writes curated instructional notes here from the
+      # host repo; bind-mounted (not the `kb-data` volume) so they stay
+      # version-controlled alongside AGENTS.md, and read-only because the
+      # backend only ever reads this directory, never writes to it.
+      - ./.project/training:/app/training:ro
     depends_on:
       - llama-embed
       - llama-generate

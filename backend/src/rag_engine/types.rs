@@ -40,7 +40,10 @@ pub struct Answer {
 ///
 /// The 3-part separation is non-negotiable per the `spontini-rag-build` skill:
 ///
-/// - `system` — persona instructions ONLY; never contains chunks, never the question.
+/// - `system` — persona instructions ONLY, optionally extended with
+///   `/train`-curated training notes (ADR 0016) since those are also
+///   instructions, not retrieved content; never contains chunks, never the
+///   question.
 /// - `context` — retrieved chunks ONLY; never contains persona, never the question.
 /// - `user` — the citizen question ONLY; never contains persona, never chunks.
 ///

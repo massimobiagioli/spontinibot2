@@ -19,6 +19,7 @@ This directory holds the ADRs for the Spontini Bot 2 project. Each ADR records a
 | [0013](./0013-generation-model-1-5b-and-reduced-rag-top-k-for-latency.md) | Generation Model 1.5B and Reduced RAG_TOP_K for Latency | accepted | 2026-07-26 |
 | [0014](./0014-instant-identity-imprinting-answers-bypass-rag.md) | Instant Identity/Imprinting Answers Bypass RAG Retrieval and Generation | accepted | 2026-07-26 |
 | [0015](./0015-non-interactive-curation-as-an-explicit-robots-txt-exception.md) | Non-Interactive Curation as an Explicit, Config-Driven robots.txt Exception | accepted | 2026-07-27 |
+| [0016](./0016-train-command-with-live-loaded-training-notes.md) | `/train` Command with Live-Loaded Training Notes | accepted | 2026-08-01 |
 
 ## How to add a new ADR
 

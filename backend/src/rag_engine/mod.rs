@@ -7,4 +7,5 @@ pub mod persona_admin;
 pub mod ports;
 pub mod prompt;
 pub mod retrieval;
+pub mod training_notes;
 pub mod types;

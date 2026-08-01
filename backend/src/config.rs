@@ -11,6 +11,7 @@ pub struct Config {
     pub session_ttl_secs: i64,
     pub upload_max_bytes: usize,
     pub curation_allowed_hosts: Vec<String>,
+    pub training_notes_dir: String,
 }
 
 impl Config {
@@ -44,6 +45,13 @@ impl Config {
             curation_allowed_hosts: parse_curation_hosts(
                 std::env::var("CURATION_ALLOWED_HOSTS").ok(),
             ),
+            // `/train` writes curated instructional notes into this directory
+            // (bind-mounted from the repo's `.project/training/` in
+            // docker-compose.yml — see ADR 0016). Read fresh from disk on
+            // every chat request (no cache, no reload endpoint needed): a
+            // missing or empty directory is not an error, just no notes yet.
+            training_notes_dir: std::env::var("TRAINING_NOTES_DIR")
+                .unwrap_or_else(|_| "/app/training".into()),
         }
     }
 }

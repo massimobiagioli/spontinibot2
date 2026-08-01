@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
 use crate::rag_engine::identity::is_identity_question;
-use crate::rag_engine::ports::{EmbeddingPort, GenerationPort, PersonaPort, RetrievalPort};
+use crate::rag_engine::ports::{
+    EmbeddingPort, GenerationPort, PersonaPort, RetrievalPort, TrainingNotesPort,
+};
 use crate::rag_engine::prompt;
+use crate::rag_engine::training_notes::NoopTrainingNotes;
 use crate::rag_engine::types::{Answer, CitedSource, RagError};
 
 pub struct RagEngine {
@@ -10,6 +13,7 @@ pub struct RagEngine {
     retrieval: Arc<dyn RetrievalPort>,
     persona: Arc<dyn PersonaPort>,
     generation: Arc<dyn GenerationPort>,
+    training_notes: Arc<dyn TrainingNotesPort>,
     top_k: i64,
     min_score: f64,
 }
@@ -28,9 +32,18 @@ impl RagEngine {
             retrieval,
             persona,
             generation,
+            training_notes: Arc::new(NoopTrainingNotes),
             top_k,
             min_score,
         }
+    }
+
+    /// Opts a real `TrainingNotesPort` in (ADR 0016). Every existing
+    /// `RagEngine::new()` call site — including the whole test suite —
+    /// keeps working unchanged, defaulting to no training notes.
+    pub fn with_training_notes(mut self, training_notes: Arc<dyn TrainingNotesPort>) -> Self {
+        self.training_notes = training_notes;
+        self
     }
 
     pub async fn answer(&self, question: &str) -> Result<Answer, RagError> {
@@ -69,7 +82,10 @@ impl RagEngine {
             });
         }
 
-        let prompt = prompt::assemble(&persona, &chunks, question);
+        // Best-effort: an unreadable/misconfigured training-notes directory
+        // must never break answering — it's supplementary, not load-bearing.
+        let notes = self.training_notes.training_notes().await.unwrap_or_default();
+        let prompt = prompt::assemble(&persona, &chunks, question, &notes);
         let text = self.generation.generate(prompt).await?;
         let sources = chunks
             .iter()
@@ -184,6 +200,29 @@ mod tests {
         async fn generate(&self, _prompt: PromptParts) -> Result<String, RagError> {
             self.call_count.fetch_add(1, Ordering::SeqCst);
             Ok("Test answer".into())
+        }
+    }
+
+    struct CapturingGeneration {
+        received: std::sync::Mutex<Option<PromptParts>>,
+    }
+
+    #[async_trait]
+    impl GenerationPort for CapturingGeneration {
+        async fn generate(&self, prompt: PromptParts) -> Result<String, RagError> {
+            *self.received.lock().unwrap() = Some(prompt);
+            Ok("Test answer".into())
+        }
+    }
+
+    struct TestTrainingNotes {
+        notes: String,
+    }
+
+    #[async_trait]
+    impl TrainingNotesPort for TestTrainingNotes {
+        async fn training_notes(&self) -> Result<String, RagError> {
+            Ok(self.notes.clone())
         }
     }
 
@@ -367,5 +406,67 @@ mod tests {
 
         assert_eq!(answer.text, persona.system_prompt);
         assert!(!answer.fell_back);
+    }
+
+    #[tokio::test]
+    async fn should_append_training_notes_to_system_prompt_when_configured() {
+        let generation = Arc::new(CapturingGeneration {
+            received: std::sync::Mutex::new(None),
+        });
+
+        let engine = RagEngine::new(
+            Arc::new(TestEmbedding),
+            Arc::new(TestRetrieval {
+                chunks: sample_chunks(),
+            }),
+            Arc::new(TestPersona {
+                snapshot: Some(sample_persona()),
+            }),
+            generation.clone(),
+            5,
+            0.35,
+        )
+        .with_training_notes(Arc::new(TestTrainingNotes {
+            notes: "Non citare mai una fonte che non fonda davvero la risposta.".into(),
+        }));
+
+        engine.answer("A che ora apre l'anagrafe?").await.unwrap();
+
+        let received = generation.received.lock().unwrap();
+        let prompt = received.as_ref().expect("generate() should have been called");
+        assert!(prompt.system.starts_with("Sei Gaspare Spontini."));
+        assert!(
+            prompt
+                .system
+                .contains("Non citare mai una fonte che non fonda davvero la risposta.")
+        );
+        assert!(!prompt.context.contains("Non citare mai"));
+        assert!(!prompt.user.contains("Non citare mai"));
+    }
+
+    #[tokio::test]
+    async fn should_default_to_empty_training_notes_when_not_configured() {
+        let generation = Arc::new(CapturingGeneration {
+            received: std::sync::Mutex::new(None),
+        });
+
+        let engine = RagEngine::new(
+            Arc::new(TestEmbedding),
+            Arc::new(TestRetrieval {
+                chunks: sample_chunks(),
+            }),
+            Arc::new(TestPersona {
+                snapshot: Some(sample_persona()),
+            }),
+            generation.clone(),
+            5,
+            0.35,
+        );
+
+        engine.answer("A che ora apre l'anagrafe?").await.unwrap();
+
+        let received = generation.received.lock().unwrap();
+        let prompt = received.as_ref().expect("generate() should have been called");
+        assert_eq!(prompt.system, "Sei Gaspare Spontini.");
     }
 }
