@@ -95,6 +95,19 @@ impl TrainingMessageAdminPort for RagTrainingMessageAdapter {
         let messages = self.store.list_training_messages(session_id).await?;
         messages.into_iter().map(message_to_response).collect()
     }
+
+    async fn update_expected_answer(
+        &self,
+        message_id: i64,
+        expected_answer: Option<String>,
+    ) -> Result<TrainingMessageResponse, TrainingMessageError> {
+        let message = self
+            .store
+            .update_training_message_expected_answer(message_id, expected_answer)
+            .await?
+            .ok_or(TrainingMessageError::MessageNotFound(message_id))?;
+        message_to_response(message)
+    }
 }
 
 fn message_to_response(
@@ -329,6 +342,55 @@ mod tests {
         assert!(response.execution_time_ms.is_some());
         assert_eq!(response.sources.len(), 1);
         assert_eq!(response.sources[0].source_ref, "orari.md");
+    }
+
+    #[tokio::test]
+    async fn should_update_expected_answer_on_existing_message() {
+        let store = Arc::new(temp_store().await);
+        let session = store
+            .create_training_session(kb_store::NewTrainingSession {
+                title: "Sessione".into(),
+                created_by: None,
+            })
+            .await
+            .expect("create_training_session failed");
+        let rag_engine = engine_with_chunks(sample_chunks());
+        let adapter = RagTrainingMessageAdapter::new(store, rag_engine);
+        let created = adapter
+            .ask(session.id, ask_req("A che ora apre l'anagrafe?"))
+            .await
+            .expect("ask failed");
+        assert_eq!(created.expected_answer, None);
+
+        let updated = adapter
+            .update_expected_answer(created.id, Some("Dalle 9:00 alle 12:30".into()))
+            .await
+            .expect("update_expected_answer failed");
+
+        assert_eq!(updated.id, created.id);
+        assert_eq!(
+            updated.expected_answer.as_deref(),
+            Some("Dalle 9:00 alle 12:30")
+        );
+        // Everything else about the message is untouched by the update.
+        assert_eq!(updated.answer, created.answer);
+        assert_eq!(updated.question, created.question);
+    }
+
+    #[tokio::test]
+    async fn should_return_message_not_found_when_updating_unknown_message() {
+        let store = Arc::new(temp_store().await);
+        let rag_engine = engine_with_chunks(sample_chunks());
+        let adapter = RagTrainingMessageAdapter::new(store, rag_engine);
+
+        let result = adapter
+            .update_expected_answer(999, Some("x".into()))
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(TrainingMessageError::MessageNotFound(999))
+        ));
     }
 
     #[tokio::test]

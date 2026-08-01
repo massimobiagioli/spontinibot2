@@ -39,6 +39,7 @@ pub struct AskTrainingMessageRequest {
 #[derive(Debug)]
 pub enum TrainingMessageError {
     SessionNotFound(i64),
+    MessageNotFound(i64),
     DbError(String),
     Rag(String),
     Serialization(String),
@@ -49,6 +50,9 @@ impl fmt::Display for TrainingMessageError {
         match self {
             TrainingMessageError::SessionNotFound(id) => {
                 write!(f, "training session {id} not found")
+            }
+            TrainingMessageError::MessageNotFound(id) => {
+                write!(f, "training message {id} not found")
             }
             TrainingMessageError::DbError(msg) => write!(f, "database error: {msg}"),
             TrainingMessageError::Rag(msg) => write!(f, "rag engine error: {msg}"),
@@ -79,6 +83,16 @@ pub trait TrainingMessageAdminPort: Send + Sync {
         &self,
         session_id: i64,
     ) -> Result<Vec<TrainingMessageResponse>, TrainingMessageError>;
+
+    /// Sets or clears `expected_answer` on an already-created message.
+    /// `expected_answer` can only be supplied at creation time via `ask`
+    /// otherwise — this is the retroactive path for a question that was
+    /// asked without one (see AGENTS.md §3.8).
+    async fn update_expected_answer(
+        &self,
+        message_id: i64,
+        expected_answer: Option<String>,
+    ) -> Result<TrainingMessageResponse, TrainingMessageError>;
 }
 
 #[cfg(test)]

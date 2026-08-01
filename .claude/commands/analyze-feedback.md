@@ -199,7 +199,7 @@ Do not skip this step, and do not substitute it with a manual edit of `.project/
 - Inventing feedback items or their status
 - Skipping the status update after training
 - Continuing after a failure without reporting it
-- Pushing to remote — this command commits locally only
+- Committing or pushing `.project/` files — the directory is entirely gitignored by deliberate repo policy (`git ls-files .project/` returns zero results); status updates in Step 4 stay as local working-file edits only, never staged or committed
 - Training on resolved items (only process `[OPEN]` items)
 - Editing `rep.md`/`rep-fix.md` card files — they are immutable historical logs; only the session notes file gets status updates
 - Double-counting a per-question card issue that the session notes already track as a distinct item

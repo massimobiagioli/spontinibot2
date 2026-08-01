@@ -30,12 +30,23 @@ pub struct AskRequest {
     pub answer: Option<String>,
 }
 
+#[derive(Deserialize)]
+pub struct UpdateExpectedAnswerRequest {
+    pub expected_answer: Option<String>,
+}
+
 fn map_message_error(e: TrainingMessageError) -> (StatusCode, Json<ErrorResponse>) {
     match e {
         TrainingMessageError::SessionNotFound(id) => (
             StatusCode::NOT_FOUND,
             Json(ErrorResponse {
                 error: format!("training session {id} not found"),
+            }),
+        ),
+        TrainingMessageError::MessageNotFound(id) => (
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse {
+                error: format!("training message {id} not found"),
             }),
         ),
         TrainingMessageError::DbError(msg) => (
@@ -92,6 +103,28 @@ pub async fn list_messages(
         .await
         .map_err(map_message_error)?;
     Ok(Json(messages))
+}
+
+pub async fn update_expected_answer(
+    State(state): State<TrainingMessageState>,
+    session: OperatorSession,
+    Path(message_id): Path<i64>,
+    Json(req): Json<UpdateExpectedAnswerRequest>,
+) -> Result<Json<TrainingMessageResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let response = state
+        .training_messages
+        .update_expected_answer(message_id, req.expected_answer)
+        .await
+        .map_err(map_message_error)?;
+    record_best_effort(
+        state.audit.as_ref(),
+        &session.actor,
+        "update_expected_answer",
+        &format!("training_message:{message_id}"),
+        &serde_json::to_value(&response).unwrap_or_default(),
+    )
+    .await;
+    Ok(Json(response))
 }
 
 #[cfg(test)]
@@ -187,6 +220,28 @@ mod tests {
                 source: "chat".into(),
             }])
         }
+
+        async fn update_expected_answer(
+            &self,
+            message_id: i64,
+            expected_answer: Option<String>,
+        ) -> Result<TrainingMessageResponse, TrainingMessageError> {
+            if message_id == 999 {
+                return Err(TrainingMessageError::MessageNotFound(message_id));
+            }
+            Ok(TrainingMessageResponse {
+                id: message_id,
+                session_id: 1,
+                question: "A che ora apre l'anagrafe?".into(),
+                answer: "Lo sportello apre alle 9:00.".into(),
+                sources: vec![],
+                fell_back: false,
+                created_at: "2026-07-24T00:00:00Z".into(),
+                expected_answer,
+                execution_time_ms: Some(42),
+                source: "chat".into(),
+            })
+        }
     }
 
     #[tokio::test]
@@ -268,5 +323,33 @@ mod tests {
         assert!(result.is_ok());
         let Json(messages) = result.unwrap();
         assert_eq!(messages.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn should_update_expected_answer_and_return_ok() {
+        let state = test_state();
+        let req = UpdateExpectedAnswerRequest {
+            expected_answer: Some("Dalle 9:00 alle 12:30".into()),
+        };
+        let result = update_expected_answer(State(state), session(), Path(1), Json(req)).await;
+        assert!(result.is_ok());
+        let Json(response) = result.unwrap();
+        assert_eq!(response.id, 1);
+        assert_eq!(
+            response.expected_answer.as_deref(),
+            Some("Dalle 9:00 alle 12:30")
+        );
+    }
+
+    #[tokio::test]
+    async fn should_return_404_for_unknown_message_on_update() {
+        let state = test_state();
+        let req = UpdateExpectedAnswerRequest {
+            expected_answer: Some("x".into()),
+        };
+        let result = update_expected_answer(State(state), session(), Path(999), Json(req)).await;
+        assert!(result.is_err());
+        let (status, _) = result.unwrap_err();
+        assert_eq!(status, StatusCode::NOT_FOUND);
     }
 }

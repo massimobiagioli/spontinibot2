@@ -22,7 +22,7 @@ Before starting, verify:
 1. Stack is running: `docker compose ps` shows all containers healthy
 2. Operator credential exists and is valid
 3. KB has content (not empty): check `documents` table has rows
-4. Persona is active: `GET /admin/api/persona?name=spontini-bot` returns `is_active:true`
+4. Persona is active: `GET /admin/api/persona?name=<VITE_PERSONA_NAME, default "Gaspare">` returns `is_active:true`. Note the persona `name` field is case-sensitive — the admin-ui default is `Gaspare` (capital G), not `spontini-bot` or lowercase `gaspare`.
 
 If any prerequisite fails, STOP and report which one failed.
 
@@ -60,8 +60,13 @@ Each question in the file must include:
 
 ### Question Generation Rules
 
-1. **Categories A/B/C**: Use facts verified in the knowledge base (check `.project/TEST-INGESTION-0001.md` Appendix B for verified anchor facts).
-2. **Categories D/E**: Only if documents are ingested — check `§5.3 Ingested Documents Log` in TEST-INGESTION-0001.md. If no documents in section, skip category and note it.
+1. **Categories A/B/C/D/E**: `.project/TEST-INGESTION-0001.md` no longer exists (removed in a historical cleanup) — do not reference it. There is no admin API that returns raw chunk text either. Derive every anchor fact directly from the live KB instead:
+   ```bash
+   docker cp spontini-bot-2-backend-1:/data/kb.db <scratchpad>/kb.db
+   sqlite3 <scratchpad>/kb.db
+   ```
+   Schema: `documents(id, source, source_ref, content, metadata, embedding, section, created_at)`. This is a read-only local snapshot — never write to it or copy it back, delete it when done. Note that RAG retrieval (`backend/src/rag_engine/retrieval.rs`) does **not** filter by the `section` column — it searches the entire `documents` table — so also consider any blank-`section` rows when picking source facts, not just the admin UI's configured sections. `SELECT content FROM documents WHERE source_ref = '...'` and actually read the real text before writing a question/expected-answer around it — never infer content from a filename or summary alone.
+2. **Categories D/E**: Only if documents are ingested — check via the query above whether `section` (or a source_ref pattern) has real content for news/delibere. If none, skip the category and note it.
 3. **Category F**: Must include questions about:
    - Plausible but not-in-KB facts (phone numbers, population of frazioni)
    - Topics entirely unrelated to the comune (weather, recipes)
@@ -92,8 +97,8 @@ Apply these variations systematically:
    ```
 
 2. For each of the 100 questions:
-   - Send to `POST /admin/api/training/sessions/:id/messages`
-   - **Time the response** using `curl -w "%{time_total}"`
+   - Send to `POST /admin/api/training/sessions/:id/messages` with **both** `question` and `expected_answer` (the "Risposta attesa" text from the question file) in the body — e.g. `{"question": "...", "expected_answer": "..."}`. This is what populates "Domanda attesa" on the question card in the admin UI; sending it at creation avoids an extra round trip, but a message asked without one can still be backfilled via `PATCH /admin/api/training/messages/:id` (`{"expected_answer": "..."}`) — see [AGENTS.md §3.8](../../AGENTS.md#38-every-test-session-question-must-receive-feedback).
+   - The response's own `execution_time_ms` field is the latency — no need for `curl -w` timing tricks.
    - Record the response for the report
 
 3. If session cookie expires (30-minute TTL), re-authenticate and continue.
@@ -155,6 +160,8 @@ After creating the initial report, analyze the feedback:
 3. **Document findings** in a "Feedback Analysis" section at the end of the report
 
 ## Step 5 — Run Training Session Based on Feedback
+
+Per [AGENTS.md §3.8](../../AGENTS.md#38-every-test-session-question-must-receive-feedback), **every one of the 100 questions must get a `POST /admin/api/training/feedback` entry** (`message_id`, `answer_span`, `sentiment`, `comment`) before this session counts as complete — not only the ones with an issue. A correct answer gets a brief `positive` entry; an operator reviewing the question card must never find one with no feedback at all. Do this for every message_id from Step 2, using the per-question assessment already written in Step 3/4's report as the `comment`.
 
 Based on the analysis in Step 4:
 
@@ -267,28 +274,11 @@ After completing all steps, report:
    - Systemic issues requiring code changes
    - Recommendations for next steps
 
-## Step 9 — Commit and Push
+## Step 9 — Do Not Commit
 
-After completing Step 8, commit all files created during this session and push to remote:
+`.project/` is entirely gitignored in this repo (`git ls-files .project/` returns zero results — every plan, review, ADR-adjacent doc, and test artifact under it is deliberately local-only, added by a dedicated `fix: gitignore` commit). **Do not `git add`, commit, or push the files created in this session** — `git add` on a gitignored path fails outright (or silently no-ops under `-A`), and force-adding (`git add -f`) would override a deliberate repo-wide policy that isn't this command's call to make. The 4 files from Steps 1/3/6/7 are the deliverable; they stay on disk as local working artifacts, same as every other `.project/` file in this repo.
 
-1. **Stage the session files**:
-   ```bash
-   git add \
-     .project/test/session-YYYYMMDD-HHmmss.md \
-     .project/test-reports/session-YYYYMMDD-HHmmss-rep.md \
-     .project/test-reports/session-YYYYMMDD-HHmmss-rep-fix.md \
-     .project/test-reports/feedback/session-YYYYMMDD-HHmmss-feedback.md
-   ```
-
-2. **Commit with a descriptive message**:
-   ```bash
-   git commit -m "test: add session YYYYMMDD-HHmmss results and feedback synthesis"
-   ```
-
-3. **Push to remote**:
-   ```bash
-   git push
-   ```
+If a future session genuinely needs these tracked in version control, that requires a deliberate `.gitignore` change made explicitly by a human, not a side effect of running this command.
 
 ## Forbidden
 
@@ -297,3 +287,5 @@ After completing Step 8, commit all files created during this session and push t
 - Skipping the training step even if scores are high
 - Creating reports without real data from actual bot invocations
 - Continuing after a failure without reporting it
+- Committing or pushing `.project/` files — the directory is gitignored by deliberate repo policy; force-adding past that is not this command's call to make
+- Referencing `.project/TEST-INGESTION-0001.md` — it no longer exists in this repo

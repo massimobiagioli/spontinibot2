@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 pub use axum::Router;
 use axum::extract::Extension;
-use axum::routing::{delete, get, post, put};
+use axum::routing::{delete, get, patch, post, put};
 
 use crate::admin::ingest_config::adapter::KbStoreIngestConfigAdapter;
 use crate::admin::ingest_config::handlers::IngestConfigState;
@@ -346,6 +346,11 @@ pub fn router_with(
             "/admin/api/training/sessions/:id/messages",
             post(admin::training_messages::handlers::create_message)
                 .get(admin::training_messages::handlers::list_messages)
+                .with_state(training_message_state.clone()),
+        )
+        .route(
+            "/admin/api/training/messages/:id",
+            patch(admin::training_messages::handlers::update_expected_answer)
                 .with_state(training_message_state),
         )
         .route(

@@ -272,6 +272,13 @@ impl TrainingMessageAdminPort for StubTrainingMessageAdmin {
     ) -> Result<Vec<TrainingMessageResponse>, TrainingMessageError> {
         Ok(vec![])
     }
+    async fn update_expected_answer(
+        &self,
+        _message_id: i64,
+        _expected_answer: Option<String>,
+    ) -> Result<TrainingMessageResponse, TrainingMessageError> {
+        unimplemented!("stub")
+    }
 }
 
 struct StubTrainingFeedbackAdmin;

@@ -848,6 +848,24 @@ impl KbStore {
         }
     }
 
+    pub async fn update_training_message_expected_answer(
+        &self,
+        id: i64,
+        expected_answer: Option<String>,
+    ) -> Result<Option<TrainingMessage>> {
+        let conn = self.db.connect()?;
+        let rows_affected = conn
+            .execute(
+                "UPDATE training_message SET expected_answer = ?2 WHERE id = ?1",
+                libsql::params![id, expected_answer],
+            )
+            .await?;
+        if rows_affected == 0 {
+            return Ok(None);
+        }
+        self.get_training_message(id).await
+    }
+
     pub async fn get_training_message(&self, id: i64) -> Result<Option<TrainingMessage>> {
         let conn = self.db.connect()?;
         let mut rows = conn
@@ -2847,6 +2865,44 @@ mod tests {
             .get_training_message(999)
             .await
             .expect("get_training_message failed");
+        assert!(result.is_none());
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_update_training_message_expected_answer() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+        let created = sample_training_message(&store).await;
+        assert_eq!(created.expected_answer, None);
+
+        let updated = store
+            .update_training_message_expected_answer(created.id, Some("risposta attesa".into()))
+            .await
+            .expect("update failed")
+            .expect("should find the message");
+        assert_eq!(updated.expected_answer, Some("risposta attesa".into()));
+
+        let refetched = store
+            .get_training_message(created.id)
+            .await
+            .expect("get_training_message failed")
+            .expect("should find the message");
+        assert_eq!(refetched.expected_answer, Some("risposta attesa".into()));
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_return_none_when_updating_expected_answer_of_unknown_message() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let result = store
+            .update_training_message_expected_answer(999, Some("x".into()))
+            .await
+            .expect("update failed");
         assert!(result.is_none());
         drop(store);
         let _ = std::fs::remove_file(&path);
