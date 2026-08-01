@@ -48,8 +48,6 @@ async function save(): Promise<void> {
 
 <template>
   <form @submit.prevent="save">
-    <h2>Pianificazione</h2>
-
     <DsInput
       v-model="cronExpr"
       label="Espressione cron"

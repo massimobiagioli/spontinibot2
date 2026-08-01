@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 
-import { DsCallout } from '../components/ds';
+import { DsAccordion, DsCallout } from '../components/ds';
 import ManualIngestForm from '../components/ingest/ManualIngestForm.vue';
 import RunTrigger from '../components/ingest/RunTrigger.vue';
 import ScheduleEditor from '../components/ingest/ScheduleEditor.vue';
@@ -53,13 +53,20 @@ function onScheduleSaved(schedule: IngestScheduleResponse): void {
   </DsCallout>
 
   <template v-else-if="config">
-    <h2>Esegui tutte le fonti configurate</h2>
-    <RunTrigger />
+    <DsAccordion title="Esegui tutte le fonti configurate">
+      <RunTrigger />
+    </DsAccordion>
 
-    <h2>Esegui ingest manuale mirato</h2>
-    <ManualIngestForm />
+    <DsAccordion title="Esegui ingest manuale mirato">
+      <ManualIngestForm />
+    </DsAccordion>
 
-    <ScheduleEditor :schedule="config.schedule" @saved="onScheduleSaved" />
-    <SectionsGrid :sections="config.sections" @changed="loadConfig" />
+    <DsAccordion title="Pianificazione">
+      <ScheduleEditor :schedule="config.schedule" @saved="onScheduleSaved" />
+    </DsAccordion>
+
+    <DsAccordion title="Sezioni" default-open>
+      <SectionsGrid :sections="config.sections" @changed="loadConfig" />
+    </DsAccordion>
   </template>
 </template>

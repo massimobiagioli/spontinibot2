@@ -23,6 +23,11 @@ describe('DevCatalog', () => {
       'DsButton',
       'DsInput',
       'DsCallout',
+      'DsInfoButton',
+      'Titolo della dialog',
+      'DsAccordion',
+      'Primo pannello',
+      'Secondo pannello',
       'DsNav',
     ]);
   });

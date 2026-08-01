@@ -15,7 +15,7 @@ const props = defineProps<{
 const emit = defineEmits<{ changed: [] }>();
 
 function sourceCountLabel(section: IngestSectionWithSources): string {
-  const n = section.sources.length;
+  const n = section.sources.length + section.curation_sources.length;
   return n === 1 ? '1 fonte configurata' : `${n} fonti configurate`;
 }
 
@@ -55,7 +55,6 @@ async function addSection(): Promise<void> {
 <template>
   <section>
     <div class="sections-grid__header">
-      <h2>Sezioni</h2>
       <DsButton v-if="!showAddForm" @click="showAddForm = true">
         Aggiungi sezione
       </DsButton>

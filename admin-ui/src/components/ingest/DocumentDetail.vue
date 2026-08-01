@@ -105,6 +105,7 @@ function close(): void {
   width: min(32rem, 90vw);
   max-height: 85vh;
   overflow: hidden;
+  box-shadow: var(--it-elevation-medium, 0 4px 16px rgba(0, 0, 0, 0.25));
 }
 
 .document-detail::backdrop {

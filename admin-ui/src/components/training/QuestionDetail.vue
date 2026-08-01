@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 
-import { DsButton, DsCallout } from '../ds';
+import { DsAccordion, DsButton, DsCallout } from '../ds';
 import MessageFeedback from './MessageFeedback.vue';
 import type {
   TrainingFeedbackResponse,
@@ -40,11 +40,7 @@ function onFeedbackChanged(list: TrainingFeedbackResponse[]): void {
 </script>
 
 <template>
-  <dialog
-    ref="dialogRef"
-    class="question-detail"
-    @cancel.prevent="close"
-  >
+  <dialog ref="dialogRef" class="question-detail" @cancel.prevent="close">
     <div class="question-detail__content">
       <header class="question-detail__header">
         <h2>Scheda domanda</h2>
@@ -90,7 +86,9 @@ function onFeedbackChanged(list: TrainingFeedbackResponse[]): void {
           </div>
           <div class="question-detail__meta-item">
             <dt>Origine</dt>
-            <dd>{{ message.source === 'manual' ? 'Manuale' : 'Domanda al bot' }}</dd>
+            <dd>
+              {{ message.source === 'manual' ? 'Manuale' : 'Domanda al bot' }}
+            </dd>
           </div>
         </dl>
 
@@ -102,8 +100,11 @@ function onFeedbackChanged(list: TrainingFeedbackResponse[]): void {
           Spontini non ha trovato informazioni nei documenti comunali per
           rispondere a questa domanda.
         </DsCallout>
-        <details v-else class="question-detail__accordion">
-          <summary>Fonti ({{ message.sources.length }})</summary>
+        <DsAccordion
+          v-else
+          :title="`Fonti (${message.sources.length})`"
+          :heading-level="3"
+        >
           <ul class="question-detail__sources">
             <li v-for="source in message.sources" :key="source.document_id">
               <a
@@ -117,7 +118,7 @@ function onFeedbackChanged(list: TrainingFeedbackResponse[]): void {
               <span v-else>{{ source.source_ref }}</span>
             </li>
           </ul>
-        </details>
+        </DsAccordion>
 
         <div class="question-detail__feedback">
           <MessageFeedback
@@ -144,6 +145,7 @@ function onFeedbackChanged(list: TrainingFeedbackResponse[]): void {
   width: min(40rem, 90vw);
   max-height: 85vh;
   overflow: hidden;
+  box-shadow: var(--it-elevation-medium, 0 4px 16px rgba(0, 0, 0, 0.25));
 }
 
 .question-detail::backdrop {
@@ -247,35 +249,8 @@ function onFeedbackChanged(list: TrainingFeedbackResponse[]): void {
   margin: 0;
 }
 
-.question-detail__accordion {
-  border: 1px solid rgba(31, 42, 55, 0.12);
-  border-radius: 8px;
-  padding: 0.75rem 1rem;
-}
-
-.question-detail__accordion summary {
-  cursor: pointer;
-  font-weight: 600;
-  list-style: none;
-}
-
-.question-detail__accordion summary::-webkit-details-marker {
-  display: none;
-}
-
-.question-detail__accordion summary::before {
-  content: '\25B8';
-  display: inline-block;
-  margin-right: 0.5rem;
-  transition: transform 0.15s ease;
-}
-
-.question-detail__accordion[open] summary::before {
-  transform: rotate(90deg);
-}
-
 .question-detail__sources {
-  margin: 0.75rem 0 0;
+  margin: 0;
   padding-left: 1.25rem;
 }
 

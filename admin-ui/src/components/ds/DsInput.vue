@@ -25,7 +25,10 @@ const hintId = useId();
 
 <template>
   <div class="form-group">
-    <label :for="inputId">{{ label }}</label>
+    <label :for="inputId" class="ds-input__label">
+      <span>{{ label }}</span>
+      <slot name="label-suffix" />
+    </label>
     <input
       :id="inputId"
       class="form-control"
@@ -41,3 +44,11 @@ const hintId = useId();
     <small v-if="hint" :id="hintId" class="form-text">{{ hint }}</small>
   </div>
 </template>
+
+<style scoped>
+.ds-input__label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+</style>

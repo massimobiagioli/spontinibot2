@@ -91,6 +91,30 @@ describe('SectionsGrid', () => {
     expect(wrapper.text()).toContain('1 fonte');
   });
 
+  it('counts curation sources (e.g. an automatic curation bookmark) toward the total, not just configured scrape/api sources', () => {
+    const wrapper = mount(SectionsGrid, {
+      props: {
+        sections: [
+          section({
+            id: 1,
+            sources: [],
+            curation_sources: [
+              {
+                source_url: 'https://www.halleyweb.com/c042023/.../delibere',
+                last_item_date: '2026-07-13',
+                updated_at: '2026-07-13T00:00:00Z',
+              },
+            ],
+          }),
+        ],
+      },
+      global: { plugins: [makeRouter()] },
+    });
+
+    expect(wrapper.text()).toContain('1 fonte');
+    expect(wrapper.text()).not.toContain('0 fonti');
+  });
+
   it('adding a section calls createSection with an auto-computed ordering, not asked from the user', async () => {
     const createSpy = vi
       .spyOn(adminApi, 'createSection')

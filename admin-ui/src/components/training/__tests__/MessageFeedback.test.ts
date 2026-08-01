@@ -114,6 +114,88 @@ describe('MessageFeedback', () => {
     expect(wrapper.text()).toContain('orario sbagliato');
   });
 
+  it('hides both feedback buttons once a judgment already exists — one card, one feedback', () => {
+    const wrapper = mount(MessageFeedback, {
+      props: {
+        messageId: 1,
+        answer: 'Lo sportello apre alle 9:00.',
+        initialFeedback: [
+          {
+            id: 1,
+            message_id: 1,
+            chunk_id: null,
+            answer_span: 'Lo sportello apre alle 9:00.',
+            sentiment: 'positive',
+            comment: null,
+            created_at: '2026-07-24T00:00:00Z',
+          },
+        ],
+      },
+    });
+
+    expect(
+      wrapper.findAll('button').some((b) => b.text() === 'Feedback positivo'),
+    ).toBe(false);
+    expect(
+      wrapper.findAll('button').some((b) => b.text() === 'Feedback negativo'),
+    ).toBe(false);
+  });
+
+  it('does not label the current judgment "Ultimo feedback"/"Ultimo giudizio" — it is simply the feedback', () => {
+    const wrapper = mount(MessageFeedback, {
+      props: {
+        messageId: 1,
+        answer: 'Lo sportello apre alle 9:00.',
+        initialFeedback: [
+          {
+            id: 1,
+            message_id: 1,
+            chunk_id: null,
+            answer_span: 'Lo sportello apre alle 9:00.',
+            sentiment: 'positive',
+            comment: null,
+            created_at: '2026-07-24T00:00:00Z',
+          },
+        ],
+      },
+    });
+
+    expect(wrapper.text().toLowerCase()).not.toContain('ultimo');
+  });
+
+  it('shows only the single current judgment, never a history list, even if more than one entry exists', () => {
+    const wrapper = mount(MessageFeedback, {
+      props: {
+        messageId: 1,
+        answer: 'Lo sportello apre alle 9:00.',
+        initialFeedback: [
+          {
+            id: 1,
+            message_id: 1,
+            chunk_id: null,
+            answer_span: 'Lo sportello apre alle 9:00.',
+            sentiment: 'positive',
+            comment: null,
+            created_at: '2026-07-24T00:00:00Z',
+          },
+          {
+            id: 2,
+            message_id: 1,
+            chunk_id: null,
+            answer_span: 'Lo sportello apre alle 9:00.',
+            sentiment: 'negative',
+            comment: 'orario sbagliato',
+            created_at: '2026-07-24T00:05:00Z',
+          },
+        ],
+      },
+    });
+
+    expect(wrapper.findAll('.badge')).toHaveLength(1);
+    expect(wrapper.text()).toContain('Negativo');
+    expect(wrapper.text()).not.toContain('Positivo');
+  });
+
   it('shows the honest error message from AdminApiError on submit failure', async () => {
     vi.spyOn(adminApi, 'createTrainingFeedback').mockRejectedValue(
       new adminApi.AdminApiError(500, 'internal error'),

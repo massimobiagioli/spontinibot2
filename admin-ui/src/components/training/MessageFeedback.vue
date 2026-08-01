@@ -22,7 +22,10 @@ const reason = ref('');
 const submitting = ref(false);
 const error = ref<string | null>(null);
 
-const latest = computed(
+// This card represents a single operator judgment on this answer, not a log
+// of every judgment ever made — once given, it's final, so only the most
+// recent entry is ever shown (and the vote buttons never come back).
+const current = computed(
   () => feedback.value[feedback.value.length - 1] ?? null,
 );
 
@@ -89,72 +92,110 @@ function confirmNegative(): void {
   <div class="message-feedback">
     <h3>Feedback</h3>
 
-    <p v-if="latest">
-      Ultimo giudizio:
+    <p v-if="current" class="message-feedback__current">
       <span
         class="badge"
-        :class="latest.sentiment === 'positive' ? 'badge-success' : 'badge-danger'"
+        :class="
+          current.sentiment === 'positive' ? 'badge-success' : 'badge-danger'
+        "
       >
-        {{ latest.sentiment === 'positive' ? 'Positivo' : 'Negativo' }}
+        {{ current.sentiment === 'positive' ? 'Positivo' : 'Negativo' }}
+      </span>
+      <span v-if="current.comment" class="message-feedback__comment">
+        {{ current.comment }}
       </span>
     </p>
 
-    <div class="message-feedback__actions">
-      <DsButton
-        variant="success"
-        :disabled="submitting"
-        @click="submitPositive"
-      >
-        Feedback positivo
-      </DsButton>
-      <DsButton
-        variant="danger"
-        outline
-        :disabled="submitting"
-        @click="requestNegative"
-      >
-        Feedback negativo
-      </DsButton>
-    </div>
-
-    <div v-if="pendingNegative" class="message-feedback__reason">
-      <label :for="`reason-${messageId}`">Motivazione (obbligatoria)</label>
-      <textarea
-        :id="`reason-${messageId}`"
-        v-model="reason"
-        class="form-control"
-        rows="2"
-        required
-      />
-      <div class="message-feedback__reason-actions">
+    <template v-else>
+      <div class="message-feedback__actions">
         <DsButton
-          variant="danger"
-          :disabled="submitting"
-          @click="confirmNegative"
-        >
-          Conferma feedback negativo
-        </DsButton>
-        <DsButton
-          variant="secondary"
+          variant="success"
           outline
           :disabled="submitting"
-          @click="cancelNegative"
+          @click="submitPositive"
         >
-          Annulla
+          Feedback positivo
+        </DsButton>
+        <DsButton
+          variant="danger"
+          outline
+          :disabled="submitting"
+          @click="requestNegative"
+        >
+          Feedback negativo
         </DsButton>
       </div>
-    </div>
 
-    <DsCallout v-if="error" variant="danger" title="Errore">
-      {{ error }}
-    </DsCallout>
+      <div v-if="pendingNegative" class="message-feedback__reason">
+        <label :for="`reason-${messageId}`">Motivazione (obbligatoria)</label>
+        <textarea
+          :id="`reason-${messageId}`"
+          v-model="reason"
+          class="form-control"
+          rows="2"
+          required
+        />
+        <div class="message-feedback__reason-actions">
+          <DsButton
+            variant="danger"
+            :disabled="submitting"
+            @click="confirmNegative"
+          >
+            Conferma feedback negativo
+          </DsButton>
+          <DsButton
+            variant="secondary"
+            outline
+            :disabled="submitting"
+            @click="cancelNegative"
+          >
+            Annulla
+          </DsButton>
+        </div>
+      </div>
 
-    <ul v-if="feedback.length > 0" class="message-feedback__history">
-      <li v-for="entry in feedback" :key="entry.id">
-        <strong>{{ entry.sentiment === 'positive' ? 'Positivo' : 'Negativo' }}</strong>
-        <span v-if="entry.comment"> — {{ entry.comment }}</span>
-        <span class="message-feedback__history-date"> ({{ entry.created_at }})</span>
-      </li>
-    </ul>
+      <DsCallout
+        v-if="error"
+        variant="danger"
+        title="Errore"
+        class="message-feedback__error"
+      >
+        {{ error }}
+      </DsCallout>
+    </template>
   </div>
 </template>
+
+<style scoped>
+.message-feedback__actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.message-feedback__current {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.message-feedback__comment {
+  color: var(--spontini-color-text-muted, #6c757d);
+}
+
+.message-feedback__reason {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.message-feedback__reason-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.message-feedback__error {
+  margin-top: 1rem;
+}
+</style>

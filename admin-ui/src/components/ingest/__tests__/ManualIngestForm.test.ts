@@ -25,7 +25,9 @@ describe('ManualIngestForm', () => {
     const wrapper = mount(ManualIngestForm);
     await fillForm(wrapper);
     await wrapper.find('form').trigger('submit');
-    await vi.waitFor(() => expect(wrapper.text()).toContain('Ingest completato'));
+    await vi.waitFor(() =>
+      expect(wrapper.text()).toContain('Ingest completato'),
+    );
 
     expect(triggerSpy).toHaveBeenCalledWith(
       'storia',
@@ -50,7 +52,7 @@ describe('ManualIngestForm', () => {
 
   it('disables the submit button until every field is filled', async () => {
     const wrapper = mount(ManualIngestForm);
-    const button = wrapper.find('button');
+    const button = wrapper.find('button[type="submit"]');
     expect(button.attributes('disabled')).toBeDefined();
 
     await fillForm(wrapper);

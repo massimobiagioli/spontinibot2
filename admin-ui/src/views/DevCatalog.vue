@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 
-import { DsButton, DsCallout, DsInput, DsNav } from '../components/ds';
+import {
+  DsAccordion,
+  DsButton,
+  DsCallout,
+  DsInfoButton,
+  DsInput,
+  DsNav,
+} from '../components/ds';
 
 const inputValue = ref('');
 const inputWithHint = ref('');
@@ -39,6 +46,28 @@ const inputWithHint = ref('');
       >Un callout di avviso, in evidenza.</DsCallout
     >
     <DsCallout variant="danger">Un callout di errore senza titolo.</DsCallout>
+  </section>
+
+  <section>
+    <h2>DsInfoButton</h2>
+    <p>
+      Un pulsante "i" che apre una dialog con informazioni di supporto, pensato
+      per affiancare l'etichetta di un campo (slot
+      <code>label-suffix</code> di <code>DsInput</code>).
+    </p>
+    <DsInfoButton label="Informazioni di esempio" title="Titolo della dialog">
+      Contenuto di esempio della dialog informativa.
+    </DsInfoButton>
+  </section>
+
+  <section>
+    <h2>DsAccordion</h2>
+    <DsAccordion title="Primo pannello" default-open>
+      <p>Contenuto del primo pannello, aperto di default.</p>
+    </DsAccordion>
+    <DsAccordion title="Secondo pannello">
+      <p>Contenuto del secondo pannello, chiuso di default.</p>
+    </DsAccordion>
   </section>
 
   <section>
