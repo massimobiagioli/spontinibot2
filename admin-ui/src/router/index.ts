@@ -7,6 +7,7 @@ import HomeView from '../views/HomeView.vue';
 import ImprintingView from '../views/ImprintingView.vue';
 import IngestView from '../views/IngestView.vue';
 import LoginView from '../views/LoginView.vue';
+import OptionsView from '../views/OptionsView.vue';
 import SectionDetailView from '../views/SectionDetailView.vue';
 import TrainingSessionView from '../views/TrainingSessionView.vue';
 import TrainingSessionsView from '../views/TrainingSessionsView.vue';
@@ -32,6 +33,7 @@ const routes: RouteRecordRaw[] = [
     name: 'training-session',
     component: TrainingSessionView,
   },
+  { path: '/options', name: 'options', component: OptionsView },
 ];
 
 export const router = createRouter({

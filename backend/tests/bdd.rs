@@ -20,6 +20,8 @@ use backend::admin::ingest_manual::{
 };
 use backend::admin::ingest_run::handlers::IngestRunState;
 use backend::admin::ingest_run::{IngestRunAdminPort, IngestRunError, IngestRunResponse};
+use backend::admin::scraper_options::handlers::ScraperOptionsState;
+use backend::admin::scraper_options::{ScraperOptionsAdminPort, ScraperOptionsError};
 use backend::admin::training_feedback::handlers::TrainingFeedbackState;
 use backend::admin::training_feedback::{
     TrainingFeedbackAdminPort, TrainingFeedbackError, TrainingFeedbackResponse,
@@ -139,6 +141,25 @@ impl AuditLogPort for NoopAudit {
         _payload: &serde_json::Value,
     ) -> Result<(), AuditError> {
         Ok(())
+    }
+}
+
+struct StubScraperOptionsAdmin;
+
+#[async_trait]
+impl ScraperOptionsAdminPort for StubScraperOptionsAdmin {
+    async fn list_robots_bypass_hosts(
+        &self,
+    ) -> Result<Vec<backend::admin::scraper_options::RobotsBypassHostResponse>, ScraperOptionsError>
+    {
+        unimplemented!("stub — no BDD scenario in this suite exercises the scraper options API")
+    }
+    async fn replace_robots_bypass_hosts(
+        &self,
+        _hosts: Vec<String>,
+    ) -> Result<Vec<backend::admin::scraper_options::RobotsBypassHostResponse>, ScraperOptionsError>
+    {
+        unimplemented!("stub — no BDD scenario in this suite exercises the scraper options API")
     }
 }
 
@@ -497,6 +518,7 @@ async fn build_admin_router(db_path: &str, admin_key: &str) -> (axum::Router, St
             ingest_config: ingest_config_state,
             ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
+            scraper_options: stub_scraper_options_state(),
             training_sessions: training_session_state,
             training_messages: training_message_state,
             training_feedback: training_feedback_state,
@@ -522,6 +544,13 @@ fn temp_db() -> String {
 fn stub_ingest_config_state() -> IngestConfigState {
     IngestConfigState {
         ingest_config: Arc::new(StubIngestConfigAdmin),
+        audit: Arc::new(NoopAudit),
+    }
+}
+
+fn stub_scraper_options_state() -> ScraperOptionsState {
+    ScraperOptionsState {
+        scraper_options: Arc::new(StubScraperOptionsAdmin),
         audit: Arc::new(NoopAudit),
     }
 }
@@ -616,6 +645,7 @@ async fn when_check_health(world: &mut BotWorld) {
             ingest_config: ingest_config_state,
             ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
+            scraper_options: stub_scraper_options_state(),
             training_sessions: training_session_state,
             training_messages: training_message_state,
             training_feedback: training_feedback_state,
@@ -735,6 +765,7 @@ async fn when_citizen_asks(world: &mut BotWorld, question: String) {
             ingest_config: ingest_config_state,
             ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
+            scraper_options: stub_scraper_options_state(),
             training_sessions: training_session_state,
             training_messages: training_message_state,
             training_feedback: training_feedback_state,
@@ -1709,6 +1740,7 @@ async fn build_upload_router(db_path: &str, admin_key: &str) -> (axum::Router, S
             ingest_config: ingest_config_state,
             ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
+            scraper_options: stub_scraper_options_state(),
             training_sessions: training_session_state,
             training_messages: training_message_state,
             training_feedback: training_feedback_state,
@@ -2087,6 +2119,7 @@ async fn given_ingest_config_api_available(world: &mut BotWorld) {
             ingest_config: ingest_config_state,
             ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
+            scraper_options: stub_scraper_options_state(),
             training_sessions: training_session_state,
             training_messages: training_message_state,
             training_feedback: training_feedback_state,
@@ -2789,6 +2822,7 @@ async fn given_ingest_run_api_available(world: &mut BotWorld) {
             ingest_config: ingest_config_state,
             ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
+            scraper_options: stub_scraper_options_state(),
             training_sessions: training_session_state,
             training_messages: training_message_state,
             training_feedback: training_feedback_state,
@@ -3039,6 +3073,7 @@ async fn given_manual_ingest_api_available(world: &mut BotWorld) {
             ingest_config: ingest_config_state,
             ingest_manual: ingest_manual_state,
             ingest_run: ingest_run_state,
+            scraper_options: stub_scraper_options_state(),
             training_sessions: training_session_state,
             training_messages: training_message_state,
             training_feedback: training_feedback_state,
@@ -3191,6 +3226,7 @@ async fn given_curation_api_available(world: &mut BotWorld) {
             ingest_config: ingest_config_state,
             ingest_manual: ingest_manual_state,
             ingest_run: ingest_run_state,
+            scraper_options: stub_scraper_options_state(),
             training_sessions: training_session_state,
             training_messages: training_message_state,
             training_feedback: training_feedback_state,
@@ -3387,6 +3423,7 @@ async fn given_training_sessions_api_available(world: &mut BotWorld) {
             ingest_config: ingest_config_state,
             ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
+            scraper_options: stub_scraper_options_state(),
             training_sessions: training_session_state,
             training_messages: training_message_state,
             training_feedback: training_feedback_state,
@@ -3806,6 +3843,7 @@ async fn given_training_messages_api_available(world: &mut BotWorld) {
             ingest_config: ingest_config_state,
             ingest_manual: stub_ingest_manual_state(),
             ingest_run: ingest_run_state,
+            scraper_options: stub_scraper_options_state(),
             training_sessions: training_session_state,
             training_messages: training_message_state,
             training_feedback: training_feedback_state,

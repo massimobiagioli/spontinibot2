@@ -122,6 +122,17 @@ pub struct NewIngestSection {
     pub ordering: i32,
 }
 
+/// A host the operator has explicitly authorized to bypass robots.txt
+/// entirely — see AGENTS.md's "Scraper Exceptions Must Be Operator-
+/// Configured, Never Hard-Coded" rule. Managed as one editable list (the
+/// admin-ui "Opzioni" > "Scraper" page), never a per-item CRUD flow.
+#[derive(Debug, Clone, PartialEq)]
+pub struct RobotsBypassHost {
+    pub id: i64,
+    pub host: String,
+    pub created_at: String,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum SourceType {
     Scrape,

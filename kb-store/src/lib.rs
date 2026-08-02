@@ -31,8 +31,8 @@ pub use types::{
     AuditLogEntry, Document, DocumentSource, EMBEDDING_DIM, IngestBookmark, IngestRunRequest,
     IngestSchedule, IngestSection, IngestSource, IngestedDocument, NewAuditLogEntry, NewDocument,
     NewIngestSchedule, NewIngestSection, NewIngestSource, NewPersona, NewTrainingFeedback,
-    NewTrainingMessage, NewTrainingSession, Persona, RunRequestStatus, ScoredDocument, Sentiment,
-    SourceType, TrainingFeedback, TrainingMessage, TrainingSession,
+    NewTrainingMessage, NewTrainingSession, Persona, RobotsBypassHost, RunRequestStatus,
+    ScoredDocument, Sentiment, SourceType, TrainingFeedback, TrainingMessage, TrainingSession,
 };
 
 use libsql::{Builder, Database, Row};
@@ -469,6 +469,49 @@ impl KbStore {
             )
             .await?;
         Ok(rows_affected > 0)
+    }
+
+    pub async fn list_robots_bypass_hosts(&self) -> Result<Vec<RobotsBypassHost>> {
+        let conn = self.db.connect()?;
+        let mut rows = conn
+            .query(
+                "SELECT id, host, created_at FROM robots_bypass_host ORDER BY host ASC",
+                libsql::params![],
+            )
+            .await?;
+        let mut hosts = Vec::new();
+        while let Some(row) = rows.next().await? {
+            hosts.push(RobotsBypassHost {
+                id: row.get::<i64>(0)?,
+                host: row.get::<String>(1)?,
+                created_at: row.get::<String>(2)?,
+            });
+        }
+        Ok(hosts)
+    }
+
+    /// Replaces the entire robots.txt bypass list with `hosts` — the
+    /// admin-ui "Opzioni" > "Scraper" page edits this as one multiline list,
+    /// not a per-item CRUD flow, so saving means "this is now the full set."
+    /// Empty/duplicate entries are the caller's job to have already cleaned
+    /// up; this treats `hosts` as already-normalized.
+    pub async fn replace_robots_bypass_hosts(
+        &self,
+        hosts: Vec<String>,
+    ) -> Result<Vec<RobotsBypassHost>> {
+        let conn = self.db.connect()?;
+        let tx = conn.transaction().await?;
+        tx.execute("DELETE FROM robots_bypass_host", libsql::params![])
+            .await?;
+        for host in &hosts {
+            tx.execute(
+                "INSERT INTO robots_bypass_host (host) VALUES (?1)",
+                libsql::params![host.clone()],
+            )
+            .await?;
+        }
+        tx.commit().await?;
+        self.list_robots_bypass_hosts().await
     }
 
     pub async fn get_bookmark(
@@ -1631,6 +1674,63 @@ mod tests {
         assert_eq!(sections[0].name, "sport");
         assert_eq!(sections[1].id, s2.id);
         assert_eq!(sections[1].name, "news");
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_list_robots_bypass_hosts_prepopulated_by_migration_alphabetically() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let hosts = store
+            .list_robots_bypass_hosts()
+            .await
+            .expect("query failed");
+        assert_eq!(hosts.len(), 1);
+        assert_eq!(hosts[0].host, "www.comune.maiolatispontini.an.it");
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_replace_robots_bypass_hosts_wholesale() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let hosts = store
+            .replace_robots_bypass_hosts(vec!["a.example.com".into(), "b.example.com".into()])
+            .await
+            .expect("replace failed");
+        assert_eq!(hosts.len(), 2);
+        assert_eq!(hosts[0].host, "a.example.com");
+        assert_eq!(hosts[1].host, "b.example.com");
+
+        // A second replace call fully supersedes the first — the migration's
+        // pre-populated seed row and the first call's two hosts are all gone.
+        let hosts = store
+            .replace_robots_bypass_hosts(vec!["only.example.com".into()])
+            .await
+            .expect("replace failed");
+        assert_eq!(hosts.len(), 1);
+        assert_eq!(hosts[0].host, "only.example.com");
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_clear_all_robots_bypass_hosts_when_replaced_with_an_empty_list() {
+        let path = temp_db_path();
+        let store = KbStore::open(&path).await.expect("failed to open db");
+
+        let hosts = store
+            .replace_robots_bypass_hosts(vec![])
+            .await
+            .expect("replace failed");
+        assert!(hosts.is_empty());
 
         drop(store);
         let _ = std::fs::remove_file(&path);

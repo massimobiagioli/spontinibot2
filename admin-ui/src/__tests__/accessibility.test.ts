@@ -10,6 +10,7 @@ import HomeView from '../views/HomeView.vue';
 import ImprintingView from '../views/ImprintingView.vue';
 import IngestView from '../views/IngestView.vue';
 import LoginView from '../views/LoginView.vue';
+import OptionsView from '../views/OptionsView.vue';
 import TrainingSessionView from '../views/TrainingSessionView.vue';
 import TrainingSessionsView from '../views/TrainingSessionsView.vue';
 
@@ -24,6 +25,7 @@ function makeRouter() {
       { path: '/imprinting', component: ImprintingView },
       { path: '/training', component: TrainingSessionsView },
       { path: '/training/:id', component: TrainingSessionView },
+      { path: '/options', component: OptionsView },
     ],
   });
 }
@@ -261,6 +263,32 @@ describe('accessibility', () => {
 
     const router = makeRouter();
     await router.push('/training/1');
+    await router.isReady();
+
+    const wrapper = mount(App, {
+      global: { plugins: [router] },
+      attachTo: document.body,
+    });
+    await flushPromises();
+
+    const results = await runAxe(wrapper.element);
+
+    expect(results.violations).toEqual([]);
+
+    wrapper.unmount();
+  });
+
+  it('the /options section has zero axe violations', async () => {
+    vi.spyOn(adminApi, 'listRobotsBypassHosts').mockResolvedValue([
+      {
+        id: 1,
+        host: 'www.comune.maiolatispontini.an.it',
+        created_at: '2026-08-02T00:00:00Z',
+      },
+    ]);
+
+    const router = makeRouter();
+    await router.push('/options');
     await router.isReady();
 
     const wrapper = mount(App, {

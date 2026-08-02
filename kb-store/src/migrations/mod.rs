@@ -14,6 +14,7 @@ const V10_SCHEMA: &str = include_str!("V10__ingest_bookmark.sql");
 const V11_SCHEMA: &str = include_str!("V11__backfill_manual_documents_section.sql");
 const V12_SCHEMA: &str = include_str!("V12__remap_manual_document_categories_to_sections.sql");
 const V13_SCHEMA: &str = include_str!("V13__documents_created_at.sql");
+const V14_SCHEMA: &str = include_str!("V14__robots_bypass_hosts.sql");
 
 /// Run database migrations idempotently.
 ///
@@ -245,6 +246,23 @@ pub async fn run_migrations(conn: &Connection) -> Result<()> {
         tx.execute_batch(V13_SCHEMA).await?;
         tx.execute(
             "INSERT INTO _migrations (version, name) VALUES (13, 'documents_created_at')",
+            libsql::params![],
+        )
+        .await?;
+        tx.commit().await?;
+    }
+
+    let mut rows = conn
+        .query(
+            "SELECT 1 FROM _migrations WHERE version = 14",
+            libsql::params![],
+        )
+        .await?;
+    if rows.next().await?.is_none() {
+        let tx = conn.transaction().await?;
+        tx.execute_batch(V14_SCHEMA).await?;
+        tx.execute(
+            "INSERT INTO _migrations (version, name) VALUES (14, 'robots_bypass_hosts_schema')",
             libsql::params![],
         )
         .await?;
@@ -816,5 +834,45 @@ mod tests {
         run_migrations(&conn)
             .await
             .expect("second migration run should also succeed");
+    }
+
+    #[tokio::test]
+    async fn should_create_and_prepopulate_robots_bypass_host_table_when_migrations_run() {
+        let db = Builder::new_local(":memory:")
+            .build()
+            .await
+            .expect("failed to create in-memory db");
+        let conn = db.connect().expect("failed to connect");
+
+        run_migrations(&conn).await.expect("migrations failed");
+
+        let mut rows = conn
+            .query("SELECT host FROM robots_bypass_host", libsql::params![])
+            .await
+            .expect("table must exist");
+        let row = rows
+            .next()
+            .await
+            .expect("query failed")
+            .expect("the comune's own site must be pre-populated as a bypass host");
+        let host: String = row.get(0).unwrap();
+        assert_eq!(host, "www.comune.maiolatispontini.an.it");
+        assert!(
+            rows.next().await.unwrap().is_none(),
+            "expected exactly one row"
+        );
+
+        run_migrations(&conn)
+            .await
+            .expect("second migration run should also succeed, without duplicating the seed row");
+        let mut rows = conn
+            .query("SELECT COUNT(*) FROM robots_bypass_host", libsql::params![])
+            .await
+            .expect("query failed");
+        let count: i64 = rows.next().await.unwrap().unwrap().get(0).unwrap();
+        assert_eq!(
+            count, 1,
+            "re-running migrations must not duplicate the seed row"
+        );
     }
 }

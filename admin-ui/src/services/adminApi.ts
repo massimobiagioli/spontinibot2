@@ -38,6 +38,12 @@ export interface IngestScheduleResponse {
   updated_at: string;
 }
 
+export interface RobotsBypassHostResponse {
+  id: number;
+  host: string;
+  created_at: string;
+}
+
 export interface IngestSectionResponse {
   id: number;
   name: string;
@@ -286,6 +292,22 @@ export function upsertSchedule(
     '/admin/api/ingest/config/schedule',
     'PUT',
     { cron_expr: cronExpr, enabled },
+  );
+}
+
+export function listRobotsBypassHosts(): Promise<RobotsBypassHostResponse[]> {
+  return request<RobotsBypassHostResponse[]>(
+    '/admin/api/scraper/robots-bypass-hosts',
+  );
+}
+
+export function replaceRobotsBypassHosts(
+  hostsText: string,
+): Promise<RobotsBypassHostResponse[]> {
+  return jsonRequest<RobotsBypassHostResponse[]>(
+    '/admin/api/scraper/robots-bypass-hosts',
+    'PUT',
+    { hosts_text: hostsText },
   );
 }
 

@@ -43,7 +43,22 @@ impl IngestPipeline {
 #[async_trait]
 impl Pipeline for IngestPipeline {
     async fn run(&self, url: &str, section: &str) -> Result<(), IngestError> {
-        let text = self.scraper.lock().await.fetch_text(url).await?;
+        // Read fresh from the DB on every run — not cached at construction —
+        // so an operator's edit on the "Opzioni" > "Scraper" page takes
+        // effect on the very next ingest, no redeploy needed.
+        let robots_bypass_hosts: Vec<String> = self
+            .kb
+            .list_robots_bypass_hosts()
+            .await?
+            .into_iter()
+            .map(|h| h.host)
+            .collect();
+        let text = self
+            .scraper
+            .lock()
+            .await
+            .fetch_text(url, &robots_bypass_hosts)
+            .await?;
         let chunks = self.chunker.chunk(&text, section, url)?;
 
         for chunk in &chunks {

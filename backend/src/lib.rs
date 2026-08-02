@@ -12,6 +12,8 @@ use crate::admin::ingest_manual::halley::curation::HalleyCurationAdapter;
 use crate::admin::ingest_manual::handlers::IngestManualState;
 use crate::admin::ingest_run::adapter::KbStoreIngestRunAdapter;
 use crate::admin::ingest_run::handlers::IngestRunState;
+use crate::admin::scraper_options::adapter::KbStoreScraperOptionsAdapter;
+use crate::admin::scraper_options::handlers::ScraperOptionsState;
 use crate::admin::training_feedback::adapter::KbStoreTrainingFeedbackAdapter;
 use crate::admin::training_feedback::handlers::TrainingFeedbackState;
 use crate::admin::training_messages::adapter::RagTrainingMessageAdapter;
@@ -55,6 +57,7 @@ pub struct AdminRouterState {
     pub ingest_config: IngestConfigState,
     pub ingest_manual: IngestManualState,
     pub ingest_run: IngestRunState,
+    pub scraper_options: ScraperOptionsState,
     pub training_sessions: TrainingSessionState,
     pub training_messages: TrainingMessageState,
     pub training_feedback: TrainingFeedbackState,
@@ -166,6 +169,13 @@ pub async fn router() -> Router {
         audit: audit_port.clone(),
     };
 
+    let scraper_options_port: Arc<dyn crate::admin::scraper_options::ScraperOptionsAdminPort> =
+        Arc::new(KbStoreScraperOptionsAdapter::new(store.clone()));
+    let scraper_options_state = ScraperOptionsState {
+        scraper_options: scraper_options_port,
+        audit: audit_port.clone(),
+    };
+
     let training_session_port: Arc<dyn crate::admin::training_sessions::TrainingSessionAdminPort> =
         Arc::new(KbStoreTrainingSessionAdapter::new(store.clone()));
     let training_session_state = TrainingSessionState {
@@ -204,6 +214,7 @@ pub async fn router() -> Router {
             ingest_config: ingest_config_state,
             ingest_manual: ingest_manual_state,
             ingest_run: ingest_run_state,
+            scraper_options: scraper_options_state,
             training_sessions: training_session_state,
             training_messages: training_message_state,
             training_feedback: training_feedback_state,
@@ -224,6 +235,7 @@ pub fn router_with(
         ingest_config: ingest_config_state,
         ingest_manual: ingest_manual_state,
         ingest_run: ingest_run_state,
+        scraper_options: scraper_options_state,
         training_sessions: training_session_state,
         training_messages: training_message_state,
         training_feedback: training_feedback_state,
@@ -324,6 +336,12 @@ pub fn router_with(
         .route(
             "/admin/api/ingest/manual",
             post(admin::ingest_manual::handlers::ingest_manual).with_state(ingest_manual_state),
+        )
+        .route(
+            "/admin/api/scraper/robots-bypass-hosts",
+            get(admin::scraper_options::handlers::list_robots_bypass_hosts)
+                .put(admin::scraper_options::handlers::replace_robots_bypass_hosts)
+                .with_state(scraper_options_state),
         )
         .route(
             "/admin/api/training/sessions",

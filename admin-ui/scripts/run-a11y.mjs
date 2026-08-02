@@ -9,6 +9,7 @@ const ROUTES = [
   '/imprinting',
   '/training',
   '/training/1',
+  '/options',
 ];
 
 const server = await preview({ preview: { port: PORT, host: '127.0.0.1' } });

@@ -8,6 +8,7 @@ const businessLinks = [
   { to: '/ingest', label: 'Ingest', icon: 'it-upload' },
   { to: '/imprinting', label: 'Imprinting', icon: 'it-pencil' },
   { to: '/training', label: 'Training', icon: 'it-chart-line' },
+  { to: '/options', label: 'Opzioni', icon: 'it-settings' },
 ];
 
 // Below this width the sidebar becomes an off-canvas drawer (mirrors

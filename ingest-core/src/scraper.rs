@@ -11,22 +11,6 @@ pub fn version() -> &'static str {
 
 const ALLOWED_CONTENT_TYPES: &[&str] = &["text/html", "text/plain", "application/xhtml+xml"];
 
-/// Hosts the operator has explicitly authorized to bypass robots.txt
-/// entirely — the comune's own official site, added 2026-08-01 at explicit
-/// operator request: `www.comune.maiolatispontini.an.it/robots.txt` sets
-/// `Disallow: /` for all crawlers except a handful of named search-engine
-/// bots (Googlebot etc.), which blocks this ingest system from the news
-/// listing (`/c042023/po/elenco_news.php`) even though it's the comune's own
-/// public content, ingested for the comune's own citizen-facing bot. This
-/// mirrors the precedent set for `halleyweb.com` (Plan 0030 / ADR 0015) —
-/// an explicit, named, operator-authorized exception — without that ADR's
-/// full writeup, per explicit operator instruction to skip it for this case.
-const ROBOTS_BYPASS_HOSTS: &[&str] = &["www.comune.maiolatispontini.an.it"];
-
-fn is_robots_bypass_host(host: &str) -> bool {
-    ROBOTS_BYPASS_HOSTS.contains(&host)
-}
-
 struct RobotsRules {
     disallows: Vec<String>,
     allows: Vec<String>,
@@ -78,10 +62,20 @@ impl ScraperAdapter {
         }
     }
 
-    pub async fn fetch_text(&mut self, url: &str) -> Result<String, IngestError> {
+    /// `robots_bypass_hosts` is the operator-configured allowlist (admin-ui
+    /// "Opzioni" > "Scraper", persisted in `robots_bypass_host` — see
+    /// `KbStore::list_robots_bypass_hosts`) of hosts to fetch without ever
+    /// checking their robots.txt. Read fresh by the caller on every call
+    /// (not cached here) so an operator's edit takes effect on the very
+    /// next ingest, no redeploy needed.
+    pub async fn fetch_text(
+        &mut self,
+        url: &str,
+        robots_bypass_hosts: &[String],
+    ) -> Result<String, IngestError> {
         let parsed = Url::parse(url).map_err(IngestError::UrlParse)?;
 
-        if !self.check_robots(url).await? {
+        if !self.check_robots(url, robots_bypass_hosts).await? {
             return Err(IngestError::RobotsTxt(format!(
                 "path {} is disallowed by robots.txt",
                 parsed.path()
@@ -125,11 +119,15 @@ impl ScraperAdapter {
         }
     }
 
-    async fn check_robots(&mut self, url: &str) -> Result<bool, IngestError> {
+    async fn check_robots(
+        &mut self,
+        url: &str,
+        robots_bypass_hosts: &[String],
+    ) -> Result<bool, IngestError> {
         let parsed = Url::parse(url).map_err(IngestError::UrlParse)?;
         let host = parsed.host_str().unwrap_or("localhost");
 
-        if is_robots_bypass_host(host) {
+        if robots_bypass_hosts.iter().any(|h| h == host) {
             return Ok(true);
         }
 
@@ -284,7 +282,7 @@ mod tests {
 
         let mut adapter = ScraperAdapter::new("test-agent".into());
         let result = adapter
-            .fetch_text(&format!("{}/page", mock_server.uri()))
+            .fetch_text(&format!("{}/page", mock_server.uri()), &[])
             .await;
 
         assert!(result.is_ok(), "expected ok, got {result:?}");
@@ -315,7 +313,7 @@ mod tests {
 
         let mut adapter = ScraperAdapter::new("test-agent".into());
         let result = adapter
-            .fetch_text(&format!("{}/file.pdf", mock_server.uri()))
+            .fetch_text(&format!("{}/file.pdf", mock_server.uri()), &[])
             .await;
 
         assert!(matches!(result, Err(IngestError::ContentType(_))));
@@ -340,7 +338,7 @@ mod tests {
 
         let mut adapter = ScraperAdapter::new("test-agent".into());
         let result = adapter
-            .fetch_text(&format!("{}/error", mock_server.uri()))
+            .fetch_text(&format!("{}/error", mock_server.uri()), &[])
             .await;
 
         assert!(result.is_err());
@@ -363,7 +361,7 @@ mod tests {
 
         let mut adapter = ScraperAdapter::new("test-agent".into());
         let result = adapter
-            .fetch_text(&format!("{}/private/data", mock_server.uri()))
+            .fetch_text(&format!("{}/private/data", mock_server.uri()), &[])
             .await;
 
         assert!(matches!(result, Err(IngestError::RobotsTxt(_))));
@@ -395,7 +393,7 @@ mod tests {
 
         let mut adapter = ScraperAdapter::new("test-agent".into());
         let result = adapter
-            .fetch_text(&format!("{}/public/hello", mock_server.uri()))
+            .fetch_text(&format!("{}/public/hello", mock_server.uri()), &[])
             .await;
 
         assert!(result.is_ok(), "expected ok, got {result:?}");
@@ -422,7 +420,7 @@ mod tests {
 
         let mut adapter = ScraperAdapter::new("test-agent".into());
         let result = adapter
-            .fetch_text(&format!("{}/any/page", mock_server.uri()))
+            .fetch_text(&format!("{}/any/page", mock_server.uri()), &[])
             .await;
 
         assert!(result.is_ok(), "expected ok, got {result:?}");
@@ -451,7 +449,7 @@ mod tests {
 
         let mut adapter = ScraperAdapter::new("test-agent".into());
         let result = adapter
-            .fetch_text(&format!("{}/plain.txt", mock_server.uri()))
+            .fetch_text(&format!("{}/plain.txt", mock_server.uri()), &[])
             .await;
 
         assert!(result.is_ok(), "expected ok, got {result:?}");
@@ -494,11 +492,76 @@ mod tests {
         assert!(rules.is_allowed("/public/hello"));
     }
 
-    #[test]
-    fn should_bypass_robots_only_for_explicitly_authorized_hosts() {
-        assert!(is_robots_bypass_host("www.comune.maiolatispontini.an.it"));
-        assert!(!is_robots_bypass_host("example.com"));
-        assert!(!is_robots_bypass_host("halleyweb.com"));
+    #[tokio::test]
+    async fn should_bypass_robots_txt_entirely_for_an_operator_authorized_host() {
+        let mock_server = MockServer::start().await;
+
+        // Same disallow-everything robots.txt as should_honor_robots_txt_disallow
+        // — the only difference here is the caller-supplied bypass list.
+        let robots = "User-agent: *\nDisallow: /private/\n";
+        Mock::given(method("GET"))
+            .and(path("/robots.txt"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(robots)
+                    .insert_header("content-type", "text/plain"),
+            )
+            .mount(&mock_server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/private/data"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_raw(
+                    "<html><body>bypassed</body></html>"
+                        .to_string()
+                        .into_bytes(),
+                    "text/html",
+                ),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let host = Url::parse(&mock_server.uri())
+            .unwrap()
+            .host_str()
+            .unwrap()
+            .to_string();
+
+        let mut adapter = ScraperAdapter::new("test-agent".into());
+        let result = adapter
+            .fetch_text(&format!("{}/private/data", mock_server.uri()), &[host])
+            .await;
+
+        assert!(
+            result.is_ok(),
+            "expected the bypass host to skip robots.txt entirely, got {result:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn should_not_bypass_robots_txt_for_a_host_not_in_the_allowlist() {
+        let mock_server = MockServer::start().await;
+
+        let robots = "User-agent: *\nDisallow: /private/\n";
+        Mock::given(method("GET"))
+            .and(path("/robots.txt"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_string(robots)
+                    .insert_header("content-type", "text/plain"),
+            )
+            .mount(&mock_server)
+            .await;
+
+        let mut adapter = ScraperAdapter::new("test-agent".into());
+        let result = adapter
+            .fetch_text(
+                &format!("{}/private/data", mock_server.uri()),
+                &["some-other-host.example.com".to_string()],
+            )
+            .await;
+
+        assert!(matches!(result, Err(IngestError::RobotsTxt(_))));
     }
 
     #[test]

@@ -102,6 +102,12 @@ The 669 existing `documents` rows were backfilled by crawling the live Halley li
 
 Before adding a new one-off `:hover`/`cursor: pointer`/pagination-looking block to a component's `<style scoped>`, check whether `admin-ui/src/components/ds/` or `admin-ui/src/styles/` already has it — and if a second, slightly-different implementation of an existing pattern is about to be written, that is a signal to extract the shared version instead, not to add a third variant.
 
+### 3.12 Scraper Exceptions Must Be Operator-Configured, Never Hard-Coded
+
+**Every host authorized to bypass `robots.txt` must be recorded in the "Opzioni" > "Scraper" admin-ui page (`robots_bypass_host` table via `kb-store`), never as a literal string/constant in `ingest-core`, `backend`, or anywhere else in source code.** `ingest_core::scraper::ScraperAdapter::fetch_text` takes the allowlist as a parameter, read fresh from the database on every ingest call (`IngestPipeline::run` → `KbStore::list_robots_bypass_hosts`) — an operator's edit takes effect on the very next ingest, no redeploy needed. This mirrors, at the data layer, the same operator-authorized-exception principle [ADR 0015](../.adr/0015-non-interactive-curation-as-an-explicit-robots-txt-exception.md) established for the Halley curation path: a scraper policy decision belongs to the operator, recorded and auditable in one place, not buried in a `const` an operator can't see or change without a code change and a redeploy.
+
+This rule exists because it was violated once, in the same session it was written: a robots.txt exception for the comune's own news site was first added as a hard-coded `const ROBOTS_BYPASS_HOSTS: &[&str]` in `ingest-core/src/scraper.rs`, at explicit operator request to move fast ("whatever it takes"). It was corrected the same session into the DB-backed, admin-ui-editable form described above — this section records that correction as the permanent rule, not the shortcut as precedent.
+
 ---
 
 ## 4. Root-Level and Other Documentation

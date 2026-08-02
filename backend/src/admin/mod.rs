@@ -14,6 +14,7 @@ use crate::rag_engine::types::{AdminPersonaSnapshot, NewPersonaRequest, RagError
 pub mod ingest_config;
 pub mod ingest_manual;
 pub mod ingest_run;
+pub mod scraper_options;
 pub mod training_feedback;
 pub mod training_messages;
 pub mod training_sessions;
