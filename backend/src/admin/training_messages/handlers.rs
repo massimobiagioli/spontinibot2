@@ -194,6 +194,7 @@ mod tests {
                 sources: vec![TrainingMessageSource {
                     document_id: 7,
                     source_ref: "orari.md".into(),
+                    source_url: None,
                 }],
                 fell_back: false,
                 created_at: "2026-07-24T00:00:00Z".into(),

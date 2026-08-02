@@ -31,6 +31,7 @@ impl UploadPort for IngestCoreUploadAdapter {
             "tags": metadata.tags,
             "trust_score": metadata.trust_score,
             "summary": metadata.summary,
+            "source_url": metadata.source_url,
         });
         let metadata_str = Some(metadata_json.to_string());
 
@@ -88,6 +89,7 @@ mod tests {
             tags: Some(vec!["tag1".into()]),
             trust_score: Some(0.9),
             summary: None,
+            source_url: None,
         };
 
         let ids = adapter

@@ -653,6 +653,7 @@ fn given_document_title(world: &mut BotWorld, title: String) {
             .into(),
         source_ref: title,
         similarity: 0.85,
+        source_url: None,
     });
 }
 

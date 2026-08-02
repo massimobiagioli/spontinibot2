@@ -12,6 +12,11 @@ pub struct UploadMetadata {
     pub tags: Option<Vec<String>>,
     pub trust_score: Option<f32>,
     pub summary: Option<String>,
+    /// The publicly reachable page this document was sourced from (e.g. the
+    /// Halley "atti-amministrativi" detail page for a delibera). `None` for
+    /// manual uploads with no known public URL — the citation then falls
+    /// back to the document title instead of a link.
+    pub source_url: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -100,6 +105,7 @@ mod tests {
                 tags: None,
                 trust_score: None,
                 summary: None,
+                source_url: None,
             },
             filename: "test.txt".into(),
             created_at: Utc::now(),

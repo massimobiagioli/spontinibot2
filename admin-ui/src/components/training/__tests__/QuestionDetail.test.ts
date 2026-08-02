@@ -61,7 +61,7 @@ describe('QuestionDetail', () => {
     expect(wrapper.find('details').exists()).toBe(false);
   });
 
-  it('renders a URL source as a clickable link and a non-URL one as plain text', () => {
+  it('renders a source with a source_url as a clickable link and one without as plain text', () => {
     vi.spyOn(adminApi, 'listTrainingFeedback').mockResolvedValue([]);
 
     const wrapper = mount(QuestionDetail, {
@@ -69,7 +69,11 @@ describe('QuestionDetail', () => {
         message: {
           ...chatMessage,
           sources: [
-            { document_id: 7, source_ref: 'https://example.com/orari' },
+            {
+              document_id: 7,
+              source_ref: 'Delibera di Giunta n. 74 del 13/07/2026',
+              source_url: 'https://example.com/orari',
+            },
             { document_id: 8, source_ref: 'Regolamento comunale' },
           ],
         },
@@ -80,6 +84,7 @@ describe('QuestionDetail', () => {
     const link = wrapper.find('a[href="https://example.com/orari"]');
     expect(link.exists()).toBe(true);
     expect(link.attributes('target')).toBe('_blank');
+    expect(link.text()).toBe('Delibera di Giunta n. 74 del 13/07/2026');
     expect(wrapper.findAll('a').length).toBe(1);
     expect(wrapper.text()).toContain('Regolamento comunale');
   });

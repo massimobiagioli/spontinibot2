@@ -6,10 +6,6 @@ defineProps<{
   question: string;
   response: ChatResponse;
 }>();
-
-function isLink(sourceRef: string): boolean {
-  return /^https?:\/\//.test(sourceRef);
-}
 </script>
 
 <template>
@@ -36,8 +32,8 @@ function isLink(sourceRef: string): boolean {
           <ul>
             <li v-for="source in response.sources" :key="source.document_id">
               <a
-                v-if="isLink(source.source_ref)"
-                :href="source.source_ref"
+                v-if="source.source_url"
+                :href="source.source_url"
                 target="_blank"
                 rel="noopener noreferrer"
               >

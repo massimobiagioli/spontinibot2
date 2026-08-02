@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 pub struct TrainingMessageSource {
     pub document_id: i64,
     pub source_ref: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -139,6 +141,7 @@ mod tests {
             sources: vec![TrainingMessageSource {
                 document_id: 7,
                 source_ref: "orari.md".into(),
+                source_url: None,
             }],
             fell_back: false,
             created_at: "2026-07-24T00:00:00Z".into(),
@@ -152,5 +155,27 @@ mod tests {
             json["sources"],
             serde_json::json!([{"document_id": 7, "source_ref": "orari.md"}])
         );
+    }
+
+    #[test]
+    fn should_serialize_source_url_when_present() {
+        let source = TrainingMessageSource {
+            document_id: 7,
+            source_ref: "delibera-di-giunta-74-2026-07-13.pdf".into(),
+            source_url: Some("https://www.halleyweb.com/detail/74".into()),
+        };
+
+        let json = serde_json::to_value(&source).expect("serialization failed");
+        assert_eq!(json["source_url"], "https://www.halleyweb.com/detail/74");
+    }
+
+    #[test]
+    fn should_deserialize_sources_json_missing_source_url_as_none() {
+        // Rows persisted before `source_url` existed store `sources` JSON
+        // without that key at all — this must not fail deserialization.
+        let source: TrainingMessageSource =
+            serde_json::from_str(r#"{"document_id": 7, "source_ref": "orari.md"}"#)
+                .expect("deserialization failed");
+        assert_eq!(source.source_url, None);
     }
 }

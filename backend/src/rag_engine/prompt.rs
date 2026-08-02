@@ -40,12 +40,14 @@ mod tests {
                 content: "L'anagrafe apre alle 9:00.".into(),
                 source_ref: "orari.md".into(),
                 similarity: 0.85,
+                source_url: None,
             },
             RetrievedChunk {
                 id: 2,
                 content: "Chiude alle 12:30.".into(),
                 source_ref: "contatti.md".into(),
                 similarity: 0.72,
+                source_url: None,
             },
         ]
     }

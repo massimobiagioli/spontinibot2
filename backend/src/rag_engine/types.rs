@@ -11,17 +11,24 @@ pub struct RetrievedChunk {
     pub source_ref: String,
     pub content: String,
     pub similarity: f64,
+    /// The publicly reachable page this chunk's document was sourced from,
+    /// when known (see `UploadMetadata::source_url`). `None` for manual
+    /// uploads and any document ingested before this field existed.
+    pub source_url: Option<String>,
 }
 
 /// A cited source in the generation response.
 ///
-/// The frontend renders this as an expandable inline reference. The `document_id`
-/// ties back to the `documents` table; the `source_ref` is the human-readable
-/// title (URL, filename, or upload label).
+/// The frontend renders this as an expandable inline reference. The
+/// `document_id` ties back to the `documents` table; `source_ref` is always
+/// the human-readable title (filename or upload label — never a URL, so it's
+/// safe to render as plain text). `source_url`, when present, is the
+/// publicly reachable page the frontend renders as the actual link.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CitedSource {
     pub document_id: i64,
     pub source_ref: String,
+    pub source_url: Option<String>,
 }
 
 /// The answer returned by `RagEngine::answer()`.
@@ -145,6 +152,7 @@ mod tests {
             source_ref: "orari-anagrafe.md".into(),
             content: "Contenuto.".into(),
             similarity: 0.87,
+            source_url: None,
         };
         let display = chunk.to_string();
         assert!(display.contains("42"), "display should include id");
@@ -186,6 +194,7 @@ mod tests {
             sources: vec![CitedSource {
                 document_id: 1,
                 source_ref: "orari.md".into(),
+                source_url: None,
             }],
             fell_back: false,
         };
@@ -225,6 +234,7 @@ mod tests {
             source_ref: "test".into(),
             content: "content".into(),
             similarity: 0.95,
+            source_url: None,
         };
         assert_eq!(chunk.id, 1);
         assert!((chunk.similarity - 0.95).abs() < f64::EPSILON);

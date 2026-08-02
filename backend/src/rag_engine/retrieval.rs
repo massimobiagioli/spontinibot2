@@ -37,9 +37,18 @@ impl RetrievalPort for RetrievalAdapter {
                 source_ref: s.document.source_ref,
                 content: s.document.content,
                 similarity: s.similarity,
+                source_url: extract_source_url(s.document.metadata.as_deref()),
             })
             .collect())
     }
+}
+
+/// Best-effort: a missing or malformed `metadata` blob (any document
+/// ingested before this field existed, or a manual upload with no known
+/// URL) must never break retrieval — it just means no link is offered.
+fn extract_source_url(metadata: Option<&str>) -> Option<String> {
+    let value: serde_json::Value = serde_json::from_str(metadata?).ok()?;
+    value.get("source_url")?.as_str().map(String::from)
 }
 
 #[cfg(test)]
@@ -161,6 +170,70 @@ mod tests {
         assert_eq!(chunk.source_ref, "anagrafe.md");
         assert_eq!(chunk.content, "Orari: 9-12:30");
         assert!(chunk.id > 0);
+        assert_eq!(chunk.source_url, None);
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_extract_source_url_from_metadata_when_present() {
+        let path = temp_db_path();
+        let store = Arc::new(KbStore::open(&path).await.unwrap());
+
+        let embedding = vec![0.1f32; EMBEDDING_DIM];
+        store
+            .insert_document(NewDocument {
+                source: DocumentSource::Scrape,
+                source_ref: "delibera-di-giunta-74-2026-07-13.pdf".into(),
+                content: "Contenuto della delibera 74.".into(),
+                metadata: Some(r#"{"source_url": "https://www.halleyweb.com/detail/74"}"#.into()),
+                embedding,
+                section: Some("delibere".into()),
+            })
+            .await
+            .unwrap();
+
+        let adapter = RetrievalAdapter::new(store.clone());
+        let results = adapter
+            .retrieve(&[0.1f32; EMBEDDING_DIM], 5, -1.0)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            results[0].source_url.as_deref(),
+            Some("https://www.halleyweb.com/detail/74")
+        );
+
+        drop(store);
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn should_tolerate_malformed_metadata_without_failing_retrieval() {
+        let path = temp_db_path();
+        let store = Arc::new(KbStore::open(&path).await.unwrap());
+
+        let embedding = vec![0.1f32; EMBEDDING_DIM];
+        store
+            .insert_document(NewDocument {
+                source: DocumentSource::Manual,
+                source_ref: "old-upload.md".into(),
+                content: "Contenuto.".into(),
+                metadata: Some("not valid json".into()),
+                embedding,
+                section: None,
+            })
+            .await
+            .unwrap();
+
+        let adapter = RetrievalAdapter::new(store.clone());
+        let results = adapter
+            .retrieve(&[0.1f32; EMBEDDING_DIM], 5, -1.0)
+            .await
+            .unwrap();
+
+        assert_eq!(results[0].source_url, None);
 
         drop(store);
         let _ = std::fs::remove_file(&path);

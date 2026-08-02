@@ -66,6 +66,7 @@ impl TrainingMessageAdminPort for RagTrainingMessageAdapter {
                 .map(|s| TrainingMessageSource {
                     document_id: s.document_id,
                     source_ref: s.source_ref.clone(),
+                    source_url: s.source_url.clone(),
                 })
                 .collect();
             let sources_json = serde_json::to_string(&sources)
@@ -229,6 +230,7 @@ mod tests {
             content: "L'anagrafe apre alle 9:00.".into(),
             source_ref: "orari.md".into(),
             similarity: 0.85,
+            source_url: None,
         }]
     }
 
@@ -383,9 +385,7 @@ mod tests {
         let rag_engine = engine_with_chunks(sample_chunks());
         let adapter = RagTrainingMessageAdapter::new(store, rag_engine);
 
-        let result = adapter
-            .update_expected_answer(999, Some("x".into()))
-            .await;
+        let result = adapter.update_expected_answer(999, Some("x".into())).await;
 
         assert!(matches!(
             result,

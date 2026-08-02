@@ -106,7 +106,10 @@ mod tests {
 
         let first_pos = notes.find("Prima nota.").unwrap();
         let second_pos = notes.find("Seconda nota.").unwrap();
-        assert!(first_pos < second_pos, "a-first.md must come before b-second.md");
+        assert!(
+            first_pos < second_pos,
+            "a-first.md must come before b-second.md"
+        );
         assert!(notes.contains("\n\n---\n\n"));
 
         std::fs::remove_dir_all(&dir).unwrap();

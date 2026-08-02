@@ -20,10 +20,6 @@ const emit = defineEmits<{
 
 const dialogRef = ref<HTMLDialogElement | null>(null);
 
-function isLink(sourceRef: string): boolean {
-  return /^https?:\/\//.test(sourceRef);
-}
-
 onMounted(() => {
   if (typeof dialogRef.value?.showModal === 'function') {
     dialogRef.value.showModal();
@@ -108,8 +104,8 @@ function onFeedbackChanged(list: TrainingFeedbackResponse[]): void {
           <ul class="question-detail__sources">
             <li v-for="source in message.sources" :key="source.document_id">
               <a
-                v-if="isLink(source.source_ref)"
-                :href="source.source_ref"
+                v-if="source.source_url"
+                :href="source.source_url"
                 target="_blank"
                 rel="noopener noreferrer"
               >

@@ -77,14 +77,18 @@ describe('ChatMessage', () => {
     expect(wrapper.findAll('li')).toHaveLength(0);
   });
 
-  it('renders a URL source_ref as a clickable link that opens in a new tab', () => {
+  it('renders a source with a source_url as a clickable link, labeled by the readable title', () => {
     const wrapper = mount(ChatMessage, {
       props: {
         question: 'domanda',
         response: {
           answer: 'risposta',
           sources: [
-            { document_id: 1, source_ref: 'https://example.com/news/1' },
+            {
+              document_id: 1,
+              source_ref: 'Delibera di Giunta n. 74 del 13/07/2026',
+              source_url: 'https://www.halleyweb.com/detail/74',
+            },
           ],
           fell_back: false,
         },
@@ -93,12 +97,13 @@ describe('ChatMessage', () => {
 
     const link = wrapper.find('a');
     expect(link.exists()).toBe(true);
-    expect(link.attributes('href')).toBe('https://example.com/news/1');
+    expect(link.attributes('href')).toBe('https://www.halleyweb.com/detail/74');
     expect(link.attributes('target')).toBe('_blank');
     expect(link.attributes('rel')).toBe('noopener noreferrer');
+    expect(link.text()).toBe('Delibera di Giunta n. 74 del 13/07/2026');
   });
 
-  it('renders a non-URL source_ref (e.g. a document title) as plain text, not a link', () => {
+  it('renders a source with no source_url as plain text, not a link', () => {
     const wrapper = mount(ChatMessage, {
       props: { question: 'domanda', response: answeredResponse },
     });

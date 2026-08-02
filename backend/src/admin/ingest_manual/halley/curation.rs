@@ -172,6 +172,7 @@ impl HalleyCurationAdapter {
             },
             trust_score: Some(TRUST_SCORE),
             summary: Some(detail.oggetto.clone()),
+            source_url: Some(detail_url.clone()),
         };
 
         self.upload
@@ -255,8 +256,9 @@ mod tests {
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
-    /// (text, section, filename, summary) recorded per `ingest_uploaded` call.
-    type RecordedCall = (String, String, String, Option<String>);
+    /// (text, section, filename, summary, source_url) recorded per
+    /// `ingest_uploaded` call.
+    type RecordedCall = (String, String, String, Option<String>, Option<String>);
 
     struct RecordingUploadPort {
         calls: Mutex<Vec<RecordedCall>>,
@@ -298,6 +300,7 @@ mod tests {
                 section.to_string(),
                 filename.to_string(),
                 metadata.summary.clone(),
+                metadata.source_url.clone(),
             ));
             Ok(vec![1])
         }
@@ -411,12 +414,12 @@ mod tests {
         assert!(
             calls
                 .iter()
-                .any(|(_, _, f, _)| f == "delibera-di-giunta-75-2026-07-20.txt")
+                .any(|(_, _, f, _, _)| f == "delibera-di-giunta-75-2026-07-20.txt")
         );
         assert!(
             calls
                 .iter()
-                .any(|(_, _, f, _)| f == "delibera-di-giunta-74-2026-07-13.txt")
+                .any(|(_, _, f, _, _)| f == "delibera-di-giunta-74-2026-07-13.txt")
         );
     }
 
@@ -479,6 +482,12 @@ mod tests {
             Some("Atto numero 74"),
             "the uploaded metadata's summary must match the real Oggetto text \
              from the detail page, not be discarded"
+        );
+        assert_eq!(
+            calls[0].4.as_deref(),
+            Some(format!("{src}/detail/74").as_str()),
+            "the uploaded metadata's source_url must be the resolved detail \
+             page URL, so the citation can link back to the real document"
         );
     }
 
@@ -823,7 +832,8 @@ mod tests {
 
         let calls = upload.calls.lock().unwrap();
         assert_eq!(calls.len(), 2);
-        let filenames: std::collections::HashSet<_> = calls.iter().map(|(_, _, f, _)| f).collect();
+        let filenames: std::collections::HashSet<_> =
+            calls.iter().map(|(_, _, f, _, _)| f).collect();
         assert_eq!(
             filenames.len(),
             2,

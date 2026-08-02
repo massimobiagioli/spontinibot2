@@ -167,6 +167,7 @@ export interface DeletedResponse {
 export interface TrainingMessageSource {
   document_id: number;
   source_ref: string;
+  source_url?: string;
 }
 
 export interface TrainingMessageResponse {

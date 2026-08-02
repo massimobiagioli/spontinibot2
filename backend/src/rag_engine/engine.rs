@@ -84,7 +84,11 @@ impl RagEngine {
 
         // Best-effort: an unreadable/misconfigured training-notes directory
         // must never break answering — it's supplementary, not load-bearing.
-        let notes = self.training_notes.training_notes().await.unwrap_or_default();
+        let notes = self
+            .training_notes
+            .training_notes()
+            .await
+            .unwrap_or_default();
         let prompt = prompt::assemble(&persona, &chunks, question, &notes);
         let text = self.generation.generate(prompt).await?;
         let sources = chunks
@@ -92,6 +96,7 @@ impl RagEngine {
             .map(|c| CitedSource {
                 document_id: c.id,
                 source_ref: c.source_ref.clone(),
+                source_url: c.source_url.clone(),
             })
             .collect();
 
@@ -240,6 +245,7 @@ mod tests {
             content: "L'anagrafe apre alle 9:00.".into(),
             source_ref: "orari.md".into(),
             similarity: 0.85,
+            source_url: None,
         }]
     }
 
@@ -266,6 +272,32 @@ mod tests {
         assert!(!answer.fell_back);
         assert_eq!(answer.sources.len(), 1);
         assert_eq!(answer.sources[0].source_ref, "orari.md");
+    }
+
+    #[tokio::test]
+    async fn should_carry_chunk_source_url_through_to_cited_source() {
+        let mut chunks = sample_chunks();
+        chunks[0].source_url = Some("https://www.halleyweb.com/detail/74".into());
+
+        let engine = RagEngine::new(
+            Arc::new(TestEmbedding),
+            Arc::new(TestRetrieval { chunks }),
+            Arc::new(TestPersona {
+                snapshot: Some(sample_persona()),
+            }),
+            Arc::new(TestGeneration {
+                call_count: AtomicUsize::new(0),
+            }),
+            5,
+            0.35,
+        );
+
+        let answer = engine.answer("A che ora apre l'anagrafe?").await.unwrap();
+
+        assert_eq!(
+            answer.sources[0].source_url.as_deref(),
+            Some("https://www.halleyweb.com/detail/74")
+        );
     }
 
     #[tokio::test]
@@ -433,7 +465,9 @@ mod tests {
         engine.answer("A che ora apre l'anagrafe?").await.unwrap();
 
         let received = generation.received.lock().unwrap();
-        let prompt = received.as_ref().expect("generate() should have been called");
+        let prompt = received
+            .as_ref()
+            .expect("generate() should have been called");
         assert!(prompt.system.starts_with("Sei Gaspare Spontini."));
         assert!(
             prompt
@@ -466,7 +500,9 @@ mod tests {
         engine.answer("A che ora apre l'anagrafe?").await.unwrap();
 
         let received = generation.received.lock().unwrap();
-        let prompt = received.as_ref().expect("generate() should have been called");
+        let prompt = received
+            .as_ref()
+            .expect("generate() should have been called");
         assert_eq!(prompt.system, "Sei Gaspare Spontini.");
     }
 }

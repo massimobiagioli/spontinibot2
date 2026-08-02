@@ -11,6 +11,7 @@ export class ChatApiError extends Error {
 export interface ChatSource {
   document_id: number;
   source_ref: string;
+  source_url?: string;
 }
 
 export interface ChatResponse {

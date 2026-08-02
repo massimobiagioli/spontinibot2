@@ -21,6 +21,8 @@ pub struct ChatRequest {
 pub struct ChatSource {
     pub document_id: i64,
     pub source_ref: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -66,6 +68,7 @@ pub async fn chat(
         .map(|s| ChatSource {
             document_id: s.document_id,
             source_ref: s.source_ref.clone(),
+            source_url: s.source_url.clone(),
         })
         .collect();
 
