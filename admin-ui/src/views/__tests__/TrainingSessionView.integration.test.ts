@@ -195,10 +195,8 @@ describe('TrainingSessionView integration scenario', () => {
     const wrapper = await mountAtSession();
     await flushPromises();
 
-    await wrapper
-      .find('textarea')
-      .setValue('Sessione conclusa senza problemi');
-    await wrapper.find('button.btn-danger').trigger('click');
+    await wrapper.find('textarea').setValue('Sessione conclusa senza problemi');
+    await wrapper.find('button.btn-outline-danger').trigger('click');
 
     const dialog = wrapper.find('[data-testid="close-session-dialog"]');
     expect(dialog.attributes('open')).toBeDefined();

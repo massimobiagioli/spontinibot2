@@ -46,15 +46,16 @@ async function mountWithRouter(sessions: adminApi.TrainingSessionResponse[]) {
   await router.push('/training');
   await router.isReady();
 
-  return mount(SessionList, {
+  const wrapper = mount(SessionList, {
     props: { sessions },
     global: { plugins: [router] },
   });
+  return { wrapper, router };
 }
 
 describe('SessionList', () => {
   it('renders open sessions with an "Aperta" badge and closed sessions with a "Chiusa" badge', async () => {
-    const wrapper = await mountWithRouter([openSession, closedSession]);
+    const { wrapper } = await mountWithRouter([openSession, closedSession]);
 
     expect(wrapper.text()).toContain('Sessione aperta');
     expect(wrapper.text()).toContain('Sessione chiusa');
@@ -65,10 +66,31 @@ describe('SessionList', () => {
   });
 
   it('links each session to its detail route', async () => {
-    const wrapper = await mountWithRouter([openSession]);
+    const { wrapper } = await mountWithRouter([openSession]);
 
     const link = wrapper.get('a');
     expect(link.attributes('href')).toBe('/training/1');
+  });
+
+  it('is a clickable card, like the question cards in a session: clicking anywhere on it navigates to the session', async () => {
+    const { wrapper, router } = await mountWithRouter([openSession]);
+
+    expect(wrapper.get('.session-list__card').classes()).toContain(
+      'clickable-card',
+    );
+
+    await wrapper.get('.session-list__card').trigger('click');
+    await flushPromises();
+
+    expect(router.currentRoute.value.path).toBe('/training/1');
+  });
+
+  it('does not navigate when the delete button inside the card is clicked', async () => {
+    const { wrapper, router } = await mountWithRouter([openSession]);
+
+    await wrapper.find('li button').trigger('click');
+
+    expect(router.currentRoute.value.path).toBe('/training');
   });
 
   it('calls createSession when the add-session form is submitted', async () => {
@@ -76,7 +98,7 @@ describe('SessionList', () => {
       .spyOn(adminApi, 'createSession')
       .mockResolvedValue(openSession);
 
-    const wrapper = await mountWithRouter([]);
+    const { wrapper } = await mountWithRouter([]);
 
     await wrapper.find('input[type="text"]').setValue('Sessione di prova');
     await wrapper.find('form').trigger('submit');
@@ -91,7 +113,7 @@ describe('SessionList', () => {
       new adminApi.AdminApiError(400, 'invalid title'),
     );
 
-    const wrapper = await mountWithRouter([]);
+    const { wrapper } = await mountWithRouter([]);
 
     await wrapper.find('input[type="text"]').setValue('');
     await wrapper.find('form').trigger('submit');
@@ -106,7 +128,7 @@ describe('SessionList', () => {
       .spyOn(adminApi, 'deleteSession')
       .mockResolvedValue({ deleted: true });
 
-    const wrapper = await mountWithRouter([openSession]);
+    const { wrapper } = await mountWithRouter([openSession]);
 
     await wrapper.find('li button').trigger('click');
     expect(deleteSessionSpy).not.toHaveBeenCalled();
@@ -124,7 +146,7 @@ describe('SessionList', () => {
   it('does not call deleteSession when the dialog is cancelled', async () => {
     const deleteSessionSpy = vi.spyOn(adminApi, 'deleteSession');
 
-    const wrapper = await mountWithRouter([openSession]);
+    const { wrapper } = await mountWithRouter([openSession]);
 
     await wrapper.find('li button').trigger('click');
     await wrapper
@@ -140,7 +162,7 @@ describe('SessionList', () => {
       new adminApi.AdminApiError(500, 'internal error'),
     );
 
-    const wrapper = await mountWithRouter([openSession]);
+    const { wrapper } = await mountWithRouter([openSession]);
 
     await wrapper.find('li button').trigger('click');
     await wrapper
@@ -150,5 +172,45 @@ describe('SessionList', () => {
     await flushPromises();
 
     expect(wrapper.text()).toContain('internal error');
+  });
+
+  function makeSessions(count: number): adminApi.TrainingSessionResponse[] {
+    return Array.from({ length: count }, (_, i) => ({
+      id: i + 1,
+      title: `Sessione ${i + 1}`,
+      created_at: '2026-07-24T00:00:00Z',
+      created_by: 'operator1',
+      closed_at: null,
+      notes: null,
+    }));
+  }
+
+  it('does not show pagination when everything fits on one page', async () => {
+    const { wrapper } = await mountWithRouter(makeSessions(9));
+
+    expect(
+      wrapper.find('nav[aria-label="Paginazione sessioni"]').exists(),
+    ).toBe(false);
+  });
+
+  it('paginates in blocks of 9, with page-number controls once there is a second page', async () => {
+    const { wrapper } = await mountWithRouter(makeSessions(10));
+
+    const cardTitle = () =>
+      wrapper.findAll('.it-card-title').map((el) => el.text());
+
+    expect(cardTitle()).toHaveLength(9);
+    expect(cardTitle()).toContain('Sessione 1');
+    expect(cardTitle()).not.toContain('Sessione 10');
+
+    const nav = wrapper.get('nav[aria-label="Paginazione sessioni"]');
+    const pageButtons = nav.findAll('li.page-item button');
+    // prev + page 1 + page 2 + next
+    expect(pageButtons.length).toBe(4);
+
+    await pageButtons[2]!.trigger('click');
+
+    expect(cardTitle()).toHaveLength(1);
+    expect(cardTitle()).toContain('Sessione 10');
   });
 });

@@ -120,13 +120,13 @@ describe('QuestionGrid', () => {
     await flushPromises();
 
     expect(wrapper.findAll('.question-grid__card')).toHaveLength(20);
-    expect(wrapper.text()).toContain('Pagina 1 di 5');
+    const nav = wrapper.get('nav[aria-label="Paginazione domande"]');
+    expect(nav.findAll('li.page-item')).toHaveLength(7); // prev + 5 pages + next
 
-    await wrapper
-      .find('[data-testid="question-grid-next-page"]')
-      .trigger('click');
+    await wrapper.findAll('li.page-item button')[2]!.trigger('click'); // page "2"
+    await flushPromises();
+
     expect(wrapper.findAll('.question-grid__card')).toHaveLength(20);
-    expect(wrapper.text()).toContain('Pagina 2 di 5');
     expect(wrapper.text()).toContain('Domanda numero 21');
   });
 
@@ -136,9 +136,9 @@ describe('QuestionGrid', () => {
     const wrapper = mount(QuestionGrid, { props: { messages } });
     await flushPromises();
 
-    expect(
-      wrapper.find('[data-testid="question-grid-next-page"]').exists(),
-    ).toBe(false);
+    expect(wrapper.find('nav[aria-label="Paginazione domande"]').exists()).toBe(
+      false,
+    );
   });
 
   it('resets to page 1 when the message set changes (e.g. switching sessions)', async () => {
@@ -149,14 +149,18 @@ describe('QuestionGrid', () => {
     });
     await flushPromises();
 
-    await wrapper
-      .find('[data-testid="question-grid-next-page"]')
-      .trigger('click');
-    expect(wrapper.text()).toContain('Pagina 2 di 2');
+    const pageButtons = () =>
+      wrapper
+        .get('nav[aria-label="Paginazione domande"]')
+        .findAll('li.page-item button');
+
+    await pageButtons()[2]!.trigger('click'); // page "2"
+    await flushPromises();
+    expect(pageButtons()[2]?.attributes('aria-current')).toBe('page');
 
     await wrapper.setProps({ messages: manyMessages(45) });
     await flushPromises();
 
-    expect(wrapper.text()).toContain('Pagina 1 di 3');
+    expect(pageButtons()[1]?.attributes('aria-current')).toBe('page'); // page "1"
   });
 });

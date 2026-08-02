@@ -11,3 +11,6 @@
 // `var(--it-...)` / `var(--bs-...)` / `var(--spontini-...)`, never
 // hard-coded hex/px — STACK.md §4.3).
 @use 'app';
+
+// Shared clickable-card interaction pattern — see _cards.scss.
+@use 'cards';

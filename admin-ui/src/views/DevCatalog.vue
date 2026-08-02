@@ -8,10 +8,12 @@ import {
   DsInfoButton,
   DsInput,
   DsNav,
+  DsPagination,
 } from '../components/ds';
 
 const inputValue = ref('');
 const inputWithHint = ref('');
+const catalogPage = ref(2);
 </script>
 
 <template>
@@ -68,6 +70,19 @@ const inputWithHint = ref('');
     <DsAccordion title="Secondo pannello">
       <p>Contenuto del secondo pannello, chiuso di default.</p>
     </DsAccordion>
+  </section>
+
+  <section>
+    <h2>DsPagination</h2>
+    <p>
+      Componente unico di paginazione — usato da SessionList e QuestionGrid, non
+      riscritto ad-hoc in ciascuna pagina.
+    </p>
+    <DsPagination
+      v-model:current-page="catalogPage"
+      :total-pages="5"
+      label="Esempio di paginazione"
+    />
   </section>
 
   <section>

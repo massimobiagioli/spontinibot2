@@ -5,3 +5,4 @@ export { default as DsConfirmDialog } from './DsConfirmDialog.vue';
 export { default as DsInfoButton } from './DsInfoButton.vue';
 export { default as DsInput } from './DsInput.vue';
 export { default as DsNav } from './DsNav.vue';
+export { default as DsPagination } from './DsPagination.vue';

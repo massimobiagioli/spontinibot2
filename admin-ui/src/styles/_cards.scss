@@ -1,0 +1,22 @@
+// Shared clickable-card interaction pattern (AGENTS.md "UI/UX consistency"
+// rule) — every card-shaped element that acts as a single clickable/tappable
+// unit uses this ONE hover/focus affordance, instead of each view inventing
+// its own (border-color here, box-shadow there, none at all somewhere else).
+// Apply alongside DSI's own `.it-card` (never replaces it): `it-card
+// clickable-card`.
+.clickable-card {
+  cursor: pointer;
+  transition: box-shadow 0.15s ease-in-out;
+
+  &:hover,
+  &:focus-within {
+    box-shadow: var(--bs-elevation-medium);
+  }
+
+  // A card wrapping its own focusable children (a title link, a delete
+  // button, ...) shows the affordance via :focus-within above — the DSI
+  // focus ring on the child itself still does its job, this is additive.
+  &:focus-visible {
+    box-shadow: var(--bs-elevation-medium);
+  }
+}

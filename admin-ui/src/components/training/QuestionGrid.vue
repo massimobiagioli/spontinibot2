@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 
-import { DsButton } from '../ds';
+import { DsPagination } from '../ds';
 import QuestionDetail from './QuestionDetail.vue';
 import {
   listTrainingFeedback,
@@ -54,14 +54,6 @@ const pagedMessages = computed(() =>
   ),
 );
 
-function prevPage(): void {
-  currentPage.value = Math.max(1, currentPage.value - 1);
-}
-
-function nextPage(): void {
-  currentPage.value = Math.min(totalPages.value, currentPage.value + 1);
-}
-
 type Verdict = 'positive' | 'negative' | 'none';
 
 function verdictFor(messageId: number): Verdict {
@@ -110,7 +102,7 @@ function onFeedbackChanged(
           v-for="message in pagedMessages"
           :key="message.id"
           type="button"
-          class="question-grid__card"
+          class="question-grid__card clickable-card"
           @click="open(message.id)"
         >
           <p class="question-grid__question">{{ message.question }}</p>
@@ -141,29 +133,11 @@ function onFeedbackChanged(
         </button>
       </div>
 
-      <nav v-if="messages.length > PAGE_SIZE" class="question-grid__pagination">
-        <DsButton
-          variant="secondary"
-          outline
-          data-testid="question-grid-prev-page"
-          :disabled="currentPage === 1"
-          @click="prevPage"
-        >
-          Precedente
-        </DsButton>
-        <span class="badge badge-light">
-          Pagina {{ currentPage }} di {{ totalPages }}
-        </span>
-        <DsButton
-          variant="secondary"
-          outline
-          data-testid="question-grid-next-page"
-          :disabled="currentPage === totalPages"
-          @click="nextPage"
-        >
-          Successivo
-        </DsButton>
-      </nav>
+      <DsPagination
+        v-model:current-page="currentPage"
+        :total-pages="totalPages"
+        label="Paginazione domande"
+      />
     </template>
 
     <QuestionDetail
@@ -193,12 +167,6 @@ function onFeedbackChanged(
   border: 1px solid rgba(31, 42, 55, 0.12);
   border-radius: 8px;
   background: var(--spontini-color-white, #fff);
-  cursor: pointer;
-}
-
-.question-grid__card:hover,
-.question-grid__card:focus-visible {
-  border-color: var(--spontini-color-primary);
 }
 
 .question-grid__question {
@@ -220,13 +188,5 @@ function onFeedbackChanged(
 .question-grid__time {
   font-size: 0.85rem;
   color: var(--spontini-color-text-muted, #6c757d);
-}
-
-.question-grid__pagination {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 1rem;
-  margin-top: 1.5rem;
 }
 </style>

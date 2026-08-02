@@ -57,7 +57,12 @@ async function confirm(): Promise<void> {
       />
     </div>
 
-    <DsButton variant="danger" :disabled="closing" @click="requestClose">
+    <DsButton
+      variant="danger"
+      outline
+      :disabled="closing"
+      @click="requestClose"
+    >
       Termina sessione
     </DsButton>
 

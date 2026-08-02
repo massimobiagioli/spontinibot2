@@ -65,7 +65,7 @@ describe('TrainingSessionView', () => {
     await flushPromises();
 
     expect(wrapper.text()).not.toContain('Aggiungi domanda');
-    expect(wrapper.find('button.btn-danger').exists()).toBe(false);
+    expect(wrapper.find('button.btn-outline-danger').exists()).toBe(false);
   });
 
   it('renders the closed-at date and notes for a closed session', async () => {

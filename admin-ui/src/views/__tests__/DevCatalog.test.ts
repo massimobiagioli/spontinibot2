@@ -28,6 +28,7 @@ describe('DevCatalog', () => {
       'DsAccordion',
       'Primo pannello',
       'Secondo pannello',
+      'DsPagination',
       'DsNav',
     ]);
   });

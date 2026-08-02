@@ -13,7 +13,7 @@ describe('CloseSessionForm', () => {
     const wrapper = mount(CloseSessionForm, { props: { sessionId: 1 } });
 
     await wrapper.find('textarea').setValue('  tutto ok  ');
-    await wrapper.find('button.btn-danger').trigger('click');
+    await wrapper.find('button.btn-outline-danger').trigger('click');
     expect(closeSessionSpy).not.toHaveBeenCalled();
 
     const dialog = wrapper.find('[data-testid="close-session-dialog"]');
@@ -33,7 +33,7 @@ describe('CloseSessionForm', () => {
 
     const wrapper = mount(CloseSessionForm, { props: { sessionId: 1 } });
 
-    await wrapper.find('button.btn-danger').trigger('click');
+    await wrapper.find('button.btn-outline-danger').trigger('click');
     await wrapper
       .find('[data-testid="close-session-dialog"]')
       .find('button.btn-danger')
@@ -48,7 +48,7 @@ describe('CloseSessionForm', () => {
 
     const wrapper = mount(CloseSessionForm, { props: { sessionId: 1 } });
 
-    await wrapper.find('button.btn-danger').trigger('click');
+    await wrapper.find('button.btn-outline-danger').trigger('click');
     await wrapper
       .find('[data-testid="close-session-dialog"]')
       .find('button.btn-outline-secondary')
@@ -64,7 +64,7 @@ describe('CloseSessionForm', () => {
 
     const wrapper = mount(CloseSessionForm, { props: { sessionId: 1 } });
 
-    await wrapper.find('button.btn-danger').trigger('click');
+    await wrapper.find('button.btn-outline-danger').trigger('click');
     await wrapper
       .find('[data-testid="close-session-dialog"]')
       .find('button.btn-danger')

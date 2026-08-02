@@ -97,7 +97,7 @@ async function addSection(): Promise<void> {
       >
         <RouterLink
           :to="`/ingest/sections/${section.id}`"
-          class="it-card sections-grid__card"
+          class="it-card clickable-card sections-grid__card"
         >
           <div class="it-card-title">
             <h3>{{ section.name }}</h3>
@@ -139,12 +139,5 @@ async function addSection(): Promise<void> {
   height: 100%;
   text-decoration: none;
   color: inherit;
-  cursor: pointer;
-  transition: box-shadow 0.15s ease-in-out;
-}
-
-.sections-grid__card:hover,
-.sections-grid__card:focus-visible {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 </style>
