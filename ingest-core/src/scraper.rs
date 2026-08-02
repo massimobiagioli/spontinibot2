@@ -11,6 +11,22 @@ pub fn version() -> &'static str {
 
 const ALLOWED_CONTENT_TYPES: &[&str] = &["text/html", "text/plain", "application/xhtml+xml"];
 
+/// Hosts the operator has explicitly authorized to bypass robots.txt
+/// entirely — the comune's own official site, added 2026-08-01 at explicit
+/// operator request: `www.comune.maiolatispontini.an.it/robots.txt` sets
+/// `Disallow: /` for all crawlers except a handful of named search-engine
+/// bots (Googlebot etc.), which blocks this ingest system from the news
+/// listing (`/c042023/po/elenco_news.php`) even though it's the comune's own
+/// public content, ingested for the comune's own citizen-facing bot. This
+/// mirrors the precedent set for `halleyweb.com` (Plan 0030 / ADR 0015) —
+/// an explicit, named, operator-authorized exception — without that ADR's
+/// full writeup, per explicit operator instruction to skip it for this case.
+const ROBOTS_BYPASS_HOSTS: &[&str] = &["www.comune.maiolatispontini.an.it"];
+
+fn is_robots_bypass_host(host: &str) -> bool {
+    ROBOTS_BYPASS_HOSTS.contains(&host)
+}
+
 struct RobotsRules {
     disallows: Vec<String>,
     allows: Vec<String>,
@@ -112,6 +128,11 @@ impl ScraperAdapter {
     async fn check_robots(&mut self, url: &str) -> Result<bool, IngestError> {
         let parsed = Url::parse(url).map_err(IngestError::UrlParse)?;
         let host = parsed.host_str().unwrap_or("localhost");
+
+        if is_robots_bypass_host(host) {
+            return Ok(true);
+        }
+
         let origin = match parsed.port() {
             Some(port) => format!("{}://{}:{}", parsed.scheme(), host, port),
             None => format!("{}://{}", parsed.scheme(), host),
@@ -471,6 +492,13 @@ mod tests {
         let body = "User-agent: *\nDisallow: /private/\nAllow: /public/\n";
         let rules = parse_robots_txt(body);
         assert!(rules.is_allowed("/public/hello"));
+    }
+
+    #[test]
+    fn should_bypass_robots_only_for_explicitly_authorized_hosts() {
+        assert!(is_robots_bypass_host("www.comune.maiolatispontini.an.it"));
+        assert!(!is_robots_bypass_host("example.com"));
+        assert!(!is_robots_bypass_host("halleyweb.com"));
     }
 
     #[test]
